@@ -8,11 +8,13 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 ENV NODE_OPTIONS=--max-old-space-size=2048
 
 COPY package*.json ./
-
-# Copy prisma schema BEFORE npm ci so the postinstall `prisma generate` can find it
 COPY prisma ./prisma
 
-RUN npm ci --legacy-peer-deps --no-audit --no-fund
+# Skip postinstall (prisma generate) during npm ci — run it explicitly below
+RUN npm ci --legacy-peer-deps --no-audit --no-fund --ignore-scripts
+
+# Now schema exists, generate Prisma client
+RUN npx prisma generate
 
 COPY . .
 RUN npm run build
@@ -21,7 +23,6 @@ RUN npm run build
 FROM node:20-slim
 WORKDIR /app
 
-# OpenSSL also needed at runtime by Prisma
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production

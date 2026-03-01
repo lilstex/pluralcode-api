@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.env
+.env.*
+*.log
+coverage
+test
+README.md
+
+# Never ignore prisma — the schema is needed at build time
+!prisma
