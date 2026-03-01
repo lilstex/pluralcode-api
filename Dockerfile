@@ -14,7 +14,7 @@ COPY prisma ./prisma
 RUN npm ci --legacy-peer-deps --no-audit --no-fund --ignore-scripts
 
 # Now schema exists, generate Prisma client
-RUN npx prisma generate
+RUN npx prisma generate --schema=./prisma/schema/schema.prisma
 
 COPY . .
 RUN npm run build
