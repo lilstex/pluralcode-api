@@ -6,3 +6,249 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+
+model User {
+  id                  String         @id @default(uuid())
+  email               String         @unique
+  passwordHash        String
+  otp                 String?
+  otpExpiresAt        DateTime?
+  role                Role           @default(GUEST)
+  status              ApprovalStatus @default(PENDING)
+  fullName            String
+  phoneNumber         String?
+  bio                 String?        @db.Text
+  avatarUrl           String?
+  skills              String[]
+  isEmailVerified     Boolean        @default(false)
+  showContactToPublic Boolean        @default(false)
+
+  // --- RELATIONS ---
+
+  // Organization (Many-to-Many)
+  organizations Organization[] @relation("OrgMembers")
+
+  // Engagement & Community
+  forumThreads ForumThread[] // Threads created by this user
+  posts        Post[] // Replies/Posts in forum threads
+  badges       Badge[] // Implicit Many-to-Many
+
+  // Permissions
+  adminPermission AdminPermission?
+
+  // Events
+  registrations EventRegistration[] // Event sign-ups
+
+  // Resources & Activity
+  downloads DownloadLog[]
+
+  // Audit relation
+  actionsPerformed AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@index([status])
+}
+
+model AdminPermission {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Stores an array of permission strings e.g. ["event:read", "event:write"]
+  permissions String[]
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String // e.g., "USER_DELETED", "RESOURCE_UPLOADED"
+  entity    String // e.g., "User", "Resource"
+  entityId  String
+  details   Json?
+  adminId   String
+  admin     User     @relation(fields: [adminId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  SUPER_ADMIN
+  CONTENT_ADMIN
+  EVENT_ADMIN
+  RESOURCE_ADMIN
+  NGO_MEMBER
+  EXPERT
+  GUEST
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+
+model Organization {
+  id                 String    @id @default(uuid())
+  name               String
+  cacNumber          String    @unique
+  sector             String
+  state              String
+  website            String?
+  description        String?   @db.Text
+  logoUrl            String? // Azure Blob URL
+  isSpotlight        Boolean   @default(false)
+  spotlightExpiresAt DateTime?
+  isPinnedSpotlight  Boolean   @default(false)
+
+  // Many-to-many: an organization can have multiple users of any role
+  members  User[]    @relation("OrgMembers")
+  odaForms ODAForm[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ODAForm {
+  id             String     @id @default(uuid())
+  status         FormStatus @default(IN_PROGRESS)
+  buildingBlock  String // e.g., "Governance"
+  indicatorScore Int? // The 1-4 score suggested by AI
+  evidenceUrl    String? // PDF uploaded by NGO
+  aiAnalysis     String?    @db.Text // The "Growth Pathway" report
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  orgId        String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+enum FormStatus {
+  IN_PROGRESS
+  SUBMITTED
+  COMPLETED
+}
+
+enum ResourceType {
+  DOCUMENT
+  VIDEO
+  AUDIO
+  ARTICLE
+}
+
+model Resource {
+  id          String       @id @default(uuid())
+  title       String
+  description String       @db.Text
+  contentUrl  String? // Azure Blob URL or external video URL
+  rawText     String?      @db.Text // OCR-extracted text for full-text search
+  type        ResourceType
+  author      String?
+  language    String? // ISO 639-1 e.g. "en", "fr"
+  region      String? // Geographic focus e.g. "Lagos", "North-East"
+  sector      String? // Thematic sector e.g. "Health", "Education"
+
+  // Relations
+  categoryId String
+  category   Category      @relation(fields: [categoryId], references: [id])
+  tags       Tag[]
+  downloads  DownloadLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([type])
+  @@index([language])
+  @@index([sector])
+  @@index([region])
+  @@index([createdAt])
+}
+
+model Category {
+  id   String @id @default(uuid())
+  name String @unique
+
+  // Self-referencing relationship for sub-categories
+  parentId String?
+  parent   Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  children Category[] @relation("SubCategories")
+
+  resources Resource[]
+}
+
+model Tag {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  resources Resource[]
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @db.Text
+  startTime   DateTime
+  endTime     DateTime
+  coverImage  String?
+  jitsiRoomId String   @unique
+  isPast      Boolean  @default(false)
+  archiveUrl  String? // Azure Media Services link
+
+  registrations EventRegistration[]
+}
+
+model EventRegistration {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, eventId]) // Prevents double registration
+}
+
+
+model ForumThread {
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @db.Text
+  isPrivate Boolean  @default(false)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  posts     Post[]
+  createdAt DateTime @default(now())
+}
+
+model Post {
+  id        String      @id @default(uuid())
+  content   String      @db.Text
+  threadId  String
+  thread    ForumThread @relation(fields: [threadId], references: [id])
+  authorId  String
+  author    User        @relation(fields: [authorId], references: [id])
+  createdAt DateTime    @default(now())
+}
+
+model Badge {
+  id             String  @id @default(uuid())
+  name           String  @unique
+  imageUrl       String
+  externalSource Boolean @default(false)
+  users          User[] // Implicit many-to-many with User
+}
+
+model DownloadLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id])
+  timestamp  DateTime @default(now())
+
+  @@index([userId])
+  @@index([resourceId])
+}
