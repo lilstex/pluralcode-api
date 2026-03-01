@@ -22,8 +22,8 @@ async function bootstrap() {
     .setTitle('PLRCAP/NORCAP NGO API Service')
     .setDescription('PLRCAP/NORCAP NGO API Docs')
     .setVersion('1.0')
-    .addServer('http://localhost:2200/', 'Local environment')
-    .addServer('https://plrcap-norcap-api.example.com/', 'Production')
+    .addServer('http://localhost:2200', 'Local environment')
+    .addServer('https://pluralcode-api.onrender.com', 'Production')
     .addBearerAuth()
     .build();
 
