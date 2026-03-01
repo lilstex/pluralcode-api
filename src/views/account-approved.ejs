@@ -1,0 +1,31 @@
+<%
+  var title = 'Your PLRCAP Account Has Been Approved';
+  var body = `
+    <h1>Your Account Has Been Approved!</h1>
+    <p>Hi <strong>${fullName}</strong>,</p>
+    <p>
+      Great news! Your registration on the <strong>PLRCAP/NORCAP NGO Support Hub</strong>
+      has been reviewed and <strong>approved</strong> by our team.
+    </p>
+
+    <div class="alert alert-success">
+      &#x2713;&nbsp; Your account is now <strong>active</strong>.
+      You will receive a separate email shortly with your login link.
+    </div>
+
+    <p>
+      As a verified member, you now have access to the full suite of Hub resources —
+      including the Knowledge Library, ODA Assessment, Community Forums, Expert Directory,
+      and live webinars.
+    </p>
+
+    <hr class="divider" />
+
+    <p style="font-size:13px; color:#718096;">
+      Approved account: <strong>${email}</strong><br />
+      Questions? Reach us at
+      <a href="mailto:support@plrcap.org" style="color:#2e86c1;">support@plrcap.org</a>
+    </p>
+  `;
+%>
+<%- include('_layout', { title, body }) %>

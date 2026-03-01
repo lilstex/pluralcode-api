@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title><%= title %></title>
+    <!--[if mso]>
+      <noscript>
+        <xml
+          ><o:OfficeDocumentSettings
+            ><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings
+          ></xml
+        >
+      </noscript>
+    <![endif]-->
+    <style>
+      /* Reset */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #f4f6f9;
+        font-family: 'Segoe UI', Arial, sans-serif;
+        -webkit-text-size-adjust: 100%;
+      }
+      table {
+        border-collapse: collapse;
+        mso-table-lspace: 0pt;
+        mso-table-rspace: 0pt;
+      }
+      img {
+        border: 0;
+        display: block;
+      }
+      a {
+        text-decoration: none;
+      }
+
+      /* Wrapper */
+      .email-wrapper {
+        width: 100%;
+        background-color: #f4f6f9;
+        padding: 40px 16px;
+      }
+
+      /* Card */
+      .email-card {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
+      }
+
+      /* Header */
+      .email-header {
+        background: linear-gradient(135deg, #1a5276 0%, #2e86c1 100%);
+        padding: 36px 40px;
+        text-align: center;
+      }
+      .email-header img {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 12px;
+      }
+      .email-header .brand {
+        color: #ffffff;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+      .email-header .tagline {
+        color: rgba(255, 255, 255, 0.75);
+        font-size: 13px;
+        margin-top: 4px;
+      }
+
+      /* Body */
+      .email-body {
+        padding: 40px;
+      }
+      .email-body h1 {
+        color: #1a2b3c;
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 16px;
+        line-height: 1.3;
+      }
+      .email-body p {
+        color: #4a5568;
+        font-size: 15px;
+        line-height: 1.7;
+        margin-bottom: 16px;
+      }
+      .email-body p:last-child {
+        margin-bottom: 0;
+      }
+
+      /* OTP Box */
+      .otp-box {
+        background: #eaf4ff;
+        border: 2px dashed #2e86c1;
+        border-radius: 10px;
+        text-align: center;
+        padding: 28px 20px;
+        margin: 28px 0;
+      }
+      .otp-box .otp-label {
+        color: #2e86c1;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 10px;
+      }
+      .otp-box .otp-code {
+        color: #1a2b3c;
+        font-size: 42px;
+        font-weight: 800;
+        letter-spacing: 12px;
+        font-family: 'Courier New', monospace;
+      }
+      .otp-box .otp-expiry {
+        color: #718096;
+        font-size: 12px;
+        margin-top: 10px;
+      }
+
+      /* CTA Button */
+      .btn-wrapper {
+        text-align: center;
+        margin: 32px 0;
+      }
+      .btn {
+        display: inline-block;
+        background: linear-gradient(135deg, #1a5276 0%, #2e86c1 100%);
+        color: #ffffff !important;
+        font-size: 15px;
+        font-weight: 600;
+        padding: 14px 36px;
+        border-radius: 8px;
+        letter-spacing: 0.3px;
+      }
+      .btn:hover {
+        opacity: 0.92;
+      }
+
+      /* Info Table */
+      .info-table {
+        width: 100%;
+        background: #f8fafc;
+        border-radius: 8px;
+        padding: 20px 24px;
+        margin: 24px 0;
+      }
+      .info-table td {
+        padding: 7px 0;
+        font-size: 14px;
+        color: #4a5568;
+        vertical-align: top;
+      }
+      .info-table td.label {
+        font-weight: 600;
+        color: #1a2b3c;
+        width: 140px;
+      }
+
+      /* Alert boxes */
+      .alert {
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin: 24px 0;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .alert-warning {
+        background: #fffbeb;
+        border-left: 4px solid #f59e0b;
+        color: #92400e;
+      }
+      .alert-success {
+        background: #ecfdf5;
+        border-left: 4px solid #10b981;
+        color: #065f46;
+      }
+      .alert-danger {
+        background: #fef2f2;
+        border-left: 4px solid #ef4444;
+        color: #991b1b;
+      }
+      .alert-info {
+        background: #eff6ff;
+        border-left: 4px solid #3b82f6;
+        color: #1e40af;
+      }
+
+      /* Divider */
+      .divider {
+        border: none;
+        border-top: 1px solid #e2e8f0;
+        margin: 28px 0;
+      }
+
+      /* Footer */
+      .email-footer {
+        background: #f8fafc;
+        border-top: 1px solid #e2e8f0;
+        padding: 28px 40px;
+        text-align: center;
+      }
+      .email-footer p {
+        color: #a0aec0;
+        font-size: 12px;
+        line-height: 1.7;
+        margin-bottom: 6px;
+      }
+      .email-footer a {
+        color: #2e86c1;
+      }
+      .social-links {
+        margin: 12px 0;
+      }
+      .social-links a {
+        display: inline-block;
+        margin: 0 6px;
+        color: #718096;
+        font-size: 12px;
+      }
+
+      /* Responsive */
+      @media only screen and (max-width: 600px) {
+        .email-body {
+          padding: 28px 24px;
+        }
+        .email-header {
+          padding: 28px 24px;
+        }
+        .email-footer {
+          padding: 24px;
+        }
+        .otp-box .otp-code {
+          font-size: 32px;
+          letter-spacing: 8px;
+        }
+        .info-table td.label {
+          width: 110px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-wrapper">
+      <div class="email-card">
+        <!-- Header -->
+        <div class="email-header">
+          <div class="brand">PLRCAP NGO Hub</div>
+          <div class="tagline">Empowering Nigerian NGOs</div>
+        </div>
+
+        <!-- Body -->
+        <div class="email-body"><%- body %></div>
+
+        <!-- Footer -->
+        <div class="email-footer">
+          <p>
+            This email was sent by the
+            <strong>PLRCAP/NORCAP NGO Support Hub</strong>.
+          </p>
+          <p>
+            If you did not request this, please ignore this email or
+            <a href="mailto:support@plrcap.org">contact support</a>.
+          </p>
+          <hr class="divider" style="margin: 16px 0" />
+          <p>
+            &copy; <%= new Date().getFullYear() %> PLRCAP/NORCAP. All rights
+            reserved.
+          </p>
+          <p>Norwegian Refugee Council Nigeria</p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

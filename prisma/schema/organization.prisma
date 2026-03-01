@@ -1,0 +1,40 @@
+model Organization {
+  id                 String    @id @default(uuid())
+  name               String
+  cacNumber          String    @unique
+  sector             String
+  state              String
+  website            String?
+  description        String?   @db.Text
+  logoUrl            String? // Azure Blob URL
+  isSpotlight        Boolean   @default(false)
+  spotlightExpiresAt DateTime?
+  isPinnedSpotlight  Boolean   @default(false)
+
+  // Many-to-many: an organization can have multiple users of any role
+  members  User[]    @relation("OrgMembers")
+  odaForms ODAForm[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ODAForm {
+  id             String     @id @default(uuid())
+  status         FormStatus @default(IN_PROGRESS)
+  buildingBlock  String // e.g., "Governance"
+  indicatorScore Int? // The 1-4 score suggested by AI
+  evidenceUrl    String? // PDF uploaded by NGO
+  aiAnalysis     String?    @db.Text // The "Growth Pathway" report
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  orgId        String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+enum FormStatus {
+  IN_PROGRESS
+  SUBMITTED
+  COMPLETED
+}

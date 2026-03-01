@@ -1,0 +1,53 @@
+enum ResourceType {
+  DOCUMENT
+  VIDEO
+  AUDIO
+  ARTICLE
+}
+
+model Resource {
+  id          String       @id @default(uuid())
+  title       String
+  description String       @db.Text
+  contentUrl  String? // Azure Blob URL or external video URL
+  rawText     String?      @db.Text // OCR-extracted text for full-text search
+  type        ResourceType
+  author      String?
+  language    String? // ISO 639-1 e.g. "en", "fr"
+  region      String? // Geographic focus e.g. "Lagos", "North-East"
+  sector      String? // Thematic sector e.g. "Health", "Education"
+
+  // Relations
+  categoryId String
+  category   Category      @relation(fields: [categoryId], references: [id])
+  tags       Tag[]
+  downloads  DownloadLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([type])
+  @@index([language])
+  @@index([sector])
+  @@index([region])
+  @@index([createdAt])
+}
+
+model Category {
+  id   String @id @default(uuid())
+  name String @unique
+
+  // Self-referencing relationship for sub-categories
+  parentId String?
+  parent   Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  children Category[] @relation("SubCategories")
+
+  resources Resource[]
+}
+
+model Tag {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  resources Resource[]
+}

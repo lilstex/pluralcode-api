@@ -1,0 +1,51 @@
+<%
+  var title = 'New Registration Pending Approval';
+
+  // Format role string for display e.g. NGO_MEMBER -> NGO Member
+  var formattedRole = role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+  var body = `
+    <h1>New Registration Pending Approval</h1>
+    <p>A new user has registered on the <strong>PLRCAP NGO Support Hub</strong> and is awaiting your review.</p>
+
+    <table class="info-table">
+      <tr>
+        <td class="label">Full Name</td>
+        <td>${applicantName}</td>
+      </tr>
+      <tr>
+        <td class="label">Email</td>
+        <td><a href="mailto:${applicantEmail}" style="color:#2e86c1;">${applicantEmail}</a></td>
+      </tr>
+      <tr>
+        <td class="label">Account Type</td>
+        <td><strong>${formattedRole}</strong></td>
+      </tr>
+      <tr>
+        <td class="label">Status</td>
+        <td>
+          <span style="display:inline-block; background:#fef3c7; color:#92400e; font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px; letter-spacing:0.5px;">
+            PENDING REVIEW
+          </span>
+        </td>
+      </tr>
+    </table>
+
+    <div class="alert alert-info">
+      Please review this registration and either <strong>Approve</strong> or <strong>Reject</strong>
+      the account from the admin dashboard.
+    </div>
+
+    <div class="btn-wrapper">
+      <a href="${adminDashboardUrl}" class="btn">Review in Admin Dashboard &rarr;</a>
+    </div>
+
+    <hr class="divider" />
+
+    <p style="font-size:13px; color:#718096;">
+      This notification was sent to: <strong>${adminEmail}</strong><br />
+      You are receiving this because you are a Super Admin on the PLRCAP Hub.
+    </p>
+  `;
+%>
+<%- include('_layout', { title, body }) %>

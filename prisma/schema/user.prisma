@@ -1,0 +1,81 @@
+model User {
+  id                  String         @id @default(uuid())
+  email               String         @unique
+  passwordHash        String
+  otp                 String?
+  otpExpiresAt        DateTime?
+  role                Role           @default(GUEST)
+  status              ApprovalStatus @default(PENDING)
+  fullName            String
+  phoneNumber         String?
+  bio                 String?        @db.Text
+  avatarUrl           String?
+  skills              String[]
+  isEmailVerified     Boolean        @default(false)
+  showContactToPublic Boolean        @default(false)
+
+  // --- RELATIONS ---
+
+  // Organization (Many-to-Many)
+  organizations Organization[] @relation("OrgMembers")
+
+  // Engagement & Community
+  forumThreads ForumThread[] // Threads created by this user
+  posts        Post[] // Replies/Posts in forum threads
+  badges       Badge[] // Implicit Many-to-Many
+
+  // Permissions
+  adminPermission AdminPermission?
+
+  // Events
+  registrations EventRegistration[] // Event sign-ups
+
+  // Resources & Activity
+  downloads DownloadLog[]
+
+  // Audit relation
+  actionsPerformed AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@index([status])
+}
+
+model AdminPermission {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Stores an array of permission strings e.g. ["event:read", "event:write"]
+  permissions String[]
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String // e.g., "USER_DELETED", "RESOURCE_UPLOADED"
+  entity    String // e.g., "User", "Resource"
+  entityId  String
+  details   Json?
+  adminId   String
+  admin     User     @relation(fields: [adminId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  SUPER_ADMIN
+  CONTENT_ADMIN
+  EVENT_ADMIN
+  RESOURCE_ADMIN
+  NGO_MEMBER
+  EXPERT
+  GUEST
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}

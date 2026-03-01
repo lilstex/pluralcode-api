@@ -1,0 +1,30 @@
+<%
+  var title = 'Verify Your PLRCAP Hub Account';
+  var body = `
+    <h1>Verify Your Email Address</h1>
+    <p>Hi <strong>${fullName}</strong>,</p>
+    <p>
+      Thank you for registering on the <strong>PLRCAP NGO Support Hub</strong>.
+      To activate your account, please enter the One-Time Password (OTP) below.
+    </p>
+
+    <div class="otp-box">
+      <div class="otp-label">Your Verification Code</div>
+      <div class="otp-code">${otp}</div>
+      <div class="otp-expiry">&#x23F1; This code expires in <strong>15 minutes</strong></div>
+    </div>
+
+    <div class="alert alert-warning">
+      <strong>Security notice:</strong> Never share this code with anyone.
+      PLRCAP staff will never ask for your OTP.
+    </div>
+
+    <hr class="divider" />
+
+    <p style="font-size:13px; color:#718096;">
+      Verifying as: <strong>${email}</strong><br/>
+      If you did not create an account, you can safely ignore this email.
+    </p>
+  `;
+%>
+<%- include('_layout', { title, body }) %>

@@ -1,0 +1,53 @@
+<%
+  var title = 'Welcome to the PLRCAP NGO Support Hub';
+  var body = `
+    <h1>Welcome to the Hub! 🎉</h1>
+    <p>Hi <strong>${fullName}</strong>,</p>
+    <p>
+      Your account has been <strong>approved</strong> and you now have full access to the
+      <strong>PLRCAP/NORCAP NGO Support Hub</strong> — your central resource for
+      organizational development, expert networking, and capacity building.
+    </p>
+
+    <div class="alert alert-success">
+      &#x2713;&nbsp; Your account is <strong>active</strong> and ready to use.
+    </div>
+
+    <p><strong>What you can do now:</strong></p>
+    <table style="width:100%; margin: 0 0 20px; border-collapse: collapse;">
+      <tr>
+        <td style="padding: 8px 0; font-size:14px; color:#4a5568; vertical-align:top; width:24px;">&#128218;</td>
+        <td style="padding: 8px 0; font-size:14px; color:#4a5568;">Browse and download resources from the Knowledge Library</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 0; font-size:14px; color:#4a5568; vertical-align:top;">&#128101;</td>
+        <td style="padding: 8px 0; font-size:14px; color:#4a5568;">Connect with NGOs and vetted experts in the Directory</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 0; font-size:14px; color:#4a5568; vertical-align:top;">&#128172;</td>
+        <td style="padding: 8px 0; font-size:14px; color:#4a5568;">Participate in Community Forums and Communities of Practice</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 0; font-size:14px; color:#4a5568; vertical-align:top;">&#128203;</td>
+        <td style="padding: 8px 0; font-size:14px; color:#4a5568;">Complete your Organizational Development Assessment (ODA)</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 0; font-size:14px; color:#4a5568; vertical-align:top;">&#127891;</td>
+        <td style="padding: 8px 0; font-size:14px; color:#4a5568;">Register for live webinars and training events</td>
+      </tr>
+    </table>
+
+    <div class="btn-wrapper">
+      <a href="${loginUrl}" class="btn">Login to Your Account &rarr;</a>
+    </div>
+
+    <hr class="divider" />
+
+    <p style="font-size:13px; color:#718096;">
+      Registered as: <strong>${email}</strong><br />
+      Need help getting started? Email us at
+      <a href="mailto:support@plrcap.org" style="color:#2e86c1;">support@plrcap.org</a>
+    </p>
+  `;
+%>
+<%- include('_layout', { title, body }) %>
