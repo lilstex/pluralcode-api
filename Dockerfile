@@ -28,9 +28,12 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 ENV NODE_ENV=production
 ENV NODE_OPTIONS=--max-old-space-size=2048
 
+# Copy dependencies
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
+# Copy compiled source files (flatten src into dist)
+COPY --from=builder /app/dist/src ./dist
+# Copy prisma folder
 COPY --from=builder /app/prisma ./prisma
 
 EXPOSE 2200
