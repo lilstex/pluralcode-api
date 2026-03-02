@@ -9,7 +9,6 @@ import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
 import { EmailModule } from 'src/providers/email/email.module';
 import { AzureModule } from 'src/providers/azure/azure.module';
 import { PrismaService } from 'src/prisma.service';
-import { OrganizationModule } from 'src/organizations/organizations.module';
 
 @Module({
   imports: [
@@ -27,7 +26,6 @@ import { OrganizationModule } from 'src/organizations/organizations.module';
     }),
     EmailModule,
     AzureModule,
-    OrganizationModule,
   ],
   controllers: [UserController],
   providers: [UserService, JwtStrategy, PrismaService],
