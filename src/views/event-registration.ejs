@@ -1,0 +1,44 @@
+<%
+  var title = 'Event Registration Confirmed';
+  var formattedStart = new Date(startTime).toLocaleString('en-NG', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Africa/Lagos' });
+  var formattedEnd   = new Date(endTime).toLocaleString('en-NG', { timeStyle: 'short', timeZone: 'Africa/Lagos' });
+
+  var body = `
+    <h1>You're Registered! &#127881;</h1>
+    <p>Hi <strong>${fullName}</strong>,</p>
+    <p>
+      Your registration for the event below has been confirmed.
+      A calendar invite (.ics) is attached to this email — open it to add the event to your calendar.
+    </p>
+
+    <table class="info-table">
+      <tr>
+        <td class="label">Event</td>
+        <td><strong>${eventTitle}</strong></td>
+      </tr>
+      <tr>
+        <td class="label">Date &amp; Time</td>
+        <td>${formattedStart} – ${formattedEnd} (WAT)</td>
+      </tr>
+      <tr>
+        <td class="label">Meeting Link</td>
+        <td><a href="${meetingUrl}" style="color:#2e86c1;">${meetingUrl}</a></td>
+      </tr>
+    </table>
+
+    <div class="alert alert-info">
+      &#128204; The meeting link above will go live at the event start time.
+      You can also retrieve it from your <strong>My Registrations</strong> page on the Hub.
+    </div>
+
+    <div class="btn-wrapper">
+      <a href="${meetingUrl}" class="btn">Join Event &rarr;</a>
+    </div>
+
+    <hr class="divider" />
+    <p style="font-size:13px; color:#718096;">
+      To cancel your registration, visit your dashboard or reply to this email.
+    </p>
+  `;
+%>
+<%- include('_layout', { title, body }) %>

@@ -32,9 +32,6 @@ import { Role } from '@prisma/client';
 
 import {
   CreateUserDto,
-  LoginDto,
-  ForgotPasswordDto,
-  VerifyOtpDto,
   ResetPasswordDto,
   UpdateProfileDto,
   SignUpResponseDto,
@@ -43,6 +40,10 @@ import {
   ForgotPasswordResponseDto,
   DeleteUserResponseDto,
   UploadAvatarResponseDto,
+  LoginDto,
+  VerifyOtpDto,
+  ForgotPasswordDto,
+  UpdateOrganizationDto,
 } from '../dto/users.dto';
 import { UserService } from '../service/users.service';
 
@@ -53,17 +54,13 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions';
-import { OrganizationService } from 'src/organizations/service/organizations.service';
 
 const multerMemoryStorage = { storage: undefined }; // Uses memoryStorage by default in NestJS
 
 @ApiTags('Users & Authentication')
 @Controller('users')
 export class UserController {
-  constructor(
-    private readonly userService: UserService,
-    private readonly orgService: OrganizationService,
-  ) {}
+  constructor(private readonly userService: UserService) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
   // PUBLIC AUTH ROUTES
@@ -72,6 +69,8 @@ export class UserController {
   @Post('signup')
   @ApiOperation({
     summary: 'Register a new user (Guest, NGO Member, or Expert)',
+    description:
+      'NGOs require org details. Experts require title/experience. Guests require name/email.',
   })
   @ApiResponse({
     status: 201,
@@ -192,14 +191,61 @@ export class UserController {
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions(PERMISSIONS.ORG_READ)
   @ApiBearerAuth()
-  @Get('profile/organizations')
+  @Get('profile/organization')
   @ApiOperation({
-    summary: 'Get all organizations the current user belongs to',
+    summary: 'Get the organization owned by the current NGO user',
   })
   async getMyOrganizations(@CurrentUser() user: any) {
-    return this.orgService.getUserOrganizations(user.id);
+    return this.userService.getUserOrganizations(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(Role.NGO_MEMBER, Role.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @Patch('organization/:id')
+  @ApiOperation({ summary: 'Update organization details' })
+  @ApiParam({ name: 'id', description: 'Organization UUID' })
+  async updateOrganization(
+    @CurrentUser() admin: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOrganizationDto,
+  ) {
+    return this.userService.updateOrganization(admin.id, id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(Role.NGO_MEMBER, Role.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @Post(':id/logo')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Upload organization logo to Azure Blob Storage',
+  })
+  @ApiParam({ name: 'id', description: 'Organization UUID' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  async uploadLogo(
+    @CurrentUser() admin: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 2 * 1024 * 1024 }),
+          new FileTypeValidator({
+            fileType: /^image\/(jpeg|png|webp|svg\+xml)$/,
+          }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.userService.uploadLogo(admin.id, id, file);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

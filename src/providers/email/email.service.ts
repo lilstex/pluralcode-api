@@ -134,7 +134,7 @@ export class EmailService {
   async sendPasswordResetOtp(params: {
     fullName: string;
     email: string;
-    otp: string;
+    resetUrl: string;
   }) {
     const html = await this.renderTemplate('reset-password', params);
     return this.send({
@@ -162,6 +162,82 @@ export class EmailService {
         params.status === 'APPROVED'
           ? 'Your PLRCAP Account Has Been Approved!'
           : 'Your PLRCAP Account Application Update',
+      html,
+    });
+  }
+
+  /**
+   * Send event registration confirmation with ICS calendar attachment.
+   */
+  async sendEventRegistrationConfirmation(params: {
+    fullName: string;
+    email: string;
+    eventTitle: string;
+    startTime: Date;
+    endTime: Date;
+    meetingUrl: string;
+    icsContent: string;
+  }) {
+    const html = await this.renderTemplate('event-registration', params);
+    try {
+      const info = await this.transporter.sendMail({
+        from: this.fromAddress,
+        to: params.email,
+        subject: `Registration Confirmed: ${params.eventTitle}`,
+        html,
+        attachments: [
+          {
+            filename: 'event.ics',
+            content: params.icsContent,
+            contentType: 'text/calendar; method=REQUEST',
+          },
+        ],
+      });
+      this.logger.log(
+        `Event registration email sent to ${params.email}: ${info.messageId}`,
+      );
+      return { status: true, message: 'Email sent successfully.' };
+    } catch (error) {
+      this.logger.error(
+        `Failed to send event registration email to ${params.email}`,
+        error,
+      );
+      return { status: false, message: 'Failed to send email.' };
+    }
+  }
+
+  /**
+   * Notify attendee of event time/details update.
+   */
+  async sendEventUpdateNotification(params: {
+    fullName: string;
+    email: string;
+    eventTitle: string;
+    startTime: Date;
+    endTime: Date;
+    meetingUrl: string;
+  }) {
+    const html = await this.renderTemplate('event-update', params);
+    return this.send({
+      to: params.email,
+      subject: `Event Updated: ${params.eventTitle}`,
+      html,
+    });
+  }
+
+  /**
+   * Notify attendee that an event has been cancelled.
+   */
+  async sendEventCancellationNotification(params: {
+    fullName: string;
+    email: string;
+    eventTitle: string;
+    reason?: string;
+  }) {
+    const html = await this.renderTemplate('event-cancellation', params);
+    return this.send({
+      to: params.email,
+      subject: `Event Cancelled: ${params.eventTitle}`,
       html,
     });
   }

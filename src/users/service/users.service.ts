@@ -12,11 +12,17 @@ import {
   VerifyOtpDto,
   ResetPasswordDto,
   UpdateProfileDto,
+  UpdateOrganizationDto,
 } from '../dto/users.dto';
 import { PrismaService } from 'src/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
-import { generateOtp, isExpired, otpExpiresAt } from 'src/util/helper';
+import {
+  generateOtp,
+  generateSecureToken,
+  isExpired,
+  otpExpiresAt,
+} from 'src/util/helper';
 
 const ADMIN_ROLES: Role[] = [
   Role.SUPER_ADMIN,
@@ -71,19 +77,42 @@ export class UserService {
     // ── Transaction: pure DB writes only, no network I/O ─────────────────────
     let createdUser: any;
     try {
-      createdUser = await this.prisma.user.create({
-        data: {
-          email: dto.email,
-          fullName: dto.fullName,
-          phoneNumber: dto.phoneNumber,
-          passwordHash,
-          role: dto.role,
-          skills: dto.skills ?? [],
-          otp,
-          otpExpiresAt: otpExpiry,
-          // Guests are auto-approved; all others require admin approval
-          status: dto.role === Role.GUEST ? 'APPROVED' : 'PENDING',
-        },
+      createdUser = await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email: dto.email,
+            fullName: dto.fullName,
+            phoneNumber: dto.phoneNumber,
+            passwordHash,
+            role: dto.role,
+            otp,
+            otpExpiresAt: otpExpiry,
+            // Guests are auto-approved; all others require admin approval
+            status: dto.role === Role.GUEST ? 'APPROVED' : 'PENDING',
+            // Expert fields
+            title: dto.role === Role.EXPERT ? dto.title : null,
+            yearsOfExperience:
+              dto.role === Role.EXPERT ? dto.yearsOfExperience : null,
+            areasOfExpertise:
+              dto.role === Role.EXPERT ? dto.areasOfExpertise : [],
+          },
+        });
+
+        // If NGO, create the associated Organization
+        if (dto.role === Role.NGO_MEMBER) {
+          await tx.organization.create({
+            data: {
+              name: dto.orgName!,
+              cacNumber: dto.cacNumber!,
+              phoneNumber: dto.orgPhoneNumber!,
+              state: dto.state!,
+              lga: dto.lga!,
+              address: dto.address!,
+              userId: user.id,
+            },
+          });
+        }
+        return user;
       });
     } catch (error) {
       this.logger.error('createUser error', error);
@@ -207,17 +236,7 @@ export class UserService {
     try {
       const user = await this.prisma.user.findUnique({
         where: { email: dto.email },
-        include: {
-          organizations: {
-            select: {
-              id: true,
-              name: true,
-              sector: true,
-              state: true,
-              logoUrl: true,
-            },
-          },
-        },
+        include: { organization: true },
       });
 
       if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
@@ -291,16 +310,23 @@ export class UserService {
         };
       }
 
-      const otp = generateOtp();
+      const resetToken = generateSecureToken();
+      const tokenExpiry = otpExpiresAt(60);
+
       await this.prisma.user.update({
         where: { email: dto.email },
-        data: { otp, otpExpiresAt: otpExpiresAt(15) },
+        data: {
+          resetPasswordToken: resetToken,
+          resetPasswordExpiresAt: tokenExpiry,
+        },
       });
+
+      const resetUrl = `${this.config.get('FRONTEND_URL')}/reset-password?token=${resetToken}&email=${user.email}`;
 
       await this.emailService.sendPasswordResetOtp({
         fullName: user.fullName,
         email: user.email,
-        otp,
+        resetUrl,
       });
 
       return {
@@ -328,19 +354,22 @@ export class UserService {
         where: { email: dto.email },
       });
 
-      if (!user || user.otp !== dto.otp) {
+      if (!user || user.resetPasswordToken !== dto.token) {
         return {
           status: false,
           statusCode: HttpStatus.BAD_REQUEST,
-          message: 'Invalid or expired OTP.',
+          message: 'Invalid reset token.',
         };
       }
 
-      if (user.otpExpiresAt && isExpired(user.otpExpiresAt)) {
+      if (
+        user.resetPasswordExpiresAt &&
+        isExpired(user.resetPasswordExpiresAt)
+      ) {
         return {
           status: false,
           statusCode: HttpStatus.BAD_REQUEST,
-          message: 'OTP has expired. Please request a new one.',
+          message: 'Token expired.',
         };
       }
 
@@ -348,7 +377,11 @@ export class UserService {
 
       await this.prisma.user.update({
         where: { email: dto.email },
-        data: { passwordHash, otp: null, otpExpiresAt: null },
+        data: {
+          passwordHash,
+          resetPasswordToken: null,
+          resetPasswordExpiresAt: null,
+        },
       });
 
       return {
@@ -375,16 +408,7 @@ export class UserService {
       const user = await this.prisma.user.findUnique({
         where: { id },
         include: {
-          organizations: {
-            select: {
-              id: true,
-              name: true,
-              sector: true,
-              state: true,
-              logoUrl: true,
-              isSpotlight: true,
-            },
-          },
+          organization: true,
           badges: true,
         },
       });
@@ -431,6 +455,144 @@ export class UserService {
       };
     } catch (error) {
       this.logger.error('updateProfile error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async getUserOrganizations(userId: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          organization: true,
+        },
+      });
+
+      if (!user) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'User not found.',
+        };
+      }
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'User organizations retrieved.',
+        data: user.organization,
+      };
+    } catch (error) {
+      this.logger.error('getUserOrganization error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // UPDATE
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async updateOrganization(
+    adminId: string,
+    id: string,
+    dto: UpdateOrganizationDto,
+  ) {
+    try {
+      const org = await this.prisma.organization.findUnique({ where: { id } });
+
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization not found.',
+        };
+      }
+
+      const updated = await this.prisma.organization.update({
+        where: { id },
+        data: { ...dto },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'ORG_UPDATED',
+          entity: 'Organization',
+          entityId: id,
+          details: { changes: { ...dto } } as any,
+          adminId,
+        },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Organization updated.',
+        data: updated,
+      };
+    } catch (error) {
+      this.logger.error('updateOrganization error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // LOGO UPLOAD
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async uploadLogo(adminId: string, orgId: string, file: Express.Multer.File) {
+    try {
+      const org = await this.prisma.organization.findUnique({
+        where: { id: orgId },
+      });
+
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization not found.',
+        };
+      }
+
+      if (org.logoUrl) {
+        await this.azureBlob.delete(org.logoUrl, 'avatars');
+      }
+
+      const logoUrl = await this.azureBlob.upload(file, 'avatars');
+
+      await this.prisma.organization.update({
+        where: { id: orgId },
+        data: { logoUrl },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'ORG_LOGO_UPDATED',
+          entity: 'Organization',
+          entityId: orgId,
+          adminId,
+        },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Logo uploaded.',
+        logoUrl,
+      };
+    } catch (error) {
+      this.logger.error('uploadLogo error', error);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -521,7 +683,6 @@ export class UserService {
         role: Role.SUPER_ADMIN,
         status: 'APPROVED',
         isEmailVerified: true,
-        skills: [],
       },
     });
 
@@ -698,7 +859,8 @@ export class UserService {
           skip,
           take: limit,
           include: {
-            organizations: { select: { id: true, name: true, sector: true } },
+            organization: true,
+            badges: true,
           },
           orderBy: { createdAt: 'desc' },
         }),

@@ -1,0 +1,44 @@
+<%
+  var title = 'Event Cancelled: ' + eventTitle;
+
+  var body = `
+    <h1>Event Cancellation Notice</h1>
+    <p>Hi <strong>${fullName}</strong>,</p>
+    <p>
+      We regret to inform you that the following event has been cancelled.
+    </p>
+
+    <table class="info-table">
+      <tr>
+        <td class="label">Event</td>
+        <td><strong>${eventTitle}</strong></td>
+      </tr>
+      ${reason ? `
+      <tr>
+        <td class="label">Reason</td>
+        <td>${reason}</td>
+      </tr>` : ''}
+    </table>
+
+    <div class="alert alert-danger">
+      &#10060; This event will no longer take place. We apologise for any inconvenience.
+    </div>
+
+    <p>
+      Keep an eye on the PLRCAP Hub for upcoming events and rescheduled sessions.
+    </p>
+
+    <div class="btn-wrapper">
+      <a href="${process.env.APP_LOGIN_URL || 'https://hub.plrcap.org'}/events" class="btn">
+        Browse Upcoming Events &rarr;
+      </a>
+    </div>
+
+    <hr class="divider" />
+    <p style="font-size:13px; color:#718096;">
+      Questions? Contact us at
+      <a href="mailto:support@plrcap.org" style="color:#2e86c1;">support@plrcap.org</a>
+    </p>
+  `;
+%>
+<%- include('_layout', { title, body }) %>

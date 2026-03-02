@@ -7,43 +7,66 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  SUPER_ADMIN
+  CONTENT_ADMIN
+  EVENT_ADMIN
+  RESOURCE_ADMIN
+  NGO_MEMBER
+  EXPERT
+  GUEST
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum FormStatus {
+  IN_PROGRESS
+  SUBMITTED
+  COMPLETED
+}
+
+enum ResourceType {
+  DOCUMENT
+  VIDEO
+  AUDIO
+  ARTICLE
+}
 
 model User {
-  id                  String         @id @default(uuid())
-  email               String         @unique
-  passwordHash        String
-  otp                 String?
-  otpExpiresAt        DateTime?
-  role                Role           @default(GUEST)
-  status              ApprovalStatus @default(PENDING)
-  fullName            String
-  phoneNumber         String?
-  bio                 String?        @db.Text
-  avatarUrl           String?
-  skills              String[]
-  isEmailVerified     Boolean        @default(false)
-  showContactToPublic Boolean        @default(false)
+  id                     String         @id @default(uuid())
+  email                  String         @unique
+  passwordHash           String
+  fullName               String
+  role                   Role           @default(GUEST)
+  status                 ApprovalStatus @default(PENDING)
+  isEmailVerified        Boolean        @default(false)
+  otp                    String?
+  otpExpiresAt           DateTime?
+  resetPasswordToken     String?        @unique
+  resetPasswordExpiresAt DateTime?
+  avatarUrl              String?
 
-  // --- RELATIONS ---
+  // --- EXPERT FIELDS ---
+  title             String?
+  phoneNumber       String?
+  yearsOfExperience Int?
+  areasOfExpertise  String[]
 
-  // Organization (Many-to-Many)
-  organizations Organization[] @relation("OrgMembers")
+  // --- NGO RELATION ---
+  organization Organization?
 
-  // Engagement & Community
-  forumThreads ForumThread[] // Threads created by this user
-  posts        Post[] // Replies/Posts in forum threads
-  badges       Badge[] // Implicit Many-to-Many
-
-  // Permissions
-  adminPermission AdminPermission?
-
-  // Events
-  registrations EventRegistration[] // Event sign-ups
-
-  // Resources & Activity
-  downloads DownloadLog[]
-
-  // Audit relation
+  // --- GENERAL RELATIONS ---
+  forumThreads     ForumThread[]
+  posts            Post[]
+  badges           Badge[]
+  adminPermission  AdminPermission?
+  events           EventRegistration[]
+  downloads        DownloadLog[]
   actionsPerformed AuditLog[]
 
   createdAt DateTime @default(now())
@@ -51,6 +74,30 @@ model User {
 
   @@index([role])
   @@index([status])
+  @@index([resetPasswordToken])
+}
+
+model Organization {
+  id          String  @id @default(uuid())
+  name        String
+  cacNumber   String  @unique
+  phoneNumber String
+  state       String
+  lga         String
+  address     String?
+
+  // Backlink to User
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  odaForms    ODAForm[]
+  sector      String?
+  website     String?
+  description String?   @db.Text
+  logoUrl     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AdminPermission {
@@ -73,45 +120,6 @@ model AuditLog {
   createdAt DateTime @default(now())
 }
 
-enum Role {
-  SUPER_ADMIN
-  CONTENT_ADMIN
-  EVENT_ADMIN
-  RESOURCE_ADMIN
-  NGO_MEMBER
-  EXPERT
-  GUEST
-}
-
-enum ApprovalStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  SUSPENDED
-}
-
-
-model Organization {
-  id                 String    @id @default(uuid())
-  name               String
-  cacNumber          String    @unique
-  sector             String
-  state              String
-  website            String?
-  description        String?   @db.Text
-  logoUrl            String? // Azure Blob URL
-  isSpotlight        Boolean   @default(false)
-  spotlightExpiresAt DateTime?
-  isPinnedSpotlight  Boolean   @default(false)
-
-  // Many-to-many: an organization can have multiple users of any role
-  members  User[]    @relation("OrgMembers")
-  odaForms ODAForm[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model ODAForm {
   id             String     @id @default(uuid())
   status         FormStatus @default(IN_PROGRESS)
@@ -124,19 +132,6 @@ model ODAForm {
   orgId        String
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
-}
-
-enum FormStatus {
-  IN_PROGRESS
-  SUBMITTED
-  COMPLETED
-}
-
-enum ResourceType {
-  DOCUMENT
-  VIDEO
-  AUDIO
-  ARTICLE
 }
 
 model Resource {
@@ -187,17 +182,29 @@ model Tag {
 }
 
 model Event {
-  id          String   @id @default(uuid())
-  title       String
-  description String   @db.Text
-  startTime   DateTime
-  endTime     DateTime
-  coverImage  String?
-  jitsiRoomId String   @unique
-  isPast      Boolean  @default(false)
-  archiveUrl  String? // Azure Media Services link
+  id                 String   @id @default(uuid())
+  title              String
+  description        String   @db.Text
+  startTime          DateTime
+  endTime            DateTime
+  coverImageUrl      String? // Azure Blob URL
+  jitsiRoomId        String   @unique
+  externalMeetingUrl String? // Overrides Jitsi if set (Zoom, Teams, etc.)
+  capacity           Int? // null = unlimited
+  tags               String[] // Thematic tags for discovery
+  isPast             Boolean  @default(false)
+  isCancelled        Boolean  @default(false)
+  cancellationReason String?
+  archiveUrl         String? // Azure Media Services recording URL
 
   registrations EventRegistration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startTime])
+  @@index([isPast])
+  @@index([isCancelled])
 }
 
 model EventRegistration {
@@ -210,7 +217,6 @@ model EventRegistration {
 
   @@unique([userId, eventId]) // Prevents double registration
 }
-
 
 model ForumThread {
   id        String   @id @default(uuid())

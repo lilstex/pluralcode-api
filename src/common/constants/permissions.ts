@@ -14,14 +14,6 @@ export const PERMISSIONS = {
   ADMIN_CREATE: 'admin:create',
   ADMIN_MANAGE: 'admin:manage',
 
-  // ── Organization Management ───────────────────────
-  ORG_CREATE: 'org:create',
-  ORG_READ: 'org:read',
-  ORG_UPDATE: 'org:update',
-  ORG_DELETE: 'org:delete',
-  ORG_ASSIGN_USER: 'org:assign_user',
-  ORG_REMOVE_USER: 'org:remove_user',
-
   // ── Content (Blog / News / Spotlight) ─────────────
   CONTENT_READ: 'content:read',
   CONTENT_WRITE: 'content:write',
@@ -70,7 +62,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.CONTENT_WRITE,
     PERMISSIONS.CONTENT_DELETE,
     PERMISSIONS.SPOTLIGHT_MANAGE,
-    PERMISSIONS.ORG_READ,
   ],
 
   EVENT_ADMIN: [
@@ -78,7 +69,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.EVENT_WRITE,
     PERMISSIONS.EVENT_DELETE,
     PERMISSIONS.EVENT_MANAGE_ATTENDEES,
-    PERMISSIONS.ORG_READ,
   ],
 
   RESOURCE_ADMIN: [
@@ -86,7 +76,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.RESOURCE_UPLOAD,
     PERMISSIONS.RESOURCE_DELETE,
     PERMISSIONS.TAXONOMY_MANAGE,
-    PERMISSIONS.ORG_READ,
   ],
 
   NGO_MEMBER: [
@@ -96,7 +85,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.FORUM_WRITE,
     PERMISSIONS.ODA_SUBMIT,
     PERMISSIONS.DIRECTORY_VIEW_CONTACTS,
-    PERMISSIONS.ORG_READ,
   ],
 
   EXPERT: [
@@ -105,7 +93,6 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.FORUM_READ,
     PERMISSIONS.FORUM_WRITE,
     PERMISSIONS.DIRECTORY_VIEW_CONTACTS,
-    PERMISSIONS.ORG_READ,
   ],
 
   GUEST: [
