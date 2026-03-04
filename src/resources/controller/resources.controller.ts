@@ -39,6 +39,7 @@ import {
   CreateTagDto,
   ResourceResponseDto,
   DownloadResponseDto,
+  CreateBadgeDto,
 } from '../dto/resources.dto';
 import { ResourceService } from '../service/resources.service';
 
@@ -144,6 +145,46 @@ export class ResourceController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.resourceService.deleteTag(admin.id, id);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // BADGES
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @Permissions(PERMISSIONS.BADGE_MANAGE)
+  @ApiBearerAuth()
+  @Post('badges')
+  @ApiOperation({ summary: 'Admin: Create a new badge' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file'))
+  async createBadge(
+    @CurrentUser() admin: any,
+    @Body() dto: CreateBadgeDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.resourceService.createBadge(admin.id, dto, file);
+  }
+
+  @Get('badges')
+  @ApiOperation({ summary: 'List all badges (public)' })
+  async listBadges() {
+    return this.resourceService.listBadges();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @Permissions(PERMISSIONS.BADGE_MANAGE)
+  @ApiBearerAuth()
+  @Delete('badges/:id')
+  @ApiOperation({ summary: 'Admin: Delete a badge' })
+  @ApiParam({ name: 'id', description: 'Badge UUID' })
+  async deleteBadge(
+    @CurrentUser() admin: any,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.resourceService.deleteBadge(admin.id, id);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

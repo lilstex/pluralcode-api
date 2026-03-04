@@ -8,7 +8,7 @@ CREATE TYPE "ApprovalStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'SUSPEN
 CREATE TYPE "FormStatus" AS ENUM ('IN_PROGRESS', 'SUBMITTED', 'COMPLETED');
 
 -- CreateEnum
-CREATE TYPE "ResourceType" AS ENUM ('DOCUMENT', 'VIDEO', 'AUDIO', 'ARTICLE');
+CREATE TYPE "ResourceType" AS ENUM ('DOCUMENT', 'VIDEO', 'ARTICLE');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -24,10 +24,8 @@ CREATE TABLE "User" (
     "resetPasswordToken" TEXT,
     "resetPasswordExpiresAt" TIMESTAMP(3),
     "avatarUrl" TEXT,
-    "title" TEXT,
     "phoneNumber" TEXT,
-    "yearsOfExperience" INTEGER,
-    "areasOfExpertise" TEXT[],
+    "pointsCount" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -35,23 +33,97 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
+CREATE TABLE "ExpertProfile" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "title" TEXT,
+    "yearsOfExperience" INTEGER,
+    "about" TEXT,
+    "employer" TEXT,
+    "otherExperience" TEXT,
+    "mentoringPhilosophy" TEXT,
+    "previousMentoringExperience" TEXT,
+    "capacityOfMentees" TEXT,
+    "education" JSONB NOT NULL DEFAULT '[]',
+    "areasOfExpertise" TEXT[],
+    "servicesOffered" TEXT[],
+    "referees" JSONB NOT NULL DEFAULT '[]',
+    "preferredContactMethods" TEXT[],
+    "socials" JSONB NOT NULL DEFAULT '[]',
+    "otherLinks" JSONB NOT NULL DEFAULT '[]',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ExpertProfile_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Organization" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "acronym" TEXT,
     "cacNumber" TEXT NOT NULL,
     "phoneNumber" TEXT NOT NULL,
+    "publicEmail" TEXT,
     "state" TEXT NOT NULL,
     "lga" TEXT NOT NULL,
     "address" TEXT,
-    "userId" TEXT NOT NULL,
-    "sector" TEXT,
-    "website" TEXT,
     "description" TEXT,
     "logoUrl" TEXT,
+    "mission" TEXT,
+    "vision" TEXT,
+    "sectors" TEXT[],
+    "numberOfStaff" INTEGER,
+    "numberOfVolunteers" INTEGER,
+    "annualBudget" TEXT,
+    "socials" JSONB NOT NULL DEFAULT '[]',
+    "otherLinks" JSONB NOT NULL DEFAULT '[]',
+    "userId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Organization_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "OrganizationActivity" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "sector" TEXT NOT NULL,
+    "who" TEXT NOT NULL,
+    "where" TEXT NOT NULL,
+    "when" INTEGER NOT NULL,
+    "activity" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "OrganizationActivity_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "OrganizationDonor" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "donor" TEXT NOT NULL,
+    "amount" TEXT NOT NULL,
+    "duration" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "OrganizationDonor_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "OrganizationAssessment" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "assessmentBody" TEXT NOT NULL,
+    "month" INTEGER NOT NULL,
+    "year" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "OrganizationAssessment_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -93,22 +165,14 @@ CREATE TABLE "ODAForm" (
 );
 
 -- CreateTable
-CREATE TABLE "Resource" (
+CREATE TABLE "Badge" (
     "id" TEXT NOT NULL,
-    "title" TEXT NOT NULL,
-    "description" TEXT NOT NULL,
-    "contentUrl" TEXT,
-    "rawText" TEXT,
-    "type" "ResourceType" NOT NULL,
-    "author" TEXT,
-    "language" TEXT,
-    "region" TEXT,
-    "sector" TEXT,
-    "categoryId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "imageUrl" TEXT NOT NULL,
+    "externalSource" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "Resource_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Badge_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -126,6 +190,38 @@ CREATE TABLE "Tag" (
     "name" TEXT NOT NULL,
 
     CONSTRAINT "Tag_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Resource" (
+    "id" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "contentUrl" TEXT,
+    "rawText" TEXT,
+    "type" "ResourceType" NOT NULL,
+    "author" TEXT,
+    "language" TEXT,
+    "region" TEXT,
+    "sector" TEXT,
+    "fileSize" INTEGER,
+    "points" INTEGER NOT NULL DEFAULT 0,
+    "badgeId" TEXT,
+    "categoryId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Resource_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "DownloadLog" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "resourceId" TEXT NOT NULL,
+    "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "DownloadLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -184,23 +280,11 @@ CREATE TABLE "Post" (
 );
 
 -- CreateTable
-CREATE TABLE "Badge" (
-    "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "imageUrl" TEXT NOT NULL,
-    "externalSource" BOOLEAN NOT NULL DEFAULT false,
+CREATE TABLE "_BadgeToUser" (
+    "A" TEXT NOT NULL,
+    "B" TEXT NOT NULL,
 
-    CONSTRAINT "Badge_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "DownloadLog" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "resourceId" TEXT NOT NULL,
-    "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "DownloadLog_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "_BadgeToUser_AB_pkey" PRIMARY KEY ("A","B")
 );
 
 -- CreateTable
@@ -209,14 +293,6 @@ CREATE TABLE "_ResourceToTag" (
     "B" TEXT NOT NULL,
 
     CONSTRAINT "_ResourceToTag_AB_pkey" PRIMARY KEY ("A","B")
-);
-
--- CreateTable
-CREATE TABLE "_BadgeToUser" (
-    "A" TEXT NOT NULL,
-    "B" TEXT NOT NULL,
-
-    CONSTRAINT "_BadgeToUser_AB_pkey" PRIMARY KEY ("A","B")
 );
 
 -- CreateIndex
@@ -235,13 +311,37 @@ CREATE INDEX "User_status_idx" ON "User"("status");
 CREATE INDEX "User_resetPasswordToken_idx" ON "User"("resetPasswordToken");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "ExpertProfile_userId_key" ON "ExpertProfile"("userId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Organization_cacNumber_key" ON "Organization"("cacNumber");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Organization_userId_key" ON "Organization"("userId");
 
 -- CreateIndex
+CREATE INDEX "Organization_state_idx" ON "Organization"("state");
+
+-- CreateIndex
+CREATE INDEX "OrganizationActivity_organizationId_idx" ON "OrganizationActivity"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "OrganizationDonor_organizationId_idx" ON "OrganizationDonor"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "OrganizationAssessment_organizationId_idx" ON "OrganizationAssessment"("organizationId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "AdminPermission_userId_key" ON "AdminPermission"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Badge_name_key" ON "Badge"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Category_name_key" ON "Category"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Tag_name_key" ON "Tag"("name");
 
 -- CreateIndex
 CREATE INDEX "Resource_categoryId_idx" ON "Resource"("categoryId");
@@ -262,10 +362,13 @@ CREATE INDEX "Resource_region_idx" ON "Resource"("region");
 CREATE INDEX "Resource_createdAt_idx" ON "Resource"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Category_name_key" ON "Category"("name");
+CREATE INDEX "Resource_badgeId_idx" ON "Resource"("badgeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Tag_name_key" ON "Tag"("name");
+CREATE INDEX "DownloadLog_userId_idx" ON "DownloadLog"("userId");
+
+-- CreateIndex
+CREATE INDEX "DownloadLog_resourceId_idx" ON "DownloadLog"("resourceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Event_jitsiRoomId_key" ON "Event"("jitsiRoomId");
@@ -283,22 +386,25 @@ CREATE INDEX "Event_isCancelled_idx" ON "Event"("isCancelled");
 CREATE UNIQUE INDEX "EventRegistration_userId_eventId_key" ON "EventRegistration"("userId", "eventId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Badge_name_key" ON "Badge"("name");
-
--- CreateIndex
-CREATE INDEX "DownloadLog_userId_idx" ON "DownloadLog"("userId");
-
--- CreateIndex
-CREATE INDEX "DownloadLog_resourceId_idx" ON "DownloadLog"("resourceId");
+CREATE INDEX "_BadgeToUser_B_index" ON "_BadgeToUser"("B");
 
 -- CreateIndex
 CREATE INDEX "_ResourceToTag_B_index" ON "_ResourceToTag"("B");
 
--- CreateIndex
-CREATE INDEX "_BadgeToUser_B_index" ON "_BadgeToUser"("B");
+-- AddForeignKey
+ALTER TABLE "ExpertProfile" ADD CONSTRAINT "ExpertProfile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Organization" ADD CONSTRAINT "Organization_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrganizationActivity" ADD CONSTRAINT "OrganizationActivity_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrganizationDonor" ADD CONSTRAINT "OrganizationDonor_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrganizationAssessment" ADD CONSTRAINT "OrganizationAssessment_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "AdminPermission" ADD CONSTRAINT "AdminPermission_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -310,10 +416,19 @@ ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_adminId_fkey" FOREIGN KEY ("admi
 ALTER TABLE "ODAForm" ADD CONSTRAINT "ODAForm_orgId_fkey" FOREIGN KEY ("orgId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Category" ADD CONSTRAINT "Category_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Resource" ADD CONSTRAINT "Resource_badgeId_fkey" FOREIGN KEY ("badgeId") REFERENCES "Badge"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Resource" ADD CONSTRAINT "Resource_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Category" ADD CONSTRAINT "Category_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "DownloadLog" ADD CONSTRAINT "DownloadLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DownloadLog" ADD CONSTRAINT "DownloadLog_resourceId_fkey" FOREIGN KEY ("resourceId") REFERENCES "Resource"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "EventRegistration" ADD CONSTRAINT "EventRegistration_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -331,19 +446,13 @@ ALTER TABLE "Post" ADD CONSTRAINT "Post_threadId_fkey" FOREIGN KEY ("threadId") 
 ALTER TABLE "Post" ADD CONSTRAINT "Post_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "DownloadLog" ADD CONSTRAINT "DownloadLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "_BadgeToUser" ADD CONSTRAINT "_BadgeToUser_A_fkey" FOREIGN KEY ("A") REFERENCES "Badge"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "DownloadLog" ADD CONSTRAINT "DownloadLog_resourceId_fkey" FOREIGN KEY ("resourceId") REFERENCES "Resource"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "_BadgeToUser" ADD CONSTRAINT "_BadgeToUser_B_fkey" FOREIGN KEY ("B") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_ResourceToTag" ADD CONSTRAINT "_ResourceToTag_A_fkey" FOREIGN KEY ("A") REFERENCES "Resource"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_ResourceToTag" ADD CONSTRAINT "_ResourceToTag_B_fkey" FOREIGN KEY ("B") REFERENCES "Tag"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_BadgeToUser" ADD CONSTRAINT "_BadgeToUser_A_fkey" FOREIGN KEY ("A") REFERENCES "Badge"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_BadgeToUser" ADD CONSTRAINT "_BadgeToUser_B_fkey" FOREIGN KEY ("B") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -15,7 +15,6 @@ import {
   MaxFileSizeValidator,
   FileTypeValidator,
   ParseUUIDPipe,
-  HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -32,18 +31,19 @@ import { Role } from '@prisma/client';
 
 import {
   CreateUserDto,
+  LoginDto,
+  VerifyOtpDto,
+  ForgotPasswordDto,
   ResetPasswordDto,
   UpdateProfileDto,
+  UpsertExpertProfileDto,
+  UpdateOrganizationDto,
   SignUpResponseDto,
   LoginResponseDto,
   UserResponseDto,
   ForgotPasswordResponseDto,
   DeleteUserResponseDto,
   UploadAvatarResponseDto,
-  LoginDto,
-  VerifyOtpDto,
-  ForgotPasswordDto,
-  UpdateOrganizationDto,
 } from '../dto/users.dto';
 import { UserService } from '../service/users.service';
 
@@ -54,8 +54,6 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions';
-
-const multerMemoryStorage = { storage: undefined }; // Uses memoryStorage by default in NestJS
 
 @ApiTags('Users & Authentication')
 @Controller('users')
@@ -70,75 +68,82 @@ export class UserController {
   @ApiOperation({
     summary: 'Register a new user (Guest, NGO Member, or Expert)',
     description:
-      'NGOs require org details. Experts require title/experience. Guests require name/email.',
+      'NGO Members require org details (orgName, cacNumber, orgPhoneNumber, state, lga). ' +
+      'Experts require title, phoneNumber, yearsOfExperience, areasOfExpertise.',
   })
-  @ApiResponse({
-    status: 201,
-    description: 'Registration successful',
-    type: SignUpResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Validation error or duplicate email',
-  })
+  @ApiResponse({ status: 201, type: SignUpResponseDto })
   async signUp(@Body() dto: CreateUserDto) {
     return this.userService.createUser(dto);
   }
 
   @Post('login')
   @ApiOperation({ summary: 'Authenticate and receive a JWT token' })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful',
-    type: LoginResponseDto,
-  })
-  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 200, type: LoginResponseDto })
   async login(@Body() dto: LoginDto) {
     return this.userService.login(dto);
   }
 
   @Post('verify-email')
-  @ApiOperation({
-    summary: 'Verify email address using OTP sent at registration',
-  })
-  @ApiResponse({ status: 200, description: 'Email verified' })
+  @ApiOperation({ summary: 'Verify email using OTP sent at registration' })
   async verifyEmail(@Body() dto: VerifyOtpDto) {
     return this.userService.verifyEmail(dto);
   }
 
   @Post('forgot-password')
-  @ApiOperation({ summary: 'Request a password reset OTP' })
-  @ApiResponse({
-    status: 200,
-    description: 'OTP dispatched if email exists',
-    type: ForgotPasswordResponseDto,
-  })
+  @ApiOperation({ summary: 'Request a password reset link via email' })
+  @ApiResponse({ status: 200, type: ForgotPasswordResponseDto })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.userService.forgotPassword(dto);
   }
 
   @Post('reset-password')
-  @ApiOperation({
-    summary: 'Reset password using OTP from forgot-password flow',
-  })
-  @ApiResponse({ status: 200, description: 'Password reset successful' })
+  @ApiOperation({ summary: 'Reset password using token from the reset link' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.userService.resetPassword(dto);
   }
 
+  @Post('seed-super-admin')
+  @ApiOperation({
+    summary: 'One-time Super Admin account creation (disable after first use)',
+    description:
+      'Requires SEED_SECRET env variable to match. Can only be called once.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['email', 'password', 'fullName', 'seedSecret'],
+      properties: {
+        email: { type: 'string', example: 'admin@plrcap.org' },
+        fullName: { type: 'string', example: 'Platform Administrator' },
+        password: { type: 'string', example: 'SuperSecure123!' },
+        seedSecret: { type: 'string', example: 'your-seed-secret-from-env' },
+      },
+    },
+  })
+  async seedSuperAdmin(
+    @Body()
+    body: {
+      email: string;
+      password: string;
+      fullName: string;
+      seedSecret: string;
+    },
+  ) {
+    return this.userService.seedSuperAdmin(body);
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
-  // AUTHENTICATED USER ROUTES
+  // AUTHENTICATED — OWN PROFILE
   // ─────────────────────────────────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('profile')
-  @ApiOperation({ summary: 'Get the current authenticated user profile' })
-  @ApiResponse({
-    status: 200,
-    description: 'Profile retrieved',
-    type: UserResponseDto,
+  @ApiOperation({
+    summary:
+      'Get the current authenticated user profile (includes org or expertProfile)',
   })
+  @ApiResponse({ status: 200, type: UserResponseDto })
   async getProfile(@CurrentUser() user: any) {
     return this.userService.getProfile(user.id);
   }
@@ -146,12 +151,8 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Patch('profile')
-  @ApiOperation({ summary: 'Update the current authenticated user profile' })
-  @ApiResponse({
-    status: 200,
-    description: 'Profile updated',
-    type: UserResponseDto,
-  })
+  @ApiOperation({ summary: 'Update basic profile (fullName, phoneNumber)' })
+  @ApiResponse({ status: 200, type: UserResponseDto })
   async updateProfile(@CurrentUser() user: any, @Body() dto: UpdateProfileDto) {
     return this.userService.updateProfile(user.id, dto);
   }
@@ -160,9 +161,7 @@ export class UserController {
   @ApiBearerAuth()
   @Post('profile/avatar')
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({
-    summary: 'Upload a profile avatar image to Azure Blob Storage',
-  })
+  @ApiOperation({ summary: 'Upload profile avatar (max 2MB, JPEG/PNG/WebP)' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -170,17 +169,13 @@ export class UserController {
       properties: { file: { type: 'string', format: 'binary' } },
     },
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Avatar uploaded',
-    type: UploadAvatarResponseDto,
-  })
+  @ApiResponse({ status: 200, type: UploadAvatarResponseDto })
   async uploadAvatar(
     @CurrentUser() user: any,
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 2 * 1024 * 1024 }), // 2MB
+          new MaxFileSizeValidator({ maxSize: 2 * 1024 * 1024 }),
           new FileTypeValidator({ fileType: /^image\/(jpeg|png|webp)$/ }),
         ],
       }),
@@ -190,39 +185,107 @@ export class UserController {
     return this.userService.uploadAvatar(user.id, file);
   }
 
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  // ─────────────────────────────────────────────────────────────────────────────
+  // AUTHENTICATED — EXPERT PROFILE (EXPERT role only)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('profile/expert')
+  @ApiOperation({ summary: 'Get your own expert profile (EXPERT role only)' })
+  async getMyExpertProfile(@CurrentUser() user: any) {
+    return this.userService.getExpertProfile(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Patch('profile/expert')
+  @ApiOperation({
+    summary: 'Create or update your expert profile (EXPERT role only)',
+    description:
+      'All fields are optional — only provided fields are updated. ' +
+      'Call this after registration to fill in the full expert profile.',
+  })
+  async upsertExpertProfile(
+    @CurrentUser() user: any,
+    @Body() dto: UpsertExpertProfileDto,
+  ) {
+    return this.userService.upsertExpertProfile(user.id, dto);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PUBLIC — EXPERTS DIRECTORY
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @Get('experts')
+  @ApiOperation({ summary: 'Browse the experts directory (public)' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search by name, employer or about text',
+  })
+  @ApiQuery({
+    name: 'expertise',
+    required: false,
+    description: 'Filter by area of expertise e.g. "Governance"',
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async listExperts(
+    @Query('search') search?: string,
+    @Query('expertise') expertise?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.userService.listExperts({ search, expertise, page, limit });
+  }
+
+  @Get('experts/:userId')
+  @ApiOperation({
+    summary: 'Get a specific expert profile by user ID (public)',
+  })
+  @ApiParam({ name: 'userId', description: 'User UUID' })
+  async getExpertProfile(@Param('userId', ParseUUIDPipe) userId: string) {
+    return this.userService.getExpertProfile(userId);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // AUTHENTICATED — NGO ORGANIZATION (NGO_MEMBER role)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER, Role.SUPER_ADMIN)
   @ApiBearerAuth()
   @Get('profile/organization')
   @ApiOperation({
-    summary: 'Get the organization owned by the current NGO user',
+    summary: 'Get the organization owned by the current NGO user (full detail)',
   })
-  async getMyOrganizations(@CurrentUser() user: any) {
-    return this.userService.getUserOrganizations(user.id);
+  async getMyOrganization(@CurrentUser() user: any) {
+    return this.userService.getUserOrganization(user.id);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles(Role.NGO_MEMBER, Role.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER)
   @ApiBearerAuth()
-  @Patch('organization/:id')
-  @ApiOperation({ summary: 'Update organization details' })
-  @ApiParam({ name: 'id', description: 'Organization UUID' })
+  @Patch('profile/organization')
+  @ApiOperation({
+    summary: 'Update your organization details (NGO_MEMBER only)',
+  })
   async updateOrganization(
-    @CurrentUser() admin: any,
-    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
     @Body() dto: UpdateOrganizationDto,
   ) {
-    return this.userService.updateOrganization(admin.id, id, dto);
+    return this.userService.updateOrganization(user.id, dto);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles(Role.NGO_MEMBER, Role.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER)
   @ApiBearerAuth()
-  @Post(':id/logo')
+  @Post('profile/organization/logo')
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
-    summary: 'Upload organization logo to Azure Blob Storage',
+    summary: 'Upload organization logo (max 2MB, JPEG/PNG/WebP/SVG)',
   })
-  @ApiParam({ name: 'id', description: 'Organization UUID' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -231,8 +294,7 @@ export class UserController {
     },
   })
   async uploadLogo(
-    @CurrentUser() admin: any,
-    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
     @UploadedFile(
       new ParseFilePipe({
         validators: [
@@ -245,7 +307,7 @@ export class UserController {
     )
     file: Express.Multer.File,
   ) {
-    return this.userService.uploadLogo(admin.id, id, file);
+    return this.userService.uploadLogo(user.id, file);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -269,8 +331,8 @@ export class UserController {
     required: false,
     enum: ['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'],
   })
-  @ApiQuery({ name: 'page', required: false, example: 1 })
-  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
   async listUsers(
     @Query('role') role?: Role,
     @Query('status') status?: string,
@@ -330,11 +392,7 @@ export class UserController {
   @Delete(':id')
   @ApiOperation({ summary: 'Super Admin: Permanently delete a user account' })
   @ApiParam({ name: 'id', description: 'User UUID' })
-  @ApiResponse({
-    status: 200,
-    description: 'User deleted',
-    type: DeleteUserResponseDto,
-  })
+  @ApiResponse({ status: 200, type: DeleteUserResponseDto })
   async deleteUser(
     @CurrentUser() admin: any,
     @Param('id', ParseUUIDPipe) id: string,
@@ -343,7 +401,7 @@ export class UserController {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // ADMIN: RBAC PERMISSIONS ASSIGNMENT
+  // ADMIN: RBAC PERMISSIONS
   // ─────────────────────────────────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -351,10 +409,7 @@ export class UserController {
   @ApiBearerAuth()
   @Patch(':id/permissions')
   @ApiOperation({
-    summary:
-      'Super Admin: Assign or update fine-grained permissions for an admin user',
-    description:
-      'Overrides the default role permissions with a custom set. Use permission keys from the PERMISSIONS constant.',
+    summary: 'Super Admin: Assign or override permissions for an admin user',
   })
   @ApiParam({ name: 'id', description: 'Target admin User UUID' })
   @ApiBody({
@@ -387,8 +442,6 @@ export class UserController {
   @Patch(':id/permissions/revoke')
   @ApiOperation({
     summary: 'Super Admin: Revoke specific permissions from an admin user',
-    description:
-      'Removes only the listed permissions. Permissions not listed are left intact.',
   })
   @ApiParam({ name: 'id', description: 'Target admin User UUID' })
   @ApiBody({
@@ -398,7 +451,7 @@ export class UserController {
         permissions: {
           type: 'array',
           items: { type: 'string' },
-          example: ['event:delete', 'user:read'],
+          example: ['event:delete'],
         },
       },
     },
@@ -413,40 +466,5 @@ export class UserController {
       targetAdminId,
       permissions,
     );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // SUPER ADMIN SEEDING (one-time setup, disabled after first use)
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  @Post('seed-super-admin')
-  @ApiOperation({
-    summary: 'One-time Super Admin account creation',
-    description:
-      'Can only be called once. Requires the SEED_SECRET env variable to match. ' +
-      'Disable or remove this endpoint after first use in production.',
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['email', 'password', 'fullName', 'seedSecret'],
-      properties: {
-        email: { type: 'string', example: 'admin@plrcap.org' },
-        fullName: { type: 'string', example: 'Platform Administrator' },
-        password: { type: 'string', example: 'SuperSecure123!' },
-        seedSecret: { type: 'string', example: 'your-seed-secret-from-env' },
-      },
-    },
-  })
-  async seedSuperAdmin(
-    @Body()
-    body: {
-      email: string;
-      password: string;
-      fullName: string;
-      seedSecret: string;
-    },
-  ) {
-    return this.userService.seedSuperAdmin(body);
   }
 }

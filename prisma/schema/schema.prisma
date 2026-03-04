@@ -33,7 +33,6 @@ enum FormStatus {
 enum ResourceType {
   DOCUMENT
   VIDEO
-  AUDIO
   ARTICLE
 }
 
@@ -50,21 +49,15 @@ model User {
   resetPasswordToken     String?        @unique
   resetPasswordExpiresAt DateTime?
   avatarUrl              String?
+  phoneNumber            String?
+  pointsCount            Int            @default(0)
 
-  // --- EXPERT FIELDS ---
-  title             String?
-  phoneNumber       String?
-  yearsOfExperience Int?
-  areasOfExpertise  String[]
-
-  // --- NGO RELATION ---
-  organization Organization?
-
-  // --- GENERAL RELATIONS ---
+  organization     Organization?
+  expertProfile    ExpertProfile?
+  adminPermission  AdminPermission?
   forumThreads     ForumThread[]
   posts            Post[]
   badges           Badge[]
-  adminPermission  AdminPermission?
   events           EventRegistration[]
   downloads        DownloadLog[]
   actionsPerformed AuditLog[]
@@ -77,28 +70,117 @@ model User {
   @@index([resetPasswordToken])
 }
 
-model Organization {
-  id          String  @id @default(uuid())
-  name        String
-  cacNumber   String  @unique
-  phoneNumber String
-  state       String
-  lga         String
-  address     String?
-
-  // Backlink to User
+model ExpertProfile {
+  id     String @id @default(uuid())
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  odaForms    ODAForm[]
-  sector      String?
-  website     String?
-  description String?   @db.Text
-  logoUrl     String?
+  title                       String?
+  yearsOfExperience           Int?
+  about                       String?  @db.Text
+  employer                    String?
+  otherExperience             String?  @db.Text
+  mentoringPhilosophy         String?  @db.Text
+  previousMentoringExperience String?  @db.Text
+  capacityOfMentees           String?
+
+  education               Json     @default("[]")
+  areasOfExpertise        String[]
+  servicesOffered         String[]
+  referees                Json     @default("[]")
+  preferredContactMethods String[]
+  socials                 Json     @default("[]")
+  otherLinks              Json     @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model Organization {
+  id          String  @id @default(uuid())
+  name        String
+  acronym     String?
+  cacNumber   String  @unique
+  phoneNumber String
+  publicEmail String?
+  state       String
+  lga         String
+  address     String?
+  description String? @db.Text
+  logoUrl     String?
+
+  mission String? @db.Text
+  vision  String? @db.Text
+  sectors String[]
+
+  numberOfStaff      Int?
+  numberOfVolunteers Int?
+  annualBudget       String?
+
+  socials    Json @default("[]")
+  otherLinks Json @default("[]")
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  activities  OrganizationActivity[]
+  donors      OrganizationDonor[]
+  assessments OrganizationAssessment[]
+  odaForms    ODAForm[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([state])
+}
+
+model OrganizationActivity {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  sector   String
+  who      String
+  where    String
+  when     Int
+  activity String @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model OrganizationDonor {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  donor    String
+  amount   String
+  duration String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model OrganizationAssessment {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  assessmentBody String
+  month          Int
+  year           Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
 
 model AdminPermission {
   id          String   @id @default(uuid())
@@ -134,21 +216,53 @@ model ODAForm {
   updatedAt    DateTime     @updatedAt
 }
 
+model Badge {
+  id             String  @id @default(uuid())
+  name           String  @unique
+  imageUrl       String
+  externalSource Boolean @default(false)
+
+  users     User[]
+  resources Resource[]
+
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id   String @id @default(uuid())
+  name String @unique
+
+  parentId  String?
+  parent    Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  children  Category[] @relation("SubCategories")
+  resources Resource[]
+}
+
+model Tag {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  resources Resource[]
+}
+
 model Resource {
   id          String       @id @default(uuid())
   title       String
   description String       @db.Text
-  contentUrl  String? // Azure Blob URL or external video URL
-  rawText     String?      @db.Text // OCR-extracted text for full-text search
+  contentUrl  String?
+  rawText     String?      @db.Text
   type        ResourceType
   author      String?
-  language    String? // ISO 639-1 e.g. "en", "fr"
-  region      String? // Geographic focus e.g. "Lagos", "North-East"
-  sector      String? // Thematic sector e.g. "Health", "Education"
+  language    String?
+  region      String?
+  sector      String?
+  fileSize    Int?
+  points      Int          @default(0)
 
-  // Relations
+  badgeId String?
+  badge   Badge?  @relation(fields: [badgeId], references: [id])
+
   categoryId String
-  category   Category      @relation(fields: [categoryId], references: [id])
+  category   Category @relation(fields: [categoryId], references: [id])
   tags       Tag[]
   downloads  DownloadLog[]
 
@@ -161,25 +275,22 @@ model Resource {
   @@index([sector])
   @@index([region])
   @@index([createdAt])
+  @@index([badgeId])
 }
 
-model Category {
-  id   String @id @default(uuid())
-  name String @unique
+model DownloadLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id])
+  timestamp  DateTime @default(now())
 
-  // Self-referencing relationship for sub-categories
-  parentId String?
-  parent   Category?  @relation("SubCategories", fields: [parentId], references: [id])
-  children Category[] @relation("SubCategories")
-
-  resources Resource[]
+  @@index([userId])
+  @@index([resourceId])
 }
 
-model Tag {
-  id        String     @id @default(uuid())
-  name      String     @unique
-  resources Resource[]
-}
+
 
 model Event {
   id                 String   @id @default(uuid())
@@ -237,24 +348,4 @@ model Post {
   authorId  String
   author    User        @relation(fields: [authorId], references: [id])
   createdAt DateTime    @default(now())
-}
-
-model Badge {
-  id             String  @id @default(uuid())
-  name           String  @unique
-  imageUrl       String
-  externalSource Boolean @default(false)
-  users          User[] // Implicit many-to-many with User
-}
-
-model DownloadLog {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  resourceId String
-  resource   Resource @relation(fields: [resourceId], references: [id])
-  timestamp  DateTime @default(now())
-
-  @@index([userId])
-  @@index([resourceId])
 }

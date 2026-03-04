@@ -13,6 +13,7 @@ import {
   ResetPasswordDto,
   UpdateProfileDto,
   UpdateOrganizationDto,
+  UpsertExpertProfileDto,
 } from '../dto/users.dto';
 import { PrismaService } from 'src/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
@@ -48,8 +49,6 @@ export class UserService {
   // ─────────────────────────────────────────────────────────────────────────────
 
   async createUser(dto: CreateUserDto) {
-    // ── Pre-flight checks ─────────────────────────────────────────────────────
-
     if (ADMIN_ROLES.includes(dto.role)) {
       return {
         status: false,
@@ -69,12 +68,10 @@ export class UserService {
       };
     }
 
-    // Compute heavy values before opening any transaction
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const otp = generateOtp();
     const otpExpiry = otpExpiresAt(15);
 
-    // ── Transaction: pure DB writes only, no network I/O ─────────────────────
     let createdUser: any;
     try {
       createdUser = await this.prisma.$transaction(async (tx) => {
@@ -82,23 +79,18 @@ export class UserService {
           data: {
             email: dto.email,
             fullName: dto.fullName,
-            phoneNumber: dto.phoneNumber,
+            // Only store phoneNumber on User for non-expert roles.
+            // Expert phone lives in ExpertProfile.
+            phoneNumber: dto.role !== Role.EXPERT ? dto.phoneNumber : null,
             passwordHash,
             role: dto.role,
             otp,
             otpExpiresAt: otpExpiry,
-            // Guests are auto-approved; all others require admin approval
             status: dto.role === Role.GUEST ? 'APPROVED' : 'PENDING',
-            // Expert fields
-            title: dto.role === Role.EXPERT ? dto.title : null,
-            yearsOfExperience:
-              dto.role === Role.EXPERT ? dto.yearsOfExperience : null,
-            areasOfExpertise:
-              dto.role === Role.EXPERT ? dto.areasOfExpertise : [],
           },
         });
 
-        // If NGO, create the associated Organization
+        // ── NGO_MEMBER: create the Organization record ────────────────────────
         if (dto.role === Role.NGO_MEMBER) {
           await tx.organization.create({
             data: {
@@ -107,11 +99,26 @@ export class UserService {
               phoneNumber: dto.orgPhoneNumber!,
               state: dto.state!,
               lga: dto.lga!,
-              address: dto.address!,
+              address: dto.address ?? null,
               userId: user.id,
             },
           });
         }
+
+        // ── EXPERT: create the ExpertProfile record with seed data ─────────────
+        if (dto.role === Role.EXPERT) {
+          await tx.expertProfile.create({
+            data: {
+              userId: user.id,
+              title: dto.title ?? null,
+              yearsOfExperience: dto.yearsOfExperience ?? null,
+              areasOfExpertise: dto.areasOfExpertise ?? [],
+              // phoneNumber lives in ExpertProfile, not User
+              // Store via the profile update flow — seeded here from registration
+            },
+          });
+        }
+
         return user;
       });
     } catch (error) {
@@ -236,7 +243,12 @@ export class UserService {
     try {
       const user = await this.prisma.user.findUnique({
         where: { email: dto.email },
-        include: { organization: true },
+        include: {
+          organization: true,
+          // Include expertProfile so the token response carries it for experts
+          expertProfile: true,
+          badges: { select: { id: true, name: true, imageUrl: true } },
+        },
       });
 
       if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
@@ -306,7 +318,7 @@ export class UserService {
         return {
           status: true,
           statusCode: HttpStatus.OK,
-          message: 'If this email is registered, a reset OTP has been sent.',
+          message: 'If this email is registered, a reset link has been sent.',
         };
       }
 
@@ -332,7 +344,7 @@ export class UserService {
       return {
         status: true,
         statusCode: HttpStatus.OK,
-        message: 'If this email is registered, a reset OTP has been sent.',
+        message: 'If this email is registered, a reset link has been sent.',
       };
     } catch (error) {
       this.logger.error('forgotPassword error', error);
@@ -409,7 +421,8 @@ export class UserService {
         where: { id },
         include: {
           organization: true,
-          badges: true,
+          expertProfile: true,
+          badges: { select: { id: true, name: true, imageUrl: true } },
         },
       });
 
@@ -463,14 +476,13 @@ export class UserService {
     }
   }
 
-  async getUserOrganizations(userId: string) {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // EXPERT PROFILE — UPSERT & GET
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async upsertExpertProfile(userId: string, dto: UpsertExpertProfileDto) {
     try {
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          organization: true,
-        },
-      });
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
 
       if (!user) {
         return {
@@ -480,11 +492,214 @@ export class UserService {
         };
       }
 
+      if (user.role !== Role.EXPERT) {
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message: 'Only Expert accounts have an expert profile.',
+        };
+      }
+
+      // Build update data — only include fields that were actually sent
+      const data: any = {};
+      if (dto.title !== undefined) data.title = dto.title;
+      if (dto.yearsOfExperience !== undefined)
+        data.yearsOfExperience = dto.yearsOfExperience;
+      if (dto.about !== undefined) data.about = dto.about;
+      if (dto.employer !== undefined) data.employer = dto.employer;
+      if (dto.otherExperience !== undefined)
+        data.otherExperience = dto.otherExperience;
+      if (dto.mentoringPhilosophy !== undefined)
+        data.mentoringPhilosophy = dto.mentoringPhilosophy;
+      if (dto.previousMentoringExperience !== undefined)
+        data.previousMentoringExperience = dto.previousMentoringExperience;
+      if (dto.capacityOfMentees !== undefined)
+        data.capacityOfMentees = dto.capacityOfMentees;
+      if (dto.education !== undefined) data.education = dto.education;
+      if (dto.areasOfExpertise !== undefined)
+        data.areasOfExpertise = dto.areasOfExpertise;
+      if (dto.servicesOffered !== undefined)
+        data.servicesOffered = dto.servicesOffered;
+      if (dto.referees !== undefined) data.referees = dto.referees;
+      if (dto.preferredContactMethods !== undefined)
+        data.preferredContactMethods = dto.preferredContactMethods;
+      if (dto.socials !== undefined) data.socials = dto.socials;
+      if (dto.otherLinks !== undefined) data.otherLinks = dto.otherLinks;
+
+      // Also update phoneNumber on ExpertProfile if provided
+      if (dto.phoneNumber !== undefined) {
+        // Store phone on the User record too so it's visible on the user object
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { phoneNumber: dto.phoneNumber },
+        });
+      }
+
+      const profile = await this.prisma.expertProfile.upsert({
+        where: { userId },
+        create: { userId, ...data },
+        update: data,
+      });
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
-        message: 'User organizations retrieved.',
-        data: user.organization,
+        message: 'Expert profile updated.',
+        data: profile,
+      };
+    } catch (error) {
+      this.logger.error('upsertExpertProfile error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async getExpertProfile(userId: string) {
+    try {
+      const profile = await this.prisma.expertProfile.findUnique({
+        where: { userId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              avatarUrl: true,
+              phoneNumber: true,
+              pointsCount: true,
+              badges: { select: { id: true, name: true, imageUrl: true } },
+            },
+          },
+        },
+      });
+
+      if (!profile) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Expert profile not found.',
+        };
+      }
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Expert profile retrieved.',
+        data: profile,
+      };
+    } catch (error) {
+      this.logger.error('getExpertProfile error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async listExperts(query: {
+    search?: string;
+    expertise?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    try {
+      const page = Number(query.page ?? 1);
+      const limit = Number(query.limit ?? 20);
+      const skip = (page - 1) * limit;
+
+      const where: any = {
+        user: { role: Role.EXPERT, status: 'APPROVED' },
+      };
+
+      if (query.expertise) {
+        where.areasOfExpertise = { has: query.expertise };
+      }
+
+      if (query.search) {
+        where.OR = [
+          {
+            user: { fullName: { contains: query.search, mode: 'insensitive' } },
+          },
+          { employer: { contains: query.search, mode: 'insensitive' } },
+          { about: { contains: query.search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [profiles, total] = await this.prisma.$transaction([
+        this.prisma.expertProfile.findMany({
+          where,
+          skip,
+          take: limit,
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                avatarUrl: true,
+                phoneNumber: true,
+                pointsCount: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.expertProfile.count({ where }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Experts retrieved.',
+        data: {
+          experts: profiles,
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      this.logger.error('listExperts error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ORGANIZATION — GET & UPDATE
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async getUserOrganization(userId: string) {
+    try {
+      const org = await this.prisma.organization.findUnique({
+        where: { userId },
+        include: {
+          activities: { orderBy: { when: 'desc' } },
+          donors: { orderBy: { createdAt: 'desc' } },
+          assessments: { orderBy: [{ year: 'desc' }, { month: 'desc' }] },
+        },
+      });
+
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization not found.',
+        };
+      }
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Organization retrieved.',
+        data: org,
       };
     } catch (error) {
       this.logger.error('getUserOrganization error', error);
@@ -496,17 +711,11 @@ export class UserService {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // UPDATE
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  async updateOrganization(
-    adminId: string,
-    id: string,
-    dto: UpdateOrganizationDto,
-  ) {
+  async updateOrganization(userId: string, dto: UpdateOrganizationDto) {
     try {
-      const org = await this.prisma.organization.findUnique({ where: { id } });
+      const org = await this.prisma.organization.findUnique({
+        where: { userId },
+      });
 
       if (!org) {
         return {
@@ -517,17 +726,42 @@ export class UserService {
       }
 
       const updated = await this.prisma.organization.update({
-        where: { id },
-        data: { ...dto },
-      });
-
-      await this.prisma.auditLog.create({
+        where: { userId },
         data: {
-          action: 'ORG_UPDATED',
-          entity: 'Organization',
-          entityId: id,
-          details: { changes: { ...dto } } as any,
-          adminId,
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.acronym !== undefined && { acronym: dto.acronym }),
+          ...(dto.phoneNumber !== undefined && {
+            phoneNumber: dto.phoneNumber,
+          }),
+          ...(dto.publicEmail !== undefined && {
+            publicEmail: dto.publicEmail,
+          }),
+          ...(dto.state !== undefined && { state: dto.state }),
+          ...(dto.lga !== undefined && { lga: dto.lga }),
+          ...(dto.address !== undefined && { address: dto.address }),
+          ...(dto.mission !== undefined && { mission: dto.mission }),
+          ...(dto.vision !== undefined && { vision: dto.vision }),
+          ...(dto.sectors !== undefined && { sectors: dto.sectors }),
+          ...(dto.numberOfStaff !== undefined && {
+            numberOfStaff: dto.numberOfStaff,
+          }),
+          ...(dto.numberOfVolunteers !== undefined && {
+            numberOfVolunteers: dto.numberOfVolunteers,
+          }),
+          ...(dto.annualBudget !== undefined && {
+            annualBudget: dto.annualBudget,
+          }),
+          ...(dto.socials !== undefined && { socials: dto.socials }),
+          ...(dto.otherLinks !== undefined && { otherLinks: dto.otherLinks }),
+          ...(dto.website !== undefined && { website: dto.website }),
+          ...(dto.description !== undefined && {
+            description: dto.description,
+          }),
+        },
+        include: {
+          activities: true,
+          donors: true,
+          assessments: true,
         },
       });
 
@@ -548,61 +782,7 @@ export class UserService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // LOGO UPLOAD
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  async uploadLogo(adminId: string, orgId: string, file: Express.Multer.File) {
-    try {
-      const org = await this.prisma.organization.findUnique({
-        where: { id: orgId },
-      });
-
-      if (!org) {
-        return {
-          status: false,
-          statusCode: HttpStatus.NOT_FOUND,
-          message: 'Organization not found.',
-        };
-      }
-
-      if (org.logoUrl) {
-        await this.azureBlob.delete(org.logoUrl, 'avatars');
-      }
-
-      const logoUrl = await this.azureBlob.upload(file, 'avatars');
-
-      await this.prisma.organization.update({
-        where: { id: orgId },
-        data: { logoUrl },
-      });
-
-      await this.prisma.auditLog.create({
-        data: {
-          action: 'ORG_LOGO_UPDATED',
-          entity: 'Organization',
-          entityId: orgId,
-          adminId,
-        },
-      });
-
-      return {
-        status: true,
-        statusCode: HttpStatus.OK,
-        message: 'Logo uploaded.',
-        logoUrl,
-      };
-    } catch (error) {
-      this.logger.error('uploadLogo error', error);
-      return {
-        status: false,
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Server error.',
-      };
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // AVATAR UPLOAD
+  // AVATAR & LOGO UPLOADS
   // ─────────────────────────────────────────────────────────────────────────────
 
   async uploadAvatar(userId: string, file: Express.Multer.File) {
@@ -616,13 +796,11 @@ export class UserService {
         };
       }
 
-      // Remove old avatar from Azure if it exists
       if (user.avatarUrl) {
         await this.azureBlob.delete(user.avatarUrl, 'avatars');
       }
 
       const avatarUrl = await this.azureBlob.upload(file, 'avatars');
-
       await this.prisma.user.update({
         where: { id: userId },
         data: { avatarUrl },
@@ -644,13 +822,55 @@ export class UserService {
     }
   }
 
+  async uploadLogo(userId: string, file: Express.Multer.File) {
+    try {
+      const org = await this.prisma.organization.findUnique({
+        where: { userId },
+      });
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization not found.',
+        };
+      }
+
+      if (org.logoUrl) {
+        await this.azureBlob.delete(org.logoUrl, 'avatars');
+      }
+
+      const logoUrl = await this.azureBlob.upload(file, 'avatars');
+      await this.prisma.organization.update({
+        where: { userId },
+        data: { logoUrl },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Logo uploaded.',
+        logoUrl,
+      };
+    } catch (error) {
+      this.logger.error('uploadLogo error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // SUPER ADMIN SEED
+  // ─────────────────────────────────────────────────────────────────────────────
+
   async seedSuperAdmin(dto: {
     email: string;
     password: string;
     fullName: string;
     seedSecret: string;
   }) {
-    // Guard against accidental exposure — requires a server-side secret
     const expected = this.config.get<string>('SEED_SECRET');
     if (!expected || dto.seedSecret !== expected) {
       return {
@@ -663,18 +883,15 @@ export class UserService {
     const existing = await this.prisma.user.findFirst({
       where: { role: Role.SUPER_ADMIN },
     });
-
     if (existing) {
       return {
         status: false,
         statusCode: HttpStatus.CONFLICT,
-        message:
-          'A Super Admin account already exists. Use the assign-permissions endpoint to manage access.',
+        message: 'A Super Admin account already exists.',
       };
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
-
     const superAdmin = await this.prisma.user.create({
       data: {
         email: dto.email,
@@ -687,7 +904,6 @@ export class UserService {
     });
 
     this.logger.warn(`Super Admin seeded: ${superAdmin.email}`);
-
     return {
       status: true,
       statusCode: HttpStatus.CREATED,
@@ -695,7 +911,6 @@ export class UserService {
       data: { id: superAdmin.id, email: superAdmin.email },
     };
   }
-  // ─────────────────────────────────────────────────────────────────────────────
 
   // ─────────────────────────────────────────────────────────────────────────────
   // ADMIN: APPROVE / REJECT / SUSPEND / DELETE
@@ -716,8 +931,7 @@ export class UserService {
       return {
         status: false,
         statusCode: HttpStatus.BAD_REQUEST,
-        message:
-          'Cannot approve this account. The user has not verified their email address yet.',
+        message: 'Cannot approve: user has not verified their email yet.',
       };
     }
 
@@ -761,7 +975,6 @@ export class UserService {
         }),
       ]);
 
-      // Send email notification for approval/rejection
       if (status === 'APPROVED' || status === 'REJECTED') {
         await this.emailService.sendAccountStatusNotification({
           fullName: user.fullName,
@@ -845,8 +1058,8 @@ export class UserService {
     limit?: number;
   }) {
     try {
-      const page = query.page ?? 1;
-      const limit = query.limit ?? 20;
+      const page = Number(query.page ?? 1);
+      const limit = Number(query.limit ?? 20);
       const skip = (page - 1) * limit;
 
       const where: any = {};
@@ -859,8 +1072,25 @@ export class UserService {
           skip,
           take: limit,
           include: {
-            organization: true,
-            badges: true,
+            organization: {
+              select: {
+                id: true,
+                name: true,
+                acronym: true,
+                cacNumber: true,
+                state: true,
+                logoUrl: true,
+              },
+            },
+            expertProfile: {
+              select: {
+                id: true,
+                title: true,
+                areasOfExpertise: true,
+                employer: true,
+              },
+            },
+            badges: { select: { id: true, name: true, imageUrl: true } },
           },
           orderBy: { createdAt: 'desc' },
         }),
@@ -894,8 +1124,66 @@ export class UserService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // ADMIN: ASSIGN PERMISSIONS
+  // ADMIN: PERMISSIONS
   // ─────────────────────────────────────────────────────────────────────────────
+
+  async assignPermissions(
+    superAdminId: string,
+    targetAdminId: string,
+    permissions: string[],
+  ) {
+    try {
+      const targetUser = await this.prisma.user.findUnique({
+        where: { id: targetAdminId },
+      });
+
+      if (!targetUser) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Target user not found.',
+        };
+      }
+
+      if (!ADMIN_ROLES.includes(targetUser.role)) {
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'Permissions can only be assigned to admin roles.',
+        };
+      }
+
+      await this.prisma.adminPermission.upsert({
+        where: { userId: targetAdminId },
+        create: { userId: targetAdminId, permissions },
+        update: { permissions },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'PERMISSIONS_UPDATED',
+          entity: 'User',
+          entityId: targetAdminId,
+          details: { permissions },
+          adminId: superAdminId,
+        },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Permissions updated successfully.',
+        data: { userId: targetAdminId, permissions },
+      };
+    } catch (error) {
+      this.logger.error('assignPermissions error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
 
   async revokePermissions(
     superAdminId: string,
@@ -951,64 +1239,6 @@ export class UserService {
       };
     } catch (error) {
       this.logger.error('revokePermissions error', error);
-      return {
-        status: false,
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Server error.',
-      };
-    }
-  }
-
-  async assignPermissions(
-    superAdminId: string,
-    targetAdminId: string,
-    permissions: string[],
-  ) {
-    try {
-      const targetUser = await this.prisma.user.findUnique({
-        where: { id: targetAdminId },
-      });
-
-      if (!targetUser) {
-        return {
-          status: false,
-          statusCode: HttpStatus.NOT_FOUND,
-          message: 'Target user not found.',
-        };
-      }
-
-      if (!ADMIN_ROLES.includes(targetUser.role)) {
-        return {
-          status: false,
-          statusCode: HttpStatus.BAD_REQUEST,
-          message: 'Permissions can only be assigned to admin roles.',
-        };
-      }
-
-      await this.prisma.adminPermission.upsert({
-        where: { userId: targetAdminId },
-        create: { userId: targetAdminId, permissions },
-        update: { permissions },
-      });
-
-      await this.prisma.auditLog.create({
-        data: {
-          action: 'PERMISSIONS_UPDATED',
-          entity: 'User',
-          entityId: targetAdminId,
-          details: { permissions },
-          adminId: superAdminId,
-        },
-      });
-
-      return {
-        status: true,
-        statusCode: HttpStatus.OK,
-        message: 'Permissions updated successfully.',
-        data: { userId: targetAdminId, permissions },
-      };
-    } catch (error) {
-      this.logger.error('assignPermissions error', error);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,

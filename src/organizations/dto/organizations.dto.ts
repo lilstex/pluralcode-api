@@ -1,0 +1,355 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsEmail,
+  IsInt,
+  IsArray,
+  Min,
+  Max,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+
+// ─────────────────────────────────────────────
+// ORGANIZATION CORE DTOs
+// ─────────────────────────────────────────────
+
+export class UpdateOrganizationDto {
+  @ApiPropertyOptional({ example: 'Save The Children Nigeria' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ example: 'STC-NG' })
+  @IsOptional()
+  @IsString()
+  acronym?: string;
+
+  @ApiPropertyOptional({ example: '+2348099887766' })
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
+
+  @ApiPropertyOptional({ example: 'info@stc.org.ng' })
+  @IsOptional()
+  @IsEmail()
+  publicEmail?: string;
+
+  @ApiPropertyOptional({ example: 'Lagos' })
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional({ example: 'Ikeja' })
+  @IsOptional()
+  @IsString()
+  lga?: string;
+
+  @ApiPropertyOptional({ example: '12 NGO Way, Ikeja, Lagos' })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional({
+    example: 'We exist to ensure every child has access to...',
+  })
+  @IsOptional()
+  @IsString()
+  mission?: string;
+
+  @ApiPropertyOptional({
+    example: 'A world where every child reaches their full potential...',
+  })
+  @IsOptional()
+  @IsString()
+  vision?: string;
+
+  @ApiPropertyOptional({
+    description: 'Thematic sectors the organization works in',
+    example: ['Health', 'Education', 'Child Protection'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sectors?: string[];
+
+  @ApiPropertyOptional({ example: 45 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  numberOfStaff?: number;
+
+  @ApiPropertyOptional({ example: 120 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  numberOfVolunteers?: number;
+
+  @ApiPropertyOptional({ example: '₦50,000,000 – ₦100,000,000' })
+  @IsOptional()
+  @IsString()
+  annualBudget?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Social media links: [{ "facebook": "url" }, { "x": "url" }, { "linkedin": "url" }]',
+    example: [
+      { facebook: 'https://facebook.com/stcng' },
+      { x: 'https://x.com/stcng' },
+    ],
+  })
+  @IsOptional()
+  socials?: any[];
+
+  @ApiPropertyOptional({
+    description:
+      'Document links: [{ "plans": "url" }, { "report": "url" }, { "accounts": "url" }, { "evaluation": "url" }]',
+    example: [{ report: 'https://stc.org/annual-report-2024.pdf' }],
+  })
+  @IsOptional()
+  otherLinks?: any[];
+
+  @ApiPropertyOptional({ example: 'https://savethechildren.org.ng' })
+  @IsOptional()
+  @IsString()
+  website?: string;
+
+  @ApiPropertyOptional({
+    example: 'We work across Nigeria to promote child welfare...',
+  })
+  @IsOptional()
+  @IsString()
+  description?: string;
+}
+
+// ─────────────────────────────────────────────
+// EXTENSION TABLE DTOs
+// ─────────────────────────────────────────────
+
+export class CreateActivityDto {
+  @ApiProperty({ example: 'Health' })
+  @IsNotEmpty()
+  @IsString()
+  sector: string;
+
+  @ApiProperty({ example: 'Women and children under 5' })
+  @IsNotEmpty()
+  @IsString()
+  who: string;
+
+  @ApiProperty({ example: 'Kano State' })
+  @IsNotEmpty()
+  @IsString()
+  where: string;
+
+  @ApiProperty({
+    example: 2024,
+    description: 'Year the activity was carried out',
+  })
+  @IsInt()
+  @Min(1900)
+  @Type(() => Number)
+  when: number;
+
+  @ApiProperty({
+    example:
+      'Conducted free medical outreach for 2,000 children across 12 communities.',
+  })
+  @IsNotEmpty()
+  @IsString()
+  activity: string;
+}
+
+export class UpdateActivityDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() sector?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() who?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() where?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1900)
+  @Type(() => Number)
+  when?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() activity?: string;
+}
+
+export class CreateDonorDto {
+  @ApiProperty({ example: 'USAID' })
+  @IsNotEmpty()
+  @IsString()
+  donor: string;
+
+  @ApiProperty({
+    example: '$500,000',
+    description: 'Free-text amount or range',
+  })
+  @IsNotEmpty()
+  @IsString()
+  amount: string;
+
+  @ApiProperty({
+    example: '2022–2025',
+    description: 'Grant duration or period',
+  })
+  @IsNotEmpty()
+  @IsString()
+  duration: string;
+}
+
+export class UpdateDonorDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() donor?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() amount?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() duration?: string;
+}
+
+export class CreateAssessmentDto {
+  @ApiProperty({ example: 'CharityNavigator Nigeria' })
+  @IsNotEmpty()
+  @IsString()
+  assessmentBody: string;
+
+  @ApiProperty({ example: 3, description: 'Month number 1–12' })
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  @Type(() => Number)
+  month: number;
+
+  @ApiProperty({ example: 2024 })
+  @IsInt()
+  @Min(2000)
+  @Type(() => Number)
+  year: number;
+}
+
+export class UpdateAssessmentDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() assessmentBody?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  @Type(() => Number)
+  month?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(2000)
+  @Type(() => Number)
+  year?: number;
+}
+
+// ─────────────────────────────────────────────
+// QUERY DTOs
+// ─────────────────────────────────────────────
+
+export class OrgQueryDto {
+  @ApiPropertyOptional({
+    description: 'Search by name, acronym, or CAC number',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
+    example: 'Health',
+    description: 'Filter by a single sector value',
+  })
+  @IsOptional()
+  @IsString()
+  sector?: string;
+
+  @ApiPropertyOptional({ example: 'Lagos' })
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  page?: number;
+
+  @ApiPropertyOptional({ example: 20 })
+  @IsOptional()
+  limit?: number;
+}
+
+// ─────────────────────────────────────────────
+// RESPONSE DTOs
+// ─────────────────────────────────────────────
+
+export class ActivityResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() sector: string;
+  @ApiProperty() who: string;
+  @ApiProperty() where: string;
+  @ApiProperty() when: number;
+  @ApiProperty() activity: string;
+  @ApiProperty() createdAt: Date;
+  @ApiProperty() updatedAt: Date;
+}
+
+export class DonorResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() donor: string;
+  @ApiProperty() amount: string;
+  @ApiProperty() duration: string;
+  @ApiProperty() createdAt: Date;
+}
+
+export class AssessmentResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() assessmentBody: string;
+  @ApiProperty() month: number;
+  @ApiProperty() year: number;
+  @ApiProperty() createdAt: Date;
+}
+
+export class OrganizationResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiPropertyOptional() acronym?: string;
+  @ApiProperty() cacNumber: string;
+  @ApiProperty() phoneNumber: string;
+  @ApiPropertyOptional() publicEmail?: string;
+  @ApiProperty() state: string;
+  @ApiProperty() lga: string;
+  @ApiPropertyOptional() address?: string;
+  @ApiPropertyOptional() logoUrl?: string;
+  @ApiPropertyOptional() website?: string;
+  @ApiPropertyOptional() description?: string;
+  @ApiPropertyOptional() mission?: string;
+  @ApiPropertyOptional() vision?: string;
+  @ApiProperty({ type: [String] }) sectors: string[];
+  @ApiPropertyOptional() numberOfStaff?: number;
+  @ApiPropertyOptional() numberOfVolunteers?: number;
+  @ApiPropertyOptional() annualBudget?: string;
+  @ApiProperty() socials: any[];
+  @ApiProperty() otherLinks: any[];
+  @ApiProperty({ type: [ActivityResponseDto] })
+  activities: ActivityResponseDto[];
+  @ApiProperty({ type: [DonorResponseDto] }) donors: DonorResponseDto[];
+  @ApiProperty({ type: [AssessmentResponseDto] })
+  assessments: AssessmentResponseDto[];
+  @ApiProperty() createdAt: Date;
+  @ApiProperty() updatedAt: Date;
+}
+
+export class OrganizationSummaryResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiPropertyOptional() acronym?: string;
+  @ApiProperty() cacNumber: string;
+  @ApiProperty() state: string;
+  @ApiProperty() lga: string;
+  @ApiProperty({ type: [String] }) sectors: string[];
+  @ApiPropertyOptional() logoUrl?: string;
+  @ApiPropertyOptional() mission?: string;
+  @ApiPropertyOptional() numberOfStaff?: number;
+  @ApiPropertyOptional() numberOfVolunteers?: number;
+  @ApiPropertyOptional() website?: string;
+  @ApiProperty() createdAt: Date;
+}

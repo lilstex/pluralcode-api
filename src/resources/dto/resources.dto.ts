@@ -47,6 +47,20 @@ export class CreateTagDto {
   name: string;
 }
 
+export class CreateBadgeDto {
+  @ApiProperty({ example: 'Top Contributor' })
+  @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @ApiProperty({
+    type: 'string',
+    format: 'binary',
+    description: 'Badge icon image',
+  })
+  file: any;
+}
+
 // ─────────────────────────────────────────────
 // RESOURCE DTOs
 // ─────────────────────────────────────────────
@@ -72,6 +86,15 @@ export class CreateResourceDto {
   @IsNotEmpty()
   @IsUUID()
   categoryId: string;
+
+  @ApiProperty({ example: 'uuid-of-badge' })
+  @IsNotEmpty()
+  @IsUUID()
+  badgeId: string;
+
+  @ApiProperty({ example: 5 })
+  @IsNotEmpty()
+  points: number;
 
   @ApiPropertyOptional({ example: 'NRC Nigeria' })
   @IsOptional()
@@ -131,7 +154,9 @@ export class UpdateResourceDto {
   @ApiPropertyOptional() @IsOptional() @IsString() title?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() categoryId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() badgeId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() author?: string;
+  @ApiPropertyOptional() @IsOptional() points?: number;
   @ApiPropertyOptional()
   @IsOptional()
   @IsArray()
@@ -152,6 +177,11 @@ export class ResourceQueryDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
+
+  @ApiPropertyOptional({ example: 'uuid-of-tag' })
+  @IsOptional()
+  @IsUUID()
+  tagId?: string;
 
   @ApiPropertyOptional({ enum: ResourceType })
   @IsOptional()
@@ -213,6 +243,13 @@ export class CategoryResponseDto {
   @ApiPropertyOptional() parentId?: string;
   @ApiPropertyOptional({ type: [CategoryResponseDto] })
   children?: CategoryResponseDto[];
+}
+
+export class BadgeResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiProperty() imageUrl: string;
+  @ApiProperty() createdAt: Date;
 }
 
 export class ResourceResponseDto {

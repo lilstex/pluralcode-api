@@ -7,14 +7,16 @@ import {
   IsOptional,
   MinLength,
   IsArray,
+  IsInt,
+  Min,
   Matches,
   ValidateIf,
-  IsInt,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { Role, ApprovalStatus } from '@prisma/client';
 
 // ─────────────────────────────────────────────
-// REQUEST DTOs
+// AUTH DTOs
 // ─────────────────────────────────────────────
 
 export class CreateUserDto {
@@ -28,7 +30,7 @@ export class CreateUserDto {
   @IsString()
   fullName: string;
 
-  @ApiProperty({ example: 'NGO_MEMBER', enum: Role })
+  @ApiProperty({ enum: Role, example: 'NGO_MEMBER' })
   @IsEnum(Role)
   role: Role;
 
@@ -37,24 +39,24 @@ export class CreateUserDto {
   @MinLength(8)
   @Matches(/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/, {
     message:
-      'Password must be at least 8 characters and include an uppercase letter, a number, and a special character.',
+      'Password must include an uppercase letter, a number, and a special character.',
   })
   password: string;
 
-  // --- NGO Specific (Required only if role is NGO_MEMBER) ---
-  @ApiPropertyOptional({ example: 'Helping Hands Initiative' })
+  // ── NGO_MEMBER fields (required when role === NGO_MEMBER) ─────────────────
+  @ApiPropertyOptional({ example: 'Save The Children Nigeria' })
   @ValidateIf((o) => o.role === Role.NGO_MEMBER)
   @IsNotEmpty()
   @IsString()
   orgName?: string;
 
-  @ApiPropertyOptional({ example: 'CAC1234567' })
+  @ApiPropertyOptional({ example: 'CAC/IT/123456' })
   @ValidateIf((o) => o.role === Role.NGO_MEMBER)
   @IsNotEmpty()
   @IsString()
   cacNumber?: string;
 
-  @ApiPropertyOptional({ example: '+2348012345678' })
+  @ApiPropertyOptional({ example: '+2348099887766' })
   @ValidateIf((o) => o.role === Role.NGO_MEMBER)
   @IsNotEmpty()
   @IsString()
@@ -72,20 +74,20 @@ export class CreateUserDto {
   @IsString()
   lga?: string;
 
-  @ApiPropertyOptional({ example: 'No.4 Iyala Street' })
+  @ApiPropertyOptional({ example: '12 NGO Way, Ikeja' })
   @ValidateIf((o) => o.role === Role.NGO_MEMBER)
   @IsOptional()
   @IsString()
   address?: string;
 
-  // --- Expert Specific (Required only if role is EXPERT) ---
-  @ApiPropertyOptional({ example: 'Senior Governance Consultant' })
+  // ── EXPERT fields (required when role === EXPERT) ─────────────────────────
+  @ApiPropertyOptional({ example: 'Dr.' })
   @ValidateIf((o) => o.role === Role.EXPERT)
   @IsNotEmpty()
   @IsString()
   title?: string;
 
-  @ApiPropertyOptional({ example: '09013252224' })
+  @ApiPropertyOptional({ example: '+2348012345678' })
   @ValidateIf((o) => o.role === Role.EXPERT)
   @IsNotEmpty()
   @IsString()
@@ -95,15 +97,18 @@ export class CreateUserDto {
   @ValidateIf((o) => o.role === Role.EXPERT)
   @IsNotEmpty()
   @IsInt()
+  @Min(0)
+  @Type(() => Number)
   yearsOfExperience?: number;
 
-  @ApiPropertyOptional({ example: ['Policy Analysis', 'Capacity Building'] })
+  @ApiPropertyOptional({ example: ['Governance', 'M&E'], type: [String] })
   @ValidateIf((o) => o.role === Role.EXPERT)
   @IsNotEmpty()
   @IsArray()
   @IsString({ each: true })
   areasOfExpertise?: string[];
 }
+
 export class LoginDto {
   @ApiProperty({ example: 'john.doe@ngo.org' })
   @IsNotEmpty()
@@ -130,8 +135,8 @@ export class VerifyOtpDto {
   email: string;
 
   @ApiProperty({ example: '123456' })
-  @IsString()
   @IsNotEmpty()
+  @IsString()
   otp: string;
 }
 
@@ -141,15 +146,18 @@ export class ResetPasswordDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: 'reset-token-from-email' })
-  @IsString()
+  @ApiProperty({ description: 'Reset token received via email link' })
   @IsNotEmpty()
+  @IsString()
   token: string;
 
   @ApiProperty({ example: 'NewStrongPassword123!' })
-  @IsString()
+  @IsNotEmpty()
   @MinLength(8)
-  @Matches(/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/)
+  @Matches(/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/, {
+    message:
+      'Password must include an uppercase letter, a number, and a special character.',
+  })
   password: string;
 }
 
@@ -163,22 +171,145 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   phoneNumber?: string;
+}
 
-  @ApiPropertyOptional({ example: 'I am a governance specialist...' })
+// ─────────────────────────────────────────────
+// EXPERT PROFILE DTOs
+// ─────────────────────────────────────────────
+
+export class UpsertExpertProfileDto {
+  @ApiPropertyOptional({ example: 'Dr.' })
   @IsOptional()
   @IsString()
-  bio?: string;
+  title?: string;
 
-  @ApiPropertyOptional({ example: ['Governance', 'Finance'] })
+  @ApiPropertyOptional({ example: '+2348012345678' })
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
+
+  @ApiPropertyOptional({ example: 12 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  yearsOfExperience?: number;
+
+  @ApiPropertyOptional({
+    example: 'I am a governance specialist with 12 years of experience...',
+  })
+  @IsOptional()
+  @IsString()
+  about?: string;
+
+  @ApiPropertyOptional({ example: 'ActionAid Nigeria' })
+  @IsOptional()
+  @IsString()
+  employer?: string;
+
+  @ApiPropertyOptional({
+    example: 'Extensive work with INGOs in West Africa...',
+  })
+  @IsOptional()
+  @IsString()
+  otherExperience?: string;
+
+  @ApiPropertyOptional({
+    example: 'I believe mentoring is a two-way street...',
+  })
+  @IsOptional()
+  @IsString()
+  mentoringPhilosophy?: string;
+
+  @ApiPropertyOptional({ example: 'Mentored 3 NGO leaders at ActionAid...' })
+  @IsOptional()
+  @IsString()
+  previousMentoringExperience?: string;
+
+  @ApiPropertyOptional({
+    example: '5-10',
+    description: 'Capacity range e.g. "5-10" mentees',
+  })
+  @IsOptional()
+  @IsString()
+  capacityOfMentees?: string;
+
+  @ApiPropertyOptional({
+    description: 'Array of education entries',
+    example: [
+      {
+        title: 'Degree',
+        certification: 'BSC',
+        institution: 'University of Ibadan',
+        year: 2010,
+      },
+    ],
+  })
+  @IsOptional()
+  education?: any[];
+
+  @ApiPropertyOptional({
+    example: ['Governance', 'Financial Management', 'M&E'],
+    type: [String],
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  skills?: string[];
+  areasOfExpertise?: string[];
 
-  @ApiPropertyOptional({ example: true })
+  @ApiPropertyOptional({
+    example: ['Mentoring', 'Training', 'Consulting'],
+    type: [String],
+  })
   @IsOptional()
-  showContactToPublic?: boolean;
+  @IsArray()
+  @IsString({ each: true })
+  servicesOffered?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Array of referee objects',
+    example: [
+      {
+        name: 'John Doe',
+        email: 'j@example.com',
+        phone: '+234...',
+        organization: 'UNICEF',
+      },
+    ],
+  })
+  @IsOptional()
+  referees?: any[];
+
+  @ApiPropertyOptional({
+    example: ['email', 'phone', 'WhatsApp'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  preferredContactMethods?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Social links array',
+    example: [
+      { linkedin: 'https://linkedin.com/in/johndoe' },
+      { x: 'https://x.com/johndoe' },
+    ],
+  })
+  @IsOptional()
+  socials?: any[];
+
+  @ApiPropertyOptional({
+    description: 'Other links array',
+    example: [{ 'Personal Website': 'https://johndoe.com' }],
+  })
+  @IsOptional()
+  otherLinks?: any[];
 }
+
+// ─────────────────────────────────────────────
+// ORGANIZATION DTOs
+// ─────────────────────────────────────────────
 
 export class UpdateOrganizationDto {
   @ApiPropertyOptional({ example: 'Save The Children Nigeria' })
@@ -186,22 +317,101 @@ export class UpdateOrganizationDto {
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional({ example: 'Health' })
+  @ApiPropertyOptional({ example: 'STC-NG' })
   @IsOptional()
   @IsString()
-  sector?: string;
+  acronym?: string;
+
+  @ApiPropertyOptional({ example: '+2348099887766' })
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
+
+  @ApiPropertyOptional({ example: 'info@stc.org.ng' })
+  @IsOptional()
+  @IsEmail()
+  publicEmail?: string;
 
   @ApiPropertyOptional({ example: 'Lagos' })
   @IsOptional()
   @IsString()
   state?: string;
 
-  @ApiPropertyOptional({ example: 'https://savethechildren.org' })
+  @ApiPropertyOptional({ example: 'Ikeja' })
+  @IsOptional()
+  @IsString()
+  lga?: string;
+
+  @ApiPropertyOptional({ example: '12 NGO Way, Ikeja, Lagos' })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional({
+    example: 'We exist to ensure every child has access to...',
+  })
+  @IsOptional()
+  @IsString()
+  mission?: string;
+
+  @ApiPropertyOptional({
+    example: 'A world where every child reaches their full potential...',
+  })
+  @IsOptional()
+  @IsString()
+  vision?: string;
+
+  @ApiPropertyOptional({
+    example: ['Health', 'Education', 'Child Protection'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sectors?: string[];
+
+  @ApiPropertyOptional({ example: 45 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  numberOfStaff?: number;
+
+  @ApiPropertyOptional({ example: 120 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  numberOfVolunteers?: number;
+
+  @ApiPropertyOptional({ example: '₦50,000,000 – ₦100,000,000' })
+  @IsOptional()
+  @IsString()
+  annualBudget?: string;
+
+  @ApiPropertyOptional({
+    description: 'Social links: [{ "facebook": "url" }, { "x": "url" }]',
+    example: [
+      { facebook: 'https://facebook.com/stcng' },
+      { x: 'https://x.com/stcng' },
+    ],
+  })
+  @IsOptional()
+  socials?: any[];
+
+  @ApiPropertyOptional({
+    description: 'Document links: [{ "plans": "url" }, { "report": "url" }]',
+    example: [{ report: 'https://stc.org/report-2024.pdf' }],
+  })
+  @IsOptional()
+  otherLinks?: any[];
+
+  @ApiPropertyOptional({ example: 'https://savethechildren.org.ng' })
   @IsOptional()
   @IsString()
   website?: string;
 
-  @ApiPropertyOptional({ example: 'Updated description...' })
+  @ApiPropertyOptional({ example: 'We work across Nigeria to...' })
   @IsOptional()
   @IsString()
   description?: string;
@@ -211,14 +421,36 @@ export class UpdateOrganizationDto {
 // RESPONSE DTOs
 // ─────────────────────────────────────────────
 
-export class OrganizationResponseDto {
+export class OrganizationSummaryDto {
   @ApiProperty() id: string;
   @ApiProperty() name: string;
+  @ApiPropertyOptional() acronym?: string;
   @ApiProperty() cacNumber: string;
-  @ApiProperty() phoneNumber: string;
   @ApiProperty() state: string;
   @ApiProperty() lga: string;
   @ApiPropertyOptional() logoUrl?: string;
+  @ApiProperty() createdAt: Date;
+}
+
+export class ExpertProfileResponseDto {
+  @ApiProperty() id: string;
+  @ApiPropertyOptional() title?: string;
+  @ApiPropertyOptional() yearsOfExperience?: number;
+  @ApiPropertyOptional() about?: string;
+  @ApiPropertyOptional() employer?: string;
+  @ApiPropertyOptional() otherExperience?: string;
+  @ApiPropertyOptional() mentoringPhilosophy?: string;
+  @ApiPropertyOptional() previousMentoringExperience?: string;
+  @ApiPropertyOptional() capacityOfMentees?: string;
+  @ApiProperty() education: any[];
+  @ApiProperty() areasOfExpertise: string[];
+  @ApiProperty() servicesOffered: string[];
+  @ApiProperty() referees: any[];
+  @ApiProperty() preferredContactMethods: string[];
+  @ApiProperty() socials: any[];
+  @ApiProperty() otherLinks: any[];
+  @ApiProperty() createdAt: Date;
+  @ApiProperty() updatedAt: Date;
 }
 
 export class UserResponseDto {
@@ -228,40 +460,29 @@ export class UserResponseDto {
   @ApiProperty({ enum: Role }) role: Role;
   @ApiProperty({ enum: ApprovalStatus }) status: ApprovalStatus;
   @ApiProperty() isEmailVerified: boolean;
-
-  // Expert fields (null if not expert)
-  @ApiPropertyOptional() title?: string;
-  @ApiPropertyOptional() yearsOfExperience?: number;
-  @ApiPropertyOptional() areasOfExpertise?: string[];
-
-  // NGO relation (null if not NGO)
-  @ApiPropertyOptional({ type: OrganizationResponseDto })
-  organization?: OrganizationResponseDto;
-
+  @ApiPropertyOptional() phoneNumber?: string;
+  @ApiPropertyOptional() avatarUrl?: string;
+  @ApiProperty() pointsCount: number;
+  @ApiPropertyOptional({ type: OrganizationSummaryDto })
+  organization?: OrganizationSummaryDto;
+  @ApiPropertyOptional({ type: ExpertProfileResponseDto })
+  expertProfile?: ExpertProfileResponseDto;
   @ApiProperty() createdAt: Date;
+  @ApiProperty() updatedAt: Date;
 }
 
 export class LoginResponseDto {
   @ApiProperty() status: boolean;
   @ApiProperty() statusCode: number;
   @ApiProperty() message: string;
-  @ApiProperty({
-    example: {
-      token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-      user: { id: 'uuid', fullName: 'John Doe', role: 'NGO_MEMBER' },
-    },
-  })
-  data: { token: string; user: Partial<UserResponseDto> };
+  @ApiProperty() data: { token: string; user: Partial<UserResponseDto> };
 }
 
 export class SignUpResponseDto {
   @ApiProperty() status: boolean;
   @ApiProperty() statusCode: number;
   @ApiProperty() message: string;
-  @ApiProperty({
-    example: { id: 'uuid', email: 'john@ngo.org', role: 'NGO_MEMBER' },
-  })
-  data: { id: string; email: string; role: Role };
+  @ApiProperty() data: { id: string; email: string; role: Role };
 }
 
 export class ForgotPasswordResponseDto {
@@ -280,8 +501,5 @@ export class UploadAvatarResponseDto {
   @ApiProperty() status: boolean;
   @ApiProperty() statusCode: number;
   @ApiProperty() message: string;
-  @ApiPropertyOptional({
-    example: 'https://yourstorage.blob.core.windows.net/avatars/uuid.jpg',
-  })
-  avatarUrl?: string;
+  @ApiPropertyOptional() avatarUrl?: string;
 }
