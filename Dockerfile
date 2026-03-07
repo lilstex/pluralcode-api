@@ -33,7 +33,8 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 # Copy compiled source files (flatten src into dist)
 COPY --from=builder /app/dist/src ./dist
-COPY --from=builder /app/dist/views ./dist/views
+# EJS email templates
+COPY --from=builder /app/dist/views ./views
 # Copy prisma folder
 COPY --from=builder /app/prisma ./prisma
 
