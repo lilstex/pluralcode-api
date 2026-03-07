@@ -52,15 +52,16 @@ model User {
   phoneNumber            String?
   pointsCount            Int            @default(0)
 
-  organization     Organization?
-  expertProfile    ExpertProfile?
-  adminPermission  AdminPermission?
-  forumThreads     ForumThread[]
-  posts            Post[]
-  badges           Badge[]
-  events           EventRegistration[]
-  downloads        DownloadLog[]
-  actionsPerformed AuditLog[]
+  organization            Organization?
+  organizationMemberships OrganizationMember[]
+  expertProfile           ExpertProfile?
+  adminPermission         AdminPermission?
+  forumThreads            ForumThread[]
+  posts                   Post[]
+  badges                  Badge[]
+  events                  EventRegistration[]
+  downloads               DownloadLog[]
+  actionsPerformed        AuditLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -77,11 +78,11 @@ model ExpertProfile {
 
   title                       String?
   yearsOfExperience           Int?
-  about                       String?  @db.Text
+  about                       String? @db.Text
   employer                    String?
-  otherExperience             String?  @db.Text
-  mentoringPhilosophy         String?  @db.Text
-  previousMentoringExperience String?  @db.Text
+  otherExperience             String? @db.Text
+  mentoringPhilosophy         String? @db.Text
+  previousMentoringExperience String? @db.Text
   capacityOfMentees           String?
 
   education               Json     @default("[]")
@@ -109,8 +110,8 @@ model Organization {
   description String? @db.Text
   logoUrl     String?
 
-  mission String? @db.Text
-  vision  String? @db.Text
+  mission String?  @db.Text
+  vision  String?  @db.Text
   sectors String[]
 
   numberOfStaff      Int?
@@ -123,6 +124,8 @@ model Organization {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  members OrganizationMember[]
+
   activities  OrganizationActivity[]
   donors      OrganizationDonor[]
   assessments OrganizationAssessment[]
@@ -132,6 +135,26 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   @@index([state])
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  orgRole     String   @default("member")
+  // Membership status — active | suspended | removed
+  status      String   @default("active")
+  invitedById String?
+  joinedAt    DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // A user can only have one membership record per organization
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
 }
 
 model OrganizationActivity {
@@ -180,7 +203,6 @@ model OrganizationAssessment {
 
   @@index([organizationId])
 }
-
 
 model AdminPermission {
   id          String   @id @default(uuid())
@@ -262,7 +284,7 @@ model Resource {
   badge   Badge?  @relation(fields: [badgeId], references: [id])
 
   categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
+  category   Category      @relation(fields: [categoryId], references: [id])
   tags       Tag[]
   downloads  DownloadLog[]
 
@@ -289,8 +311,6 @@ model DownloadLog {
   @@index([userId])
   @@index([resourceId])
 }
-
-
 
 model Event {
   id                 String   @id @default(uuid())

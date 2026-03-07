@@ -86,6 +86,20 @@ CREATE TABLE "Organization" (
 );
 
 -- CreateTable
+CREATE TABLE "OrganizationMember" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "orgRole" TEXT NOT NULL DEFAULT 'member',
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "invitedById" TEXT,
+    "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "OrganizationMember_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "OrganizationActivity" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
@@ -323,6 +337,15 @@ CREATE UNIQUE INDEX "Organization_userId_key" ON "Organization"("userId");
 CREATE INDEX "Organization_state_idx" ON "Organization"("state");
 
 -- CreateIndex
+CREATE INDEX "OrganizationMember_organizationId_idx" ON "OrganizationMember"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMember_userId_idx" ON "OrganizationMember"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "OrganizationMember_userId_organizationId_key" ON "OrganizationMember"("userId", "organizationId");
+
+-- CreateIndex
 CREATE INDEX "OrganizationActivity_organizationId_idx" ON "OrganizationActivity"("organizationId");
 
 -- CreateIndex
@@ -396,6 +419,12 @@ ALTER TABLE "ExpertProfile" ADD CONSTRAINT "ExpertProfile_userId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "Organization" ADD CONSTRAINT "Organization_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrganizationMember" ADD CONSTRAINT "OrganizationMember_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrganizationMember" ADD CONSTRAINT "OrganizationMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "OrganizationActivity" ADD CONSTRAINT "OrganizationActivity_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -95,8 +95,7 @@ export class UpdateOrganizationDto {
   annualBudget?: string;
 
   @ApiPropertyOptional({
-    description:
-      'Social media links: [{ "facebook": "url" }, { "x": "url" }, { "linkedin": "url" }]',
+    description: 'Social media links: [{ "facebook": "url" }, { "x": "url" }]',
     example: [
       { facebook: 'https://facebook.com/stcng' },
       { x: 'https://x.com/stcng' },
@@ -106,8 +105,7 @@ export class UpdateOrganizationDto {
   socials?: any[];
 
   @ApiPropertyOptional({
-    description:
-      'Document links: [{ "plans": "url" }, { "report": "url" }, { "accounts": "url" }, { "evaluation": "url" }]',
+    description: 'Document links: [{ "plans": "url" }, { "report": "url" }]',
     example: [{ report: 'https://stc.org/annual-report-2024.pdf' }],
   })
   @IsOptional()
@@ -244,6 +242,66 @@ export class UpdateAssessmentDto {
 }
 
 // ─────────────────────────────────────────────
+// MEMBERSHIP DTOs
+// ─────────────────────────────────────────────
+
+export class AddMemberDto {
+  @ApiProperty({
+    example: 'user-uuid',
+    description: 'UUID of the GUEST user to add as a member',
+  })
+  @IsNotEmpty()
+  @IsString()
+  userId: string;
+
+  @ApiPropertyOptional({
+    example: 'member',
+    description: 'Role within the organization — "member" (default) or "admin"',
+  })
+  @IsOptional()
+  @IsString()
+  orgRole?: string;
+}
+
+export class InviteAndAddMemberDto {
+  @ApiProperty({
+    example: 'jane.doe@email.com',
+    description: 'Email of the new user to invite',
+  })
+  @IsNotEmpty()
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ example: 'Jane Doe' })
+  @IsNotEmpty()
+  @IsString()
+  fullName: string;
+
+  @ApiPropertyOptional({ example: '+2348012345678' })
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
+
+  @ApiPropertyOptional({
+    example: 'member',
+    description: 'Role within the organization — "member" (default) or "admin"',
+  })
+  @IsOptional()
+  @IsString()
+  orgRole?: string;
+}
+
+export class UpdateMemberRoleDto {
+  @ApiProperty({
+    example: 'admin',
+    description: 'New role: "member" or "admin"',
+  })
+  @IsNotEmpty()
+  @IsString()
+  orgRole: string;
+}
+
+// ─────────────────────────────────────────────
 // QUERY DTOs
 // ─────────────────────────────────────────────
 
@@ -308,6 +366,25 @@ export class AssessmentResponseDto {
   @ApiProperty() createdAt: Date;
 }
 
+export class MemberUserDto {
+  @ApiProperty() id: string;
+  @ApiProperty() fullName: string;
+  @ApiProperty() email: string;
+  @ApiPropertyOptional() avatarUrl?: string;
+  @ApiPropertyOptional() phoneNumber?: string;
+}
+
+export class MemberResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() userId: string;
+  @ApiProperty() organizationId: string;
+  @ApiProperty() orgRole: string;
+  @ApiProperty() status: string;
+  @ApiPropertyOptional() invitedById?: string;
+  @ApiProperty() joinedAt: Date;
+  @ApiProperty({ type: MemberUserDto }) user: MemberUserDto;
+}
+
 export class OrganizationResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() name: string;
@@ -334,6 +411,7 @@ export class OrganizationResponseDto {
   @ApiProperty({ type: [DonorResponseDto] }) donors: DonorResponseDto[];
   @ApiProperty({ type: [AssessmentResponseDto] })
   assessments: AssessmentResponseDto[];
+  @ApiProperty({ type: [MemberResponseDto] }) members: MemberResponseDto[];
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }

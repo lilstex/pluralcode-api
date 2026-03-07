@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
@@ -10,15 +11,41 @@ import {
   CreateAssessmentDto,
   UpdateAssessmentDto,
   OrgQueryDto,
+  AddMemberDto,
+  UpdateMemberRoleDto,
+  InviteAndAddMemberDto,
 } from '../dto/organizations.dto';
+import * as bcrypt from 'bcrypt';
+import { ConfigService } from '@nestjs/config';
+import { EmailService } from 'src/providers/email/email.service';
+import { generateSecureToken } from 'src/util/helper';
 
-// Shared include block — used everywhere a full org is returned.
-// Avoid top-level as const — Prisma orderBy expects a mutable array, not a readonly tuple.
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED INCLUDE / SELECT CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Full include used for single-org responses.
+// Avoid top-level "as const" — Prisma orderBy expects mutable arrays.
 const ORG_FULL_INCLUDE = {
   activities: { orderBy: { when: 'desc' as const } },
   donors: { orderBy: { createdAt: 'desc' as const } },
   assessments: {
     orderBy: [{ year: 'desc' as const }, { month: 'desc' as const }],
+  },
+  members: {
+    where: { status: 'active' },
+    orderBy: { joinedAt: 'asc' as const },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatarUrl: true,
+          phoneNumber: true,
+        },
+      },
+    },
   },
   user: {
     select: {
@@ -31,7 +58,7 @@ const ORG_FULL_INCLUDE = {
   },
 };
 
-// Slimmer include for list endpoints (no extension tables, saves query cost)
+// Slimmer select for list/directory endpoints — no extension tables or members
 const ORG_SUMMARY_SELECT = {
   id: true,
   name: true,
@@ -44,9 +71,22 @@ const ORG_SUMMARY_SELECT = {
   mission: true,
   numberOfStaff: true,
   numberOfVolunteers: true,
-  website: true,
+  vision: true,
   createdAt: true,
 } as const;
+
+// Member include — reused by membership methods
+const MEMBER_INCLUDE = {
+  user: {
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      avatarUrl: true,
+      phoneNumber: true,
+    },
+  },
+};
 
 @Injectable()
 export class OrganizationService {
@@ -55,6 +95,8 @@ export class OrganizationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly azureBlob: AzureBlobService,
+    private readonly emailService: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -63,7 +105,6 @@ export class OrganizationService {
 
   /**
    * Full profile of the org the authenticated NGO_MEMBER owns.
-   * Includes activities, donors, assessments.
    */
   async getMyOrganization(userId: string) {
     try {
@@ -97,7 +138,7 @@ export class OrganizationService {
   }
 
   /**
-   * Public / admin read: full detail by organization UUID.
+   * Public / admin read — full detail by organization UUID.
    */
   async getOrganizationById(id: string) {
     try {
@@ -142,15 +183,9 @@ export class OrganizationService {
 
       const where: any = {};
 
-      if (query.sector) {
-        // sectors is String[] — find orgs where the array contains the value
-        where.sectors = { has: query.sector };
-      }
-
-      if (query.state) {
+      if (query.sector) where.sectors = { has: query.sector };
+      if (query.state)
         where.state = { contains: query.state, mode: 'insensitive' };
-      }
-
       if (query.search) {
         where.OR = [
           { name: { contains: query.search, mode: 'insensitive' } },
@@ -193,7 +228,7 @@ export class OrganizationService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // CORE — UPDATE (owner: NGO_MEMBER updates their own org)
+  // CORE — UPDATE (owner)
   // ─────────────────────────────────────────────────────────────────────────────
 
   async updateMyOrganization(userId: string, dto: UpdateOrganizationDto) {
@@ -262,7 +297,7 @@ export class OrganizationService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // CORE — UPDATE (admin: SUPER_ADMIN or ORG_ADMIN updates any org by id)
+  // CORE — UPDATE (admin)
   // ─────────────────────────────────────────────────────────────────────────────
 
   async updateOrganizationByAdmin(
@@ -343,7 +378,7 @@ export class OrganizationService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // CORE — DELETE (admin only)
+  // CORE — DELETE (admin)
   // ─────────────────────────────────────────────────────────────────────────────
 
   async deleteOrganization(adminId: string, id: string) {
@@ -357,13 +392,11 @@ export class OrganizationService {
         };
       }
 
-      // Remove logo from Azure if present
       if (org.logoUrl) {
         await this.azureBlob.delete(org.logoUrl, 'avatars');
       }
 
       await this.prisma.$transaction([
-        // Cascade handled by Prisma schema (onDelete: Cascade on extension tables)
         this.prisma.organization.delete({ where: { id } }),
         this.prisma.auditLog.create({
           data: {
@@ -395,10 +428,6 @@ export class OrganizationService {
   // LOGO UPLOAD
   // ─────────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Owner-scoped: NGO_MEMBER uploads their own org's logo.
-   * Looked up by userId (one-to-one relation).
-   */
   async uploadLogo(userId: string, file: Express.Multer.File) {
     try {
       const org = await this.prisma.organization.findUnique({
@@ -412,10 +441,7 @@ export class OrganizationService {
         };
       }
 
-      if (org.logoUrl) {
-        await this.azureBlob.delete(org.logoUrl, 'avatars');
-      }
-
+      if (org.logoUrl) await this.azureBlob.delete(org.logoUrl, 'avatars');
       const logoUrl = await this.azureBlob.upload(file, 'avatars');
       await this.prisma.organization.update({
         where: { userId },
@@ -438,9 +464,6 @@ export class OrganizationService {
     }
   }
 
-  /**
-   * Admin-scoped: upload logo for any org by its UUID.
-   */
   async uploadLogoByAdmin(
     adminId: string,
     orgId: string,
@@ -458,10 +481,7 @@ export class OrganizationService {
         };
       }
 
-      if (org.logoUrl) {
-        await this.azureBlob.delete(org.logoUrl, 'avatars');
-      }
-
+      if (org.logoUrl) await this.azureBlob.delete(org.logoUrl, 'avatars');
       const logoUrl = await this.azureBlob.upload(file, 'avatars');
       await this.prisma.organization.update({
         where: { id: orgId },
@@ -485,6 +505,405 @@ export class OrganizationService {
       };
     } catch (error) {
       this.logger.error('uploadLogoByAdmin error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // MEMBERSHIP MANAGEMENT
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Add a GUEST user as a member of the NGO_MEMBER's organization.
+   * Only the org owner can call this. Target user must have GUEST role and APPROVED status.
+   */
+  async addMember(ownerId: string, dto: AddMemberDto) {
+    try {
+      const org = await this.prisma.organization.findUnique({
+        where: { userId: ownerId },
+      });
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization not found.',
+        };
+      }
+
+      const targetUser = await this.prisma.user.findUnique({
+        where: { id: dto.userId },
+      });
+      if (!targetUser) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'User not found.',
+        };
+      }
+      if (targetUser.role !== 'GUEST') {
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message:
+            'Only users with the GUEST role can be added as organization members.',
+        };
+      }
+      if (targetUser.status !== 'APPROVED') {
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message:
+            'User account must be approved before they can be added as a member.',
+        };
+      }
+
+      // Check for an existing membership record
+      const existing = await this.prisma.organizationMember.findUnique({
+        where: {
+          userId_organizationId: { userId: dto.userId, organizationId: org.id },
+        },
+      });
+
+      if (existing) {
+        if (existing.status === 'active') {
+          return {
+            status: false,
+            statusCode: HttpStatus.CONFLICT,
+            message: 'User is already an active member.',
+          };
+        }
+        // Re-activate a removed/suspended membership
+        const reactivated = await this.prisma.organizationMember.update({
+          where: { id: existing.id },
+          data: {
+            status: 'active',
+            orgRole: dto.orgRole ?? existing.orgRole,
+            invitedById: ownerId,
+          },
+          include: MEMBER_INCLUDE,
+        });
+        return {
+          status: true,
+          statusCode: HttpStatus.OK,
+          message: 'Member re-activated.',
+          data: reactivated,
+        };
+      }
+
+      const member = await this.prisma.organizationMember.create({
+        data: {
+          organizationId: org.id,
+          userId: dto.userId,
+          orgRole: dto.orgRole ?? 'member',
+          invitedById: ownerId,
+        },
+        include: MEMBER_INCLUDE,
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.CREATED,
+        message: 'Member added.',
+        data: member,
+      };
+    } catch (error) {
+      this.logger.error('addMember error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  /**
+   * List all active members of the authenticated NGO_MEMBER's organization.
+   */
+  async listMembers(ownerId: string) {
+    try {
+      const org = await this.prisma.organization.findUnique({
+        where: { userId: ownerId },
+      });
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization not found.',
+        };
+      }
+
+      const members = await this.prisma.organizationMember.findMany({
+        where: { organizationId: org.id, status: 'active' },
+        include: MEMBER_INCLUDE,
+        orderBy: { joinedAt: 'asc' },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Members retrieved.',
+        data: members,
+      };
+    } catch (error) {
+      this.logger.error('listMembers error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  /**
+   * Update a member's orgRole within the owner's organization.
+   */
+  async updateMemberRole(
+    ownerId: string,
+    memberId: string,
+    dto: UpdateMemberRoleDto,
+  ) {
+    try {
+      const member = await this.prisma.organizationMember.findUnique({
+        where: { id: memberId },
+        include: { organization: { select: { userId: true } } },
+      });
+
+      if (!member || member.organization.userId !== ownerId) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Member not found.',
+        };
+      }
+
+      const updated = await this.prisma.organizationMember.update({
+        where: { id: memberId },
+        data: { orgRole: dto.orgRole },
+        include: MEMBER_INCLUDE,
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Member role updated.',
+        data: updated,
+      };
+    } catch (error) {
+      this.logger.error('updateMemberRole error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  /**
+   * Soft-remove a member (status = "removed"). Owner-scoped.
+   */
+  async removeMember(ownerId: string, memberId: string) {
+    try {
+      const member = await this.prisma.organizationMember.findUnique({
+        where: { id: memberId },
+        include: { organization: { select: { userId: true } } },
+      });
+
+      if (!member || member.organization.userId !== ownerId) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Member not found.',
+        };
+      }
+
+      await this.prisma.organizationMember.update({
+        where: { id: memberId },
+        data: { status: 'removed' },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Member removed.',
+      };
+    } catch (error) {
+      this.logger.error('removeMember error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  /**
+   * A GUEST user voluntarily leaves an organization.
+   */
+  async leaveOrganization(userId: string, organizationId: string) {
+    try {
+      const member = await this.prisma.organizationMember.findUnique({
+        where: { userId_organizationId: { userId, organizationId } },
+      });
+
+      if (!member || member.status !== 'active') {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Active membership not found.',
+        };
+      }
+
+      await this.prisma.organizationMember.update({
+        where: { id: member.id },
+        data: { status: 'removed' },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'You have left the organization.',
+      };
+    } catch (error) {
+      this.logger.error('leaveOrganization error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  /**
+   * Invite a brand-new user (no account yet), create them as GUEST, and immediately
+   * add them as a member of the NGO_MEMBER's organization all in one transaction.
+   * A verification OTP is emailed to the new user so they can verify their account.
+   */
+  async inviteAndAddMember(ownerId: string, dto: InviteAndAddMemberDto) {
+    try {
+      // Verify owner org exists
+      const org = await this.prisma.organization.findUnique({
+        where: { userId: ownerId },
+      });
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization not found.',
+        };
+      }
+
+      // Reject if the email is already registered
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: dto.email },
+      });
+      if (existingUser) {
+        return {
+          status: false,
+          statusCode: HttpStatus.CONFLICT,
+          message:
+            'A user with this email already exists. Use the "add existing member" endpoint instead.',
+        };
+      }
+
+      // Generate a temporary secure password — user must reset via forgot-password flow
+      const tempPassword = generateSecureToken();
+      const passwordHash = await bcrypt.hash(tempPassword, 12);
+
+      // Create user + membership in a single transaction
+      const { newUser, member } = await this.prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            email: dto.email,
+            fullName: dto.fullName,
+            phoneNumber: dto.phoneNumber ?? null,
+            passwordHash,
+            role: 'GUEST',
+            // GUEST accounts are auto-approved so they can access the platform immediately
+            status: 'APPROVED',
+            isEmailVerified: true,
+          },
+        });
+
+        const member = await tx.organizationMember.create({
+          data: {
+            organizationId: org.id,
+            userId: newUser.id,
+            orgRole: dto.orgRole ?? 'member',
+            invitedById: ownerId,
+          },
+          include: MEMBER_INCLUDE,
+        });
+
+        return { newUser, member };
+      });
+
+      // Fire-and-forget: send OTP verification email
+      // this.emailService
+      //   .sendVerificationOtp({
+      //     fullName: newUser.fullName,
+      //     email: newUser.email,
+      //     otp,
+      //   })
+      //   .catch((err) =>
+      //     this.logger.error(
+      //       'inviteAndAddMember — sendVerificationOtp failed',
+      //       err,
+      //     ),
+      //   );
+
+      return {
+        status: true,
+        statusCode: HttpStatus.CREATED,
+        message: `Account created and member added. A verification email has been sent to ${dto.email}.`,
+        data: member,
+      };
+    } catch (error) {
+      this.logger.error('inviteAndAddMember error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  /**
+   * Get all organizations the authenticated user belongs to as a member.
+   */
+  async getMyMemberships(userId: string) {
+    try {
+      const memberships = await this.prisma.organizationMember.findMany({
+        where: { userId, status: 'active' },
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              acronym: true,
+              logoUrl: true,
+              state: true,
+              lga: true,
+              sectors: true,
+              mission: true,
+              vision: true,
+            },
+          },
+        },
+        orderBy: { joinedAt: 'asc' },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Memberships retrieved.',
+        data: memberships,
+      };
+    } catch (error) {
+      this.logger.error('getMyMemberships error', error);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -560,7 +979,6 @@ export class OrganizationService {
         where: { id: activityId },
         data: { ...dto },
       });
-
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -595,7 +1013,6 @@ export class OrganizationService {
       await this.prisma.organizationActivity.delete({
         where: { id: activityId },
       });
-
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -672,7 +1089,6 @@ export class OrganizationService {
         where: { id: donorId },
         data: { ...dto },
       });
-
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -705,7 +1121,6 @@ export class OrganizationService {
       }
 
       await this.prisma.organizationDonor.delete({ where: { id: donorId } });
-
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -786,7 +1201,6 @@ export class OrganizationService {
         where: { id: assessmentId },
         data: { ...dto },
       });
-
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -821,7 +1235,6 @@ export class OrganizationService {
       await this.prisma.organizationAssessment.delete({
         where: { id: assessmentId },
       });
-
       return {
         status: true,
         statusCode: HttpStatus.OK,

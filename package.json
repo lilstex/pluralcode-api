@@ -14,7 +14,7 @@
     "start:prod": "node dist/src/main",
     "postinstall": "prisma generate",
     "migrate:deploy": "prisma migrate deploy",
-    "db:reset": "npx prisma migrate reset && npx prisma migrate dev --name init",
+    "db:reset": "npx prisma format && npx prisma migrate reset && npx prisma migrate dev --name init",
     "db:migrate": "npx prisma format && npx prisma migrate dev",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",

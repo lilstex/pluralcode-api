@@ -37,8 +37,12 @@ import {
   CreateAssessmentDto,
   UpdateAssessmentDto,
   OrgQueryDto,
+  AddMemberDto,
+  InviteAndAddMemberDto,
+  UpdateMemberRoleDto,
   OrganizationResponseDto,
   OrganizationSummaryResponseDto,
+  MemberResponseDto,
 } from '../dto/organizations.dto';
 import { OrganizationService } from '../service/organizations.service';
 
@@ -122,9 +126,7 @@ export class OrganizationController {
   @Patch('me/profile')
   @ApiOperation({
     summary: 'Update my organization profile (NGO_MEMBER)',
-    description:
-      'All fields are optional. Partial updates supported — only provided fields are changed. ' +
-      'Covers all core fields: name, acronym, contact, sectors, staff capacity, mission/vision, socials, document links.',
+    description: 'All fields are optional. Partial updates supported.',
   })
   @ApiResponse({ status: 200, type: OrganizationResponseDto })
   updateMyOrg(@CurrentUser() user: any, @Body() dto: UpdateOrganizationDto) {
@@ -151,6 +153,107 @@ export class OrganizationController {
     @UploadedFile(LOGO_PIPE) file: Express.Multer.File,
   ) {
     return this.orgService.uploadLogo(user.id, file);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // NGO_MEMBER — MEMBER MANAGEMENT
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER)
+  @ApiBearerAuth()
+  @Get('me/members')
+  @ApiOperation({ summary: 'List all active members of my organization' })
+  @ApiResponse({ status: 200, type: MemberResponseDto, isArray: true })
+  listMembers(@CurrentUser() user: any) {
+    return this.orgService.listMembers(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER)
+  @ApiBearerAuth()
+  @Post('me/members')
+  @ApiOperation({
+    summary: 'Add a GUEST user as a member of my organization',
+    description: 'Target user must have GUEST role and APPROVED status.',
+  })
+  @ApiResponse({ status: 201, type: MemberResponseDto })
+  addMember(@CurrentUser() user: any, @Body() dto: AddMemberDto) {
+    return this.orgService.addMember(user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER)
+  @ApiBearerAuth()
+  @Post('me/members/invite')
+  @ApiOperation({
+    summary: 'Invite a new user and add them as a member (NGO_MEMBER)',
+    description:
+      'Creates a new GUEST account for a user who is not yet on the platform, ' +
+      'then immediately adds them as a member of your organization. ' +
+      'If the email is already registered, use POST me/members instead.',
+  })
+  @ApiResponse({ status: 201, type: MemberResponseDto })
+  inviteAndAddMember(
+    @CurrentUser() user: any,
+    @Body() dto: InviteAndAddMemberDto,
+  ) {
+    return this.orgService.inviteAndAddMember(user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER)
+  @ApiBearerAuth()
+  @Patch('me/members/:memberId')
+  @ApiOperation({ summary: "Update a member's role within my organization" })
+  @ApiParam({ name: 'memberId', description: 'OrganizationMember UUID' })
+  updateMemberRole(
+    @CurrentUser() user: any,
+    @Param('memberId', ParseUUIDPipe) memberId: string,
+    @Body() dto: UpdateMemberRoleDto,
+  ) {
+    return this.orgService.updateMemberRole(user.id, memberId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER)
+  @ApiBearerAuth()
+  @Delete('me/members/:memberId')
+  @ApiOperation({ summary: 'Remove a member from my organization' })
+  @ApiParam({ name: 'memberId', description: 'OrganizationMember UUID' })
+  removeMember(
+    @CurrentUser() user: any,
+    @Param('memberId', ParseUUIDPipe) memberId: string,
+  ) {
+    return this.orgService.removeMember(user.id, memberId);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ANY AUTHENTICATED USER — OWN MEMBERSHIPS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('my-memberships')
+  @ApiOperation({
+    summary: 'List all organizations I belong to as a member',
+    description:
+      'Available to any authenticated user. Returns orgs where the user has an active membership.',
+  })
+  getMyMemberships(@CurrentUser() user: any) {
+    return this.orgService.getMyMemberships(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Delete('my-memberships/:organizationId')
+  @ApiOperation({ summary: 'Leave an organization I am a member of' })
+  @ApiParam({ name: 'organizationId', description: 'Organization UUID' })
+  leaveOrganization(
+    @CurrentUser() user: any,
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+  ) {
+    return this.orgService.leaveOrganization(user.id, organizationId);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -329,8 +432,7 @@ export class OrganizationController {
   @ApiOperation({
     summary: 'Admin: Permanently delete an organization',
     description:
-      'Cascades to activities, donors, and assessments. ' +
-      'Also removes the logo from Azure Blob Storage if present.',
+      'Cascades to activities, donors, assessments, and members. Also removes Azure logo.',
   })
   @ApiParam({ name: 'id', description: 'Organization UUID' })
   deleteOrganization(

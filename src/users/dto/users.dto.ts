@@ -453,6 +453,20 @@ export class ExpertProfileResponseDto {
   @ApiProperty() updatedAt: Date;
 }
 
+export class OrgMembershipDto {
+  @ApiProperty() id: string;
+  @ApiProperty() organizationId: string;
+  @ApiProperty() orgRole: string;
+  @ApiProperty() status: string;
+  @ApiProperty() joinedAt: Date;
+  @ApiProperty() organization: {
+    id: string;
+    name: string;
+    acronym?: string;
+    logoUrl?: string;
+  };
+}
+
 export class UserResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() email: string;
@@ -467,6 +481,11 @@ export class UserResponseDto {
   organization?: OrganizationSummaryDto;
   @ApiPropertyOptional({ type: ExpertProfileResponseDto })
   expertProfile?: ExpertProfileResponseDto;
+  @ApiPropertyOptional({
+    type: [OrgMembershipDto],
+    description: 'Organizations the user belongs to as a member (GUEST role)',
+  })
+  organizationMemberships?: OrgMembershipDto[];
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }
