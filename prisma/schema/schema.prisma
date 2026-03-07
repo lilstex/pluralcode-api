@@ -52,7 +52,7 @@ model User {
   phoneNumber            String?
   pointsCount            Int            @default(0)
 
-  organization     Organization?
+  organizations   Organization[] @relation("OrgMembers")
   expertProfile    ExpertProfile?
   adminPermission  AdminPermission?
   forumThreads     ForumThread[]
@@ -120,8 +120,7 @@ model Organization {
   socials    Json @default("[]")
   otherLinks Json @default("[]")
 
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members  User[]    @relation("OrgMembers")
 
   activities  OrganizationActivity[]
   donors      OrganizationDonor[]
