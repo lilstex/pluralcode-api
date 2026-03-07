@@ -89,6 +89,24 @@ export class UserController {
     return this.userService.verifyEmail(dto);
   }
 
+  @Post('resend-otp')
+  @ApiOperation({
+    summary: 'Resend email verification OTP',
+    description:
+      'Issues a fresh 6-digit OTP to the supplied email if it is registered and not yet verified. ' +
+      'Always returns 200 to prevent email enumeration.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['email'],
+      properties: { email: { type: 'string', example: 'john.doe@ngo.org' } },
+    },
+  })
+  async resendOtp(@Body('email') email: string) {
+    return this.userService.resendOtp(email);
+  }
+
   @Post('forgot-password')
   @ApiOperation({ summary: 'Request a password reset link via email' })
   @ApiResponse({ status: 200, type: ForgotPasswordResponseDto })

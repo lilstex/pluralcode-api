@@ -18,7 +18,11 @@ import {
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from 'src/providers/email/email.service';
-import { generateSecureToken } from 'src/util/helper';
+import {
+  generateOtp,
+  generateSecureToken,
+  otpExpiresAt,
+} from 'src/util/helper';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED INCLUDE / SELECT CONSTANTS
@@ -71,7 +75,7 @@ const ORG_SUMMARY_SELECT = {
   mission: true,
   numberOfStaff: true,
   numberOfVolunteers: true,
-  vision: true,
+  website: true,
   createdAt: true,
 } as const;
 
@@ -177,8 +181,11 @@ export class OrganizationService {
    */
   async listOrganizations(query: OrgQueryDto) {
     try {
-      const page = Number(query.page ?? 1);
-      const limit = Number(query.limit ?? 20);
+      const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(query.limit ?? '20'), 10) || 20),
+      );
       const skip = (page - 1) * limit;
 
       const where: any = {};
@@ -779,7 +786,7 @@ export class OrganizationService {
 
   /**
    * Invite a brand-new user (no account yet), create them as GUEST, and immediately
-   * add them as a member of the NGO_MEMBER's organization all in one transaction.
+   * add them as a member of the NGO_MEMBER's organization — all in one transaction.
    * A verification OTP is emailed to the new user so they can verify their account.
    */
   async inviteAndAddMember(ownerId: string, dto: InviteAndAddMemberDto) {
@@ -809,6 +816,8 @@ export class OrganizationService {
         };
       }
 
+      const otp = generateOtp();
+      const otpExpiry = otpExpiresAt(15);
       // Generate a temporary secure password — user must reset via forgot-password flow
       const tempPassword = generateSecureToken();
       const passwordHash = await bcrypt.hash(tempPassword, 12);
@@ -824,7 +833,7 @@ export class OrganizationService {
             role: 'GUEST',
             // GUEST accounts are auto-approved so they can access the platform immediately
             status: 'APPROVED',
-            isEmailVerified: true,
+            isEmailVerified: false,
           },
         });
 
@@ -842,18 +851,18 @@ export class OrganizationService {
       });
 
       // Fire-and-forget: send OTP verification email
-      // this.emailService
-      //   .sendVerificationOtp({
-      //     fullName: newUser.fullName,
-      //     email: newUser.email,
-      //     otp,
-      //   })
-      //   .catch((err) =>
-      //     this.logger.error(
-      //       'inviteAndAddMember — sendVerificationOtp failed',
-      //       err,
-      //     ),
-      //   );
+      this.emailService
+        .sendVerificationOtp({
+          fullName: newUser.fullName,
+          email: newUser.email,
+          otp,
+        })
+        .catch((err) =>
+          this.logger.error(
+            'inviteAndAddMember — sendVerificationOtp failed',
+            err,
+          ),
+        );
 
       return {
         status: true,

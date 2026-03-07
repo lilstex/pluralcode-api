@@ -236,6 +236,62 @@ export class UserService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // RESEND OTP
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async resendOtp(email: string) {
+    try {
+      const user = await this.prisma.user.findUnique({ where: { email } });
+
+      // Always return success to prevent email enumeration
+      if (!user) {
+        return {
+          status: true,
+          statusCode: HttpStatus.OK,
+          message:
+            'If this email is registered and unverified, a new OTP has been sent.',
+        };
+      }
+
+      if (user.isEmailVerified) {
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'This email is already verified.',
+        };
+      }
+
+      const otp = generateOtp();
+      const expiry = otpExpiresAt(15);
+
+      await this.prisma.user.update({
+        where: { email },
+        data: { otp, otpExpiresAt: expiry },
+      });
+
+      this.emailService
+        .sendVerificationOtp({ fullName: user.fullName, email, otp })
+        .catch((err) =>
+          this.logger.error('resendOtp — sendVerificationOtp failed', err),
+        );
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message:
+          'If this email is registered and unverified, a new OTP has been sent.',
+      };
+    } catch (error) {
+      this.logger.error('resendOtp error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // LOGIN
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -245,8 +301,15 @@ export class UserService {
         where: { email: dto.email },
         include: {
           organization: true,
-          // Include expertProfile so the token response carries it for experts
           expertProfile: true,
+          organizationMemberships: {
+            where: { status: 'active' },
+            include: {
+              organization: {
+                select: { id: true, name: true, acronym: true, logoUrl: true },
+              },
+            },
+          },
           badges: { select: { id: true, name: true, imageUrl: true } },
         },
       });
@@ -422,6 +485,14 @@ export class UserService {
         include: {
           organization: true,
           expertProfile: true,
+          organizationMemberships: {
+            where: { status: 'active' },
+            include: {
+              organization: {
+                select: { id: true, name: true, acronym: true, logoUrl: true },
+              },
+            },
+          },
           badges: { select: { id: true, name: true, imageUrl: true } },
         },
       });
@@ -607,8 +678,12 @@ export class UserService {
     limit?: number;
   }) {
     try {
-      const page = Number(query.page ?? 1);
-      const limit = Number(query.limit ?? 20);
+      // Query params arrive as strings from @Query() — parse safely with fallback
+      const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(query.limit ?? '20'), 10) || 20),
+      );
       const skip = (page - 1) * limit;
 
       const where: any = {
@@ -1058,8 +1133,11 @@ export class UserService {
     limit?: number;
   }) {
     try {
-      const page = Number(query.page ?? 1);
-      const limit = Number(query.limit ?? 20);
+      const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(query.limit ?? '20'), 10) || 20),
+      );
       const skip = (page - 1) * limit;
 
       const where: any = {};
