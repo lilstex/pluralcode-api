@@ -12,7 +12,6 @@ import {
   UploadedFile,
   ParseFilePipe,
   MaxFileSizeValidator,
-  FileTypeValidator,
   ParseUUIDPipe,
   Req,
 } from '@nestjs/common';
@@ -54,8 +53,6 @@ import { PERMISSIONS } from 'src/common/constants/permissions';
 
 // 50MB max for video uploads, 10MB for documents
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
-const ALLOWED_MIMETYPES =
-  /^(application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document|video\/mp4|audio\/mpeg|audio\/wav|text\/plain)$/;
 
 @ApiTags('Resource Library')
 @Controller('resources')
@@ -181,12 +178,7 @@ export class ResourceController {
     @Body() dto: CreateBadgeDto,
     @UploadedFile(
       new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 2 * 1024 * 1024 }),
-          new FileTypeValidator({
-            fileType: /^image\/(jpeg|png|webp|svg\+xml)$/,
-          }),
-        ],
+        validators: [new MaxFileSizeValidator({ maxSize: 2 * 1024 * 1024 })],
       }),
     )
     file: Express.Multer.File,
@@ -286,10 +278,9 @@ export class ResourceController {
   @ApiOperation({
     summary: 'Admin: Upload a new resource',
     description: `
-      Supports four content types (set via the "type" field):
+      Supports three content types (set via the "type" field):
       - DOCUMENT: upload PDF/Word file → OCR text extraction runs automatically
       - VIDEO: upload MP4 file OR provide externalUrl (YouTube/Vimeo)
-      - AUDIO: upload MP3/WAV file
       - ARTICLE: provide articleBody text — no file needed
     `,
   })
@@ -301,14 +292,11 @@ export class ResourceController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Required for DOCUMENT, VIDEO (MP4), AUDIO types',
+          description: 'Required for DOCUMENT and VIDEO types',
         },
         title: { type: 'string' },
         description: { type: 'string' },
-        type: {
-          type: 'string',
-          enum: ['DOCUMENT', 'VIDEO', 'AUDIO', 'ARTICLE'],
-        },
+        type: { type: 'string', enum: ['DOCUMENT', 'VIDEO', 'ARTICLE'] },
         categoryId: { type: 'string' },
         author: { type: 'string' },
         tagIds: { type: 'array', items: { type: 'string' } },
@@ -332,10 +320,7 @@ export class ResourceController {
     @UploadedFile(
       new ParseFilePipe({
         fileIsRequired: false,
-        validators: [
-          new MaxFileSizeValidator({ maxSize: MAX_FILE_SIZE }),
-          new FileTypeValidator({ fileType: ALLOWED_MIMETYPES }),
-        ],
+        validators: [new MaxFileSizeValidator({ maxSize: MAX_FILE_SIZE })],
       }),
     )
     file?: Express.Multer.File,
@@ -360,7 +345,7 @@ export class ResourceController {
   @ApiQuery({
     name: 'type',
     required: false,
-    enum: ['DOCUMENT', 'VIDEO', 'AUDIO', 'ARTICLE'],
+    enum: ['DOCUMENT', 'VIDEO', 'ARTICLE'],
   })
   @ApiQuery({ name: 'sector', required: false })
   @ApiQuery({ name: 'region', required: false })

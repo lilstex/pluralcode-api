@@ -972,6 +972,13 @@ describe('Resources Module — E2E', () => {
     });
 
     it('201 — DOCUMENT with PDF file: uploads to Azure and runs OCR', async () => {
+      mockAzure.upload.mockResolvedValue(
+        'https://blob.example.com/resources/handbook.pdf',
+      );
+      mockOcr.extractText.mockResolvedValue(
+        'Extracted plain text from document.',
+      );
+
       const { body } = await request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
@@ -1044,29 +1051,6 @@ describe('Resources Module — E2E', () => {
           }),
         }),
       );
-    });
-
-    it('201 — AUDIO file upload: uploads to Azure, no OCR (non-extractable mimetype)', async () => {
-      const audioBuffer = Buffer.from('fake-mp3-data');
-      mockOcr.extractText.mockResolvedValue(null);
-
-      const { body } = await request(app.getHttpServer())
-        .post('/resources')
-        .set('Authorization', `Bearer ${superAdminToken()}`)
-        .field('title', 'Podcast Episode')
-        .field('description', 'Audio content.')
-        .field('type', 'AUDIO')
-        .field('categoryId', CATEGORY_UUID)
-        .attach('file', audioBuffer, {
-          filename: 'episode.mp3',
-          contentType: 'audio/mpeg',
-        })
-        .expect(201);
-
-      expect(body.status).toBe(true);
-      expect(mockAzure.upload).toHaveBeenCalled();
-      // OCR should NOT be called for non-extractable mimetypes
-      expect(mockOcr.extractText).not.toHaveBeenCalled();
     });
 
     it('201 — creates audit log on success', async () => {
@@ -1910,28 +1894,6 @@ describe('Resources Module — E2E', () => {
       expect(mockPrisma.resource.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ rawText: 'PDF content extracted.' }),
-        }),
-      );
-    });
-
-    it('OCR NOT called for audio/mpeg — rawText is null', async () => {
-      await request(app.getHttpServer())
-        .post('/resources')
-        .set('Authorization', `Bearer ${superAdminToken()}`)
-        .field('title', 'Audio Resource')
-        .field('description', 'Test')
-        .field('type', 'AUDIO')
-        .field('categoryId', CATEGORY_UUID)
-        .attach('file', Buffer.from('fake-mp3'), {
-          filename: 'ep.mp3',
-          contentType: 'audio/mpeg',
-        })
-        .expect(201);
-
-      expect(mockOcr.extractText).not.toHaveBeenCalled();
-      expect(mockPrisma.resource.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ rawText: null }),
         }),
       );
     });
