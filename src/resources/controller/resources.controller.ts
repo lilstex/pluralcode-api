@@ -37,13 +37,14 @@ import {
   CreateCategoryDto,
   UpdateCategoryDto,
   CreateTagDto,
+  CreateBadgeDto,
   ResourceResponseDto,
   DownloadResponseDto,
-  CreateBadgeDto,
 } from '../dto/resources.dto';
 import { ResourceService } from '../service/resources.service';
 
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { OptionalJwtGuard } from 'src/common/guards/optional-jwt.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -148,37 +149,67 @@ export class ResourceController {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // BADGES
+  // BADGE LIBRARY (Super Admin only — upload badge designs for use on resources)
   // ─────────────────────────────────────────────────────────────────────────────
 
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN)
-  @Permissions(PERMISSIONS.BADGE_MANAGE)
   @ApiBearerAuth()
   @Post('badges')
-  @ApiOperation({ summary: 'Admin: Create a new badge' })
-  @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Super Admin: Create a new badge (upload badge image)',
+    description:
+      'Upload a badge design (PNG/SVG). Admins then attach this badge to a resource so users earn it on download.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Badge image (PNG, JPEG, SVG, WebP — max 2MB)',
+        },
+        name: { type: 'string', example: 'Resource Champion' },
+      },
+    },
+  })
   async createBadge(
     @CurrentUser() admin: any,
     @Body() dto: CreateBadgeDto,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 2 * 1024 * 1024 }),
+          new FileTypeValidator({
+            fileType: /^image\/(jpeg|png|webp|svg\+xml)$/,
+          }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
   ) {
     return this.resourceService.createBadge(admin.id, dto, file);
   }
 
   @Get('badges')
-  @ApiOperation({ summary: 'List all badges (public)' })
+  @ApiOperation({
+    summary:
+      'List all available badges (public — used by admin when creating resources)',
+  })
   async listBadges() {
     return this.resourceService.listBadges();
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN)
-  @Permissions(PERMISSIONS.BADGE_MANAGE)
   @ApiBearerAuth()
   @Delete('badges/:id')
-  @ApiOperation({ summary: 'Admin: Delete a badge' })
+  @ApiOperation({
+    summary: 'Super Admin: Delete a badge and remove its image from Azure',
+  })
   @ApiParam({ name: 'id', description: 'Badge UUID' })
   async deleteBadge(
     @CurrentUser() admin: any,
@@ -312,6 +343,7 @@ export class ResourceController {
     return this.resourceService.createResource(admin.id, dto, file);
   }
 
+  @UseGuards(OptionalJwtGuard)
   @Get()
   @ApiOperation({
     summary:
@@ -346,6 +378,7 @@ export class ResourceController {
     return this.resourceService.listResources(query, isAuthenticated);
   }
 
+  @UseGuards(OptionalJwtGuard)
   @Get(':id')
   @ApiOperation({ summary: 'Get a single resource by ID' })
   @ApiParam({ name: 'id', description: 'Resource UUID' })

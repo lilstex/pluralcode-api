@@ -98,6 +98,30 @@ export class OrganizationController {
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @Get('my-memberships')
+  @ApiOperation({
+    summary: 'List all organizations I belong to as a member',
+    description:
+      'Available to any authenticated user. Returns orgs where the user has an active membership.',
+  })
+  getMyMemberships(@CurrentUser() user: any) {
+    return this.orgService.getMyMemberships(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Delete('my-memberships/:organizationId')
+  @ApiOperation({ summary: 'Leave an organization I am a member of' })
+  @ApiParam({ name: 'organizationId', description: 'Organization UUID' })
+  leaveOrganizationEarly(
+    @CurrentUser() user: any,
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+  ) {
+    return this.orgService.leaveOrganization(user.id, organizationId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Get(':id')
   @ApiOperation({ summary: 'Get full organization profile by ID' })
   @ApiParam({ name: 'id', description: 'Organization UUID' })
@@ -191,6 +215,7 @@ export class OrganizationController {
     description:
       'Creates a new GUEST account for a user who is not yet on the platform, ' +
       'then immediately adds them as a member of your organization. ' +
+      'A verification OTP is sent to their email. ' +
       'If the email is already registered, use POST me/members instead.',
   })
   @ApiResponse({ status: 201, type: MemberResponseDto })
@@ -226,34 +251,6 @@ export class OrganizationController {
     @Param('memberId', ParseUUIDPipe) memberId: string,
   ) {
     return this.orgService.removeMember(user.id, memberId);
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // ANY AUTHENTICATED USER — OWN MEMBERSHIPS
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @Get('my-memberships')
-  @ApiOperation({
-    summary: 'List all organizations I belong to as a member',
-    description:
-      'Available to any authenticated user. Returns orgs where the user has an active membership.',
-  })
-  getMyMemberships(@CurrentUser() user: any) {
-    return this.orgService.getMyMemberships(user.id);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @Delete('my-memberships/:organizationId')
-  @ApiOperation({ summary: 'Leave an organization I am a member of' })
-  @ApiParam({ name: 'organizationId', description: 'Organization UUID' })
-  leaveOrganization(
-    @CurrentUser() user: any,
-    @Param('organizationId', ParseUUIDPipe) organizationId: string,
-  ) {
-    return this.orgService.leaveOrganization(user.id, organizationId);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

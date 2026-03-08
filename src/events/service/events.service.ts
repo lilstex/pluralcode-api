@@ -23,6 +23,77 @@ export class EventService {
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  private resolveStatus(event: {
+    startTime: Date;
+    endTime: Date;
+    isPast: boolean;
+    isCancelled: boolean;
+  }): EventStatus {
+    if (event.isCancelled) return EventStatus.CANCELLED;
+    if (event.isPast) return EventStatus.PAST;
+    const now = new Date();
+    if (now >= event.startTime && now <= event.endTime) return EventStatus.LIVE;
+    return EventStatus.UPCOMING;
+  }
+
+  private buildEventResponse(event: any, jitsiService: JitsiService) {
+    const { _count, registrations, ...rest } = event;
+    return {
+      ...rest,
+      meetingUrl:
+        event.externalMeetingUrl ??
+        jitsiService.getMeetingUrl(event.jitsiRoomId),
+      status: this.resolveStatus(event),
+      registrationCount: _count?.registrations ?? registrations?.length ?? 0,
+    };
+  }
+
+  /**
+   * Generates an ICS calendar file string for an event.
+   * Compatible with Google Calendar, Outlook, and Apple Calendar.
+   */
+  private generateIcs(event: {
+    id: string;
+    title: string;
+    description: string;
+    startTime: Date;
+    endTime: Date;
+    meetingUrl: string;
+  }): string {
+    const fmt = (d: Date) =>
+      d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
+    const escape = (s: string) =>
+      s
+        .replace(/\\/g, '\\\\')
+        .replace(/;/g, '\\;')
+        .replace(/,/g, '\\,')
+        .replace(/\n/g, '\\n');
+
+    return [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//PLRCAP NGO Hub//Events//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:REQUEST',
+      'BEGIN:VEVENT',
+      `UID:${event.id}@plrcap.org`,
+      `DTSTAMP:${fmt(new Date())}`,
+      `DTSTART:${fmt(event.startTime)}`,
+      `DTEND:${fmt(event.endTime)}`,
+      `SUMMARY:${escape(event.title)}`,
+      `DESCRIPTION:${escape(event.description)}\\n\\nJoin: ${escape(event.meetingUrl)}`,
+      `LOCATION:${escape(event.meetingUrl)}`,
+      'STATUS:CONFIRMED',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // CREATE
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -95,8 +166,11 @@ export class EventService {
 
   async listEvents(query: EventQueryDto) {
     try {
-      const page = Number(query.page ?? 1);
-      const limit = Number(query.limit ?? 20);
+      const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(query.limit ?? '20'), 10) || 20),
+      );
       const skip = (page - 1) * limit;
 
       const where: any = {};
@@ -669,8 +743,11 @@ export class EventService {
     query: { page?: number; limit?: number },
   ) {
     try {
-      const page = Number(query.page ?? 1);
-      const limit = Number(query.limit ?? 20);
+      const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(query.limit ?? '20'), 10) || 20),
+      );
       const skip = (page - 1) * limit;
 
       const [registrations, total] = await this.prisma.$transaction([
@@ -725,8 +802,11 @@ export class EventService {
     query: { page?: number; limit?: number },
   ) {
     try {
-      const page = Number(query.page ?? 1);
-      const limit = Number(query.limit ?? 50);
+      const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
+      const limit = Math.min(
+        200,
+        Math.max(1, parseInt(String(query.limit ?? '50'), 10) || 50),
+      );
       const skip = (page - 1) * limit;
 
       const event = await this.prisma.event.findUnique({
@@ -983,75 +1063,8 @@ export class EventService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // HELPERS
+  // PRIVATE: EMAIL NOTIFICATION HELPERS
   // ─────────────────────────────────────────────────────────────────────────────
-
-  private resolveStatus(event: {
-    startTime: Date;
-    endTime: Date;
-    isPast: boolean;
-    isCancelled: boolean;
-  }): EventStatus {
-    if (event.isCancelled) return EventStatus.CANCELLED;
-    if (event.isPast) return EventStatus.PAST;
-    const now = new Date();
-    if (now >= event.startTime && now <= event.endTime) return EventStatus.LIVE;
-    return EventStatus.UPCOMING;
-  }
-
-  private buildEventResponse(event: any, jitsiService: JitsiService) {
-    const { _count, registrations, ...rest } = event;
-    return {
-      ...rest,
-      meetingUrl:
-        event.externalMeetingUrl ??
-        jitsiService.getMeetingUrl(event.jitsiRoomId),
-      status: this.resolveStatus(event),
-      registrationCount: _count?.registrations ?? registrations?.length ?? 0,
-    };
-  }
-
-  /**
-   * Generates an ICS calendar file string for an event.
-   * Compatible with Google Calendar, Outlook, and Apple Calendar.
-   */
-  private generateIcs(event: {
-    id: string;
-    title: string;
-    description: string;
-    startTime: Date;
-    endTime: Date;
-    meetingUrl: string;
-  }): string {
-    const fmt = (d: Date) =>
-      d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-
-    const escape = (s: string) =>
-      s
-        .replace(/\\/g, '\\\\')
-        .replace(/;/g, '\\;')
-        .replace(/,/g, '\\,')
-        .replace(/\n/g, '\\n');
-
-    return [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//PLRCAP NGO Hub//Events//EN',
-      'CALSCALE:GREGORIAN',
-      'METHOD:REQUEST',
-      'BEGIN:VEVENT',
-      `UID:${event.id}@plrcap.org`,
-      `DTSTAMP:${fmt(new Date())}`,
-      `DTSTART:${fmt(event.startTime)}`,
-      `DTEND:${fmt(event.endTime)}`,
-      `SUMMARY:${escape(event.title)}`,
-      `DESCRIPTION:${escape(event.description)}\\n\\nJoin: ${escape(event.meetingUrl)}`,
-      `LOCATION:${escape(event.meetingUrl)}`,
-      'STATUS:CONFIRMED',
-      'END:VEVENT',
-      'END:VCALENDAR',
-    ].join('\r\n');
-  }
 
   private async notifyAttendeesOfUpdate(event: any) {
     const registrations = await this.prisma.eventRegistration.findMany({

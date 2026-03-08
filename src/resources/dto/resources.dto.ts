@@ -6,8 +6,16 @@ import {
   IsEnum,
   IsArray,
   IsUUID,
+  IsInt,
+  Min,
 } from 'class-validator';
-import { ResourceType } from '@prisma/client';
+import { Type } from 'class-transformer';
+
+export enum ResourceType {
+  DOCUMENT = 'DOCUMENT',
+  VIDEO = 'VIDEO',
+  ARTICLE = 'ARTICLE',
+}
 
 // ─────────────────────────────────────────────
 // TAXONOMY DTOs
@@ -19,25 +27,15 @@ export class CreateCategoryDto {
   @IsString()
   name: string;
 
-  @ApiPropertyOptional({
-    example: 'uuid-of-parent-category',
-    description: 'Leave empty for top-level category',
-  })
+  @ApiPropertyOptional({ example: 'uuid-of-parent-category' })
   @IsOptional()
   @IsUUID()
   parentId?: string;
 }
 
 export class UpdateCategoryDto {
-  @ApiPropertyOptional({ example: 'Governance & Leadership' })
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsUUID()
-  parentId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() name?: string;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() parentId?: string;
 }
 
 export class CreateTagDto {
@@ -47,18 +45,16 @@ export class CreateTagDto {
   name: string;
 }
 
+// ─────────────────────────────────────────────
+// BADGE DTOs
+// ─────────────────────────────────────────────
+
 export class CreateBadgeDto {
-  @ApiProperty({ example: 'Top Contributor' })
+  @ApiProperty({ example: 'Resource Champion' })
   @IsNotEmpty()
   @IsString()
   name: string;
-
-  @ApiProperty({
-    type: 'string',
-    format: 'binary',
-    description: 'Badge icon image',
-  })
-  file: any;
+  // imageUrl is derived from the uploaded file — not sent in body
 }
 
 // ─────────────────────────────────────────────
@@ -87,51 +83,28 @@ export class CreateResourceDto {
   @IsUUID()
   categoryId: string;
 
-  @ApiProperty({ example: 'uuid-of-badge' })
-  @IsNotEmpty()
-  @IsUUID()
-  badgeId: string;
-
-  @ApiProperty({ example: 5 })
-  @IsNotEmpty()
-  points: number;
-
   @ApiPropertyOptional({ example: 'NRC Nigeria' })
   @IsOptional()
   @IsString()
   author?: string;
 
-  @ApiPropertyOptional({
-    example: ['uuid-tag-1', 'uuid-tag-2'],
-    description: 'Array of Tag UUIDs',
-    type: [String],
-  })
+  @ApiPropertyOptional({ type: [String], description: 'Array of Tag UUIDs' })
   @IsOptional()
   @IsArray()
   @IsUUID('4', { each: true })
   tagIds?: string[];
 
-  @ApiPropertyOptional({
-    example: 'https://youtube.com/watch?v=abc',
-    description:
-      'For VIDEO type: external YouTube/Vimeo URL (alternative to file upload)',
-  })
+  @ApiPropertyOptional({ example: 'https://youtube.com/watch?v=abc' })
   @IsOptional()
   @IsString()
   externalUrl?: string;
 
-  @ApiPropertyOptional({
-    example: 'en',
-    description: 'ISO 639-1 language code',
-  })
+  @ApiPropertyOptional({ example: 'en' })
   @IsOptional()
   @IsString()
   language?: string;
 
-  @ApiPropertyOptional({
-    example: 'Lagos',
-    description: 'Geographic focus of the resource',
-  })
+  @ApiPropertyOptional({ example: 'Lagos' })
   @IsOptional()
   @IsString()
   region?: string;
@@ -141,22 +114,35 @@ export class CreateResourceDto {
   @IsString()
   sector?: string;
 
-  @ApiPropertyOptional({
-    description:
-      'Direct article body (for ARTICLE type, used instead of file upload)',
-  })
+  @ApiPropertyOptional({ description: 'Body text for ARTICLE type' })
   @IsOptional()
   @IsString()
   articleBody?: string;
+
+  @ApiPropertyOptional({
+    example: 'uuid-of-badge',
+    description: 'Badge awarded on download',
+  })
+  @IsOptional()
+  @IsUUID()
+  badgeId?: string;
+
+  @ApiPropertyOptional({
+    example: 10,
+    description: 'Points awarded to user on download',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  points?: number;
 }
 
 export class UpdateResourceDto {
   @ApiPropertyOptional() @IsOptional() @IsString() title?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() categoryId?: string;
-  @ApiPropertyOptional() @IsOptional() @IsUUID() badgeId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() author?: string;
-  @ApiPropertyOptional() @IsOptional() points?: number;
   @ApiPropertyOptional()
   @IsOptional()
   @IsArray()
@@ -165,67 +151,46 @@ export class UpdateResourceDto {
   @ApiPropertyOptional() @IsOptional() @IsString() language?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() region?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() sector?: string;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() badgeId?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  points?: number;
 }
 
 export class ResourceQueryDto {
-  @ApiPropertyOptional({ description: 'Full-text search term' })
+  @ApiPropertyOptional({
+    description:
+      'Full-text search across title, description, author, PDF contents',
+  })
   @IsOptional()
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ example: 'uuid-of-category' })
-  @IsOptional()
-  @IsUUID()
-  categoryId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() categoryId?: string;
 
-  @ApiPropertyOptional({ example: 'uuid-of-tag' })
-  @IsOptional()
-  @IsUUID()
-  tagId?: string;
-
-  @ApiPropertyOptional({ enum: ResourceType })
+  @ApiPropertyOptional({
+    enum: ResourceType,
+    description: 'Filter by format: DOCUMENT, VIDEO, AUDIO, ARTICLE',
+  })
   @IsOptional()
   @IsEnum(ResourceType)
   type?: ResourceType;
 
-  @ApiPropertyOptional({ example: 'Health' })
+  @ApiPropertyOptional({ description: 'Filter by tag UUID' })
   @IsOptional()
-  @IsString()
-  sector?: string;
+  @IsUUID()
+  tagId?: string;
 
-  @ApiPropertyOptional({ example: 'Lagos' })
-  @IsOptional()
-  @IsString()
-  region?: string;
-
-  @ApiPropertyOptional({ example: 'en' })
-  @IsOptional()
-  @IsString()
-  language?: string;
-
-  @ApiPropertyOptional({
-    example: '2024-01-01',
-    description: 'Filter resources created after this date',
-  })
-  @IsOptional()
-  @IsString()
-  dateFrom?: string;
-
-  @ApiPropertyOptional({
-    example: '2024-12-31',
-    description: 'Filter resources created before this date',
-  })
-  @IsOptional()
-  @IsString()
-  dateTo?: string;
-
-  @ApiPropertyOptional({ example: 1 })
-  @IsOptional()
-  page?: number;
-
-  @ApiPropertyOptional({ example: 20 })
-  @IsOptional()
-  limit?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() sector?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() region?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() language?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() dateFrom?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() dateTo?: string;
+  @ApiPropertyOptional() @IsOptional() page?: number;
+  @ApiPropertyOptional() @IsOptional() limit?: number;
 }
 
 // ─────────────────────────────────────────────
@@ -262,7 +227,10 @@ export class ResourceResponseDto {
   @ApiPropertyOptional() language?: string;
   @ApiPropertyOptional() region?: string;
   @ApiPropertyOptional() sector?: string;
+  @ApiPropertyOptional() fileSize?: number;
+  @ApiProperty() points: number;
   @ApiProperty() downloadCount: number;
+  @ApiPropertyOptional({ type: BadgeResponseDto }) badge?: BadgeResponseDto;
   @ApiProperty({ type: CategoryResponseDto }) category: CategoryResponseDto;
   @ApiProperty({ type: [TagResponseDto] }) tags: TagResponseDto[];
   @ApiProperty() createdAt: Date;
@@ -273,9 +241,7 @@ export class DownloadResponseDto {
   @ApiProperty() statusCode: number;
   @ApiProperty() message: string;
   @ApiPropertyOptional() downloadUrl?: string;
-  @ApiPropertyOptional({
-    type: [String],
-    description: 'Newly awarded badge names, if any',
-  })
-  newBadges?: string[];
+  @ApiPropertyOptional() pointsEarned?: number;
+  @ApiPropertyOptional() totalPoints?: number;
+  @ApiPropertyOptional({ type: [String] }) newBadges?: string[];
 }

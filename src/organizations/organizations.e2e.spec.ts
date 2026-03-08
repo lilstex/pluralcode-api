@@ -1,13 +1,18 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtService, JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { Role } from '@prisma/client';
-import { OrganizationController } from './controller/organizations.controller';
-import { OrganizationService } from './service/organizations.service';
+
+import { OrganizationController } from 'src/organizations/controller/organizations.controller';
+import { OrganizationService } from 'src/organizations/service/organizations.service';
 import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { PrismaService } from 'src/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
@@ -283,7 +288,7 @@ describe('Organizations Module — E2E', () => {
         },
         // Real ConfigService for JwtStrategy
         {
-          provide: require('@nestjs/config').ConfigService,
+          provide: ConfigService,
           useValue: {
             get: (k: string) => (k === 'JWT_SECRET' ? JWT_SECRET : undefined),
           },
@@ -306,14 +311,24 @@ describe('Organizations Module — E2E', () => {
   afterAll(() => app.close());
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    // JwtStrategy.validate() calls prisma.user.findUnique — default to the correct user per token role
+    // resetAllMocks wipes mockResolvedValue/mockImplementation state between tests,
+    // preventing mock bleed-through (clearAllMocks only resets call counts).
+    jest.resetAllMocks();
+    // JwtStrategy.validate() calls prisma.user.findUnique — restore default routing
     mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
       if (where?.id === ADMIN_UUID) return Promise.resolve(makeAdminUser());
       if (where?.id === NGO_UUID) return Promise.resolve(makeNgoUser());
       if (where?.id === GUEST_UUID) return Promise.resolve(makeGuestUser());
       return Promise.resolve(null);
     });
+    // Default $transaction: execute each item in the array (handles simple [query, query] calls)
+    mockPrisma.$transaction.mockImplementation((arg: any) =>
+      Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma),
+    );
+    // Restore fire-and-forget email mocks — sendVerificationOtp returns a Promise
+    // so .catch() doesn't throw when resetAllMocks() strips the implementation.
+    mockEmail.sendVerificationOtp.mockResolvedValue(undefined);
+    mockEmail.sendAdminApprovalNotification.mockResolvedValue(undefined);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -725,7 +740,15 @@ describe('Organizations Module — E2E', () => {
       mockPrisma.organization.findUnique.mockResolvedValue(makeOrg());
       mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
         if (where?.id === NGO_UUID) return Promise.resolve(makeNgoUser());
-        if (where?.id === GUEST_UUID) return Promise.resolve(makeGuestUser());
+        if (where?.id === GUEST_UUID)
+          return Promise.resolve(
+            makeDbUser({
+              id: GUEST_UUID,
+              email: 'guest@example.com',
+              role: Role.GUEST,
+              status: 'PENDING',
+            }),
+          );
         return Promise.resolve(null);
       });
 
