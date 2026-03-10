@@ -36,6 +36,13 @@ enum ResourceType {
   ARTICLE
 }
 
+enum MentorRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  COMPLETED
+}
+
 model User {
   id                     String         @id @default(uuid())
   email                  String         @unique
@@ -62,6 +69,8 @@ model User {
   events                  EventRegistration[]
   downloads               DownloadLog[]
   actionsPerformed        AuditLog[]
+  mentorRequests          MentorRequest[]      @relation("MentorRequests")
+  mentorAssignments       MentorRequest[]      @relation("MentorAssignments")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -368,4 +377,28 @@ model Post {
   authorId  String
   author    User        @relation(fields: [authorId], references: [id])
   createdAt DateTime    @default(now())
+}
+
+model MentorRequest {
+  id String @id @default(uuid())
+
+  ngoUserId String
+  ngoUser   User   @relation("MentorRequests", fields: [ngoUserId], references: [id])
+
+  mentorId String
+  mentor   User   @relation("MentorAssignments", fields: [mentorId], references: [id])
+
+  status          MentorRequestStatus @default(PENDING)
+  hoursPerWeek    String?
+  mentorshipAreas String[]
+  commMethods     String[]
+  orgChallenges   String?             @db.Text
+  background      String?             @db.Text
+  acceptedTerms   Boolean             @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ngoUserId])
+  @@index([mentorId])
 }

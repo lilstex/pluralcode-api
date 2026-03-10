@@ -242,4 +242,41 @@ export class EmailService {
       html,
     });
   }
+
+  /**
+   * Notify an expert that an NGO has sent them a mentor request.
+   */
+  async sendMentorRequestNotification(params: {
+    mentorName: string;
+    mentorEmail: string;
+    ngoName: string;
+    ngoUserName: string;
+    dashboardUrl: string;
+  }) {
+    const html = await this.renderTemplate('mentor-request', params);
+    return this.send({
+      to: params.mentorEmail,
+      subject: `New Mentorship Request from ${params.ngoName}`,
+      html,
+    });
+  }
+
+  /**
+   * Notify the NGO of the expert's decision (approved or declined).
+   */
+  async sendMentorRequestDecision(params: {
+    ngoName: string;
+    ngoEmail: string;
+    mentorName: string;
+    decision: 'APPROVED' | 'DECLINED';
+    message?: string;
+    dashboardUrl: string;
+  }) {
+    const html = await this.renderTemplate('mentor-decision', params);
+    const subject =
+      params.decision === 'APPROVED'
+        ? `Your mentorship request was accepted by ${params.mentorName}`
+        : `Update on your mentorship request from ${params.mentorName}`;
+    return this.send({ to: params.ngoEmail, subject, html });
+  }
 }

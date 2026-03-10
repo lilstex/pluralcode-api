@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <h2>Update on Your Mentorship Request</h2>
+  <p>Hi <%= ngoName %>,</p>
+  <% if (decision === 'APPROVED') { %>
+    <p>Great news! <strong><%= mentorName %></strong> has <strong>accepted</strong> your mentorship request.</p>
+    <p>You can now connect with your mentor through your dashboard.</p>
+  <% } else { %>
+    <p><strong><%= mentorName %></strong> is unable to take on your mentorship request at this time.</p>
+    <% if (message) { %>
+      <p>Message from <%= mentorName %>: <em>"<%= message %>"</em></p>
+    <% } %>
+    <p>You can browse other available mentors and submit a new request.</p>
+  <% } %>
+  <p>
+    <a href="<%= dashboardUrl %>">Go to your dashboard →</a>
+  </p>
+  <p>— The PLRCAP Team</p>
+</body>
+</html>

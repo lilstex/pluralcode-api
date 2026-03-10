@@ -62,6 +62,11 @@ export const PERMISSIONS = {
 
   // ── Audit Logs ────────────────────────────────────
   AUDIT_READ: 'audit:read',
+
+  // ── Mentor REquest ────────────────────────────────────
+  MENTOR_REQUEST_READ: 'mentor:read',
+  MENTOR_REQUEST_WRITE: 'mentor:write',
+  MENTOR_REQUEST_MANAGE: 'mentor:manage',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -132,6 +137,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.EVENT_READ,
     PERMISSIONS.DIRECTORY_VIEW_CONTACTS,
     PERMISSIONS.EXPERT_READ,
+    PERMISSIONS.MENTOR_REQUEST_READ,
+    PERMISSIONS.MENTOR_REQUEST_WRITE,
   ],
 
   // EXPERT: same as NGO_MEMBER minus ODA (which is NGO-specific).
@@ -145,6 +152,8 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.DIRECTORY_VIEW_CONTACTS,
     PERMISSIONS.ORG_READ,
     PERMISSIONS.EXPERT_READ,
+    PERMISSIONS.MENTOR_REQUEST_READ,
+    PERMISSIONS.MENTOR_REQUEST_MANAGE,
   ],
 
   GUEST: [
@@ -152,5 +161,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.RESOURCE_READ,
     PERMISSIONS.FORUM_READ,
     PERMISSIONS.EVENT_READ,
+    PERMISSIONS.MENTOR_REQUEST_READ,
+    PERMISSIONS.MENTOR_REQUEST_WRITE,
   ],
 };

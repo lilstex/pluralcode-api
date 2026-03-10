@@ -10,6 +10,9 @@ CREATE TYPE "FormStatus" AS ENUM ('IN_PROGRESS', 'SUBMITTED', 'COMPLETED');
 -- CreateEnum
 CREATE TYPE "ResourceType" AS ENUM ('DOCUMENT', 'VIDEO', 'ARTICLE');
 
+-- CreateEnum
+CREATE TYPE "MentorRequestStatus" AS ENUM ('PENDING', 'APPROVED', 'DECLINED', 'COMPLETED');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -294,6 +297,24 @@ CREATE TABLE "Post" (
 );
 
 -- CreateTable
+CREATE TABLE "MentorRequest" (
+    "id" TEXT NOT NULL,
+    "ngoUserId" TEXT NOT NULL,
+    "mentorId" TEXT NOT NULL,
+    "status" "MentorRequestStatus" NOT NULL DEFAULT 'PENDING',
+    "hoursPerWeek" TEXT,
+    "mentorshipAreas" TEXT[],
+    "commMethods" TEXT[],
+    "orgChallenges" TEXT,
+    "background" TEXT,
+    "acceptedTerms" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "MentorRequest_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "_BadgeToUser" (
     "A" TEXT NOT NULL,
     "B" TEXT NOT NULL,
@@ -409,6 +430,12 @@ CREATE INDEX "Event_isCancelled_idx" ON "Event"("isCancelled");
 CREATE UNIQUE INDEX "EventRegistration_userId_eventId_key" ON "EventRegistration"("userId", "eventId");
 
 -- CreateIndex
+CREATE INDEX "MentorRequest_ngoUserId_idx" ON "MentorRequest"("ngoUserId");
+
+-- CreateIndex
+CREATE INDEX "MentorRequest_mentorId_idx" ON "MentorRequest"("mentorId");
+
+-- CreateIndex
 CREATE INDEX "_BadgeToUser_B_index" ON "_BadgeToUser"("B");
 
 -- CreateIndex
@@ -473,6 +500,12 @@ ALTER TABLE "Post" ADD CONSTRAINT "Post_threadId_fkey" FOREIGN KEY ("threadId") 
 
 -- AddForeignKey
 ALTER TABLE "Post" ADD CONSTRAINT "Post_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MentorRequest" ADD CONSTRAINT "MentorRequest_ngoUserId_fkey" FOREIGN KEY ("ngoUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MentorRequest" ADD CONSTRAINT "MentorRequest_mentorId_fkey" FOREIGN KEY ("mentorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_BadgeToUser" ADD CONSTRAINT "_BadgeToUser_A_fkey" FOREIGN KEY ("A") REFERENCES "Badge"("id") ON DELETE CASCADE ON UPDATE CASCADE;
