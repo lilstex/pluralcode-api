@@ -43,16 +43,22 @@ jobs:
             --push .
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps --ignore-scripts
+
+      - name: Generate Prisma client
+        env:
+          NODE_TLS_REJECT_UNAUTHORIZED: '0'
+        run: |
+          npm config set strict-ssl false
+          npx prisma@6 generate --schema=./prisma/schema/schema.prisma
 
       - name: Run Prisma Migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
-        run: npx prisma migrate deploy
+        run: npx prisma@6 migrate deploy --schema=./prisma/schema/schema.prisma
 
       - name: Verify deployment
         run: |
-          echo "Image pushed to ACR successfully!"
+          echo "✅ Image pushed to ACR successfully!"
           echo "Image: plrcapregistry.azurecr.io/plrcap-backend:${{ github.sha }}"
-          echo "To deploy: update the container app image manually or set it to pull latest automatically."
