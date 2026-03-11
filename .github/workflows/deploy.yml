@@ -47,6 +47,7 @@ jobs:
 
       - name: Generate Prisma client
         env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
         run: |
           npm config set strict-ssl false
