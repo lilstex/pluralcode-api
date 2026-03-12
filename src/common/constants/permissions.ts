@@ -1,69 +1,63 @@
-/**
- * PLRCAP Permission Keys
- * Each string is a discrete capability that can be checked with the @Permissions() decorator.
- */
 export const PERMISSIONS = {
-  // ── User Management ──────────────────────────────
+  // User Management
   USER_READ: 'user:read',
   USER_APPROVE: 'user:approve',
   USER_SUSPEND: 'user:suspend',
   USER_DELETE: 'user:delete',
   USER_EXPORT: 'user:export',
 
-  // ── Admin / Team Management ───────────────────────
+  // Admin / Team Management
   ADMIN_CREATE: 'admin:create',
   ADMIN_MANAGE: 'admin:manage',
 
-  // ── Organization Management ───────────────────────
-  // Read is intentionally broad — all authenticated roles can browse the directory.
-  // Write/Delete/Spotlight are admin-only capabilities.
-  ORG_READ: 'org:read', // Browse NGO directory & view full profiles
-  ORG_UPDATE: 'org:update', // Admin edits any org's core profile or logo
-  ORG_DELETE: 'org:delete', // Hard-delete an organization record
-  ORG_SPOTLIGHT: 'org:spotlight', // Feature an org on the homepage spotlight
+  // Organization Management
+  ORG_READ: 'org:read',
+  ORG_UPDATE: 'org:update',
+  ORG_DELETE: 'org:delete',
+  ORG_SPOTLIGHT: 'org:spotlight',
 
-  // ── Expert Management ─────────────────────────────
-  // Experts manage their own profile via owner-scoped routes (no permission key needed).
-  // These keys cover admin-level read and moderation of expert profiles.
-  EXPERT_READ: 'expert:read', // Admin reads/lists all expert profiles
-  EXPERT_MODERATE: 'expert:moderate', // Admin can hide/flag/unsuspend expert profiles
-  EXPERT_VERIFY: 'expert:verify', // Admin marks an expert as verified/accredited
+  // Expert Management
+  EXPERT_READ: 'expert:read',
+  EXPERT_MODERATE: 'expert:moderate',
+  EXPERT_VERIFY: 'expert:verify',
 
-  // ── Content (Blog / News / Spotlight) ─────────────
+  // Content (Blog / News / Spotlight)
   CONTENT_READ: 'content:read',
   CONTENT_WRITE: 'content:write',
   CONTENT_DELETE: 'content:delete',
   SPOTLIGHT_MANAGE: 'spotlight:manage',
 
-  // ── Events & Webinars ─────────────────────────────
+  // Events & Webinars
   EVENT_READ: 'event:read',
   EVENT_WRITE: 'event:write',
   EVENT_DELETE: 'event:delete',
   EVENT_MANAGE_ATTENDEES: 'event:manage_attendees',
 
-  // ── Resource Library ──────────────────────────────
+  // Resource Library
   RESOURCE_READ: 'resource:read',
   RESOURCE_UPLOAD: 'resource:upload',
   RESOURCE_DELETE: 'resource:delete',
   TAXONOMY_MANAGE: 'taxonomy:manage', // Categories, tags, badge catalogue
   BADGE_MANAGE: 'badge:manage', // Create / delete badges in the catalogue
 
-  // ── Community / Forums ────────────────────────────
+  // Community / Forums
   FORUM_READ: 'forum:read',
   FORUM_WRITE: 'forum:write',
   FORUM_MODERATE: 'forum:moderate',
 
-  // ── ODA Assessment ────────────────────────────────
+  // ODA Assessment
+  ODA_READ: 'oda:read',
   ODA_SUBMIT: 'oda:submit',
   ODA_REVIEW: 'oda:review',
+  ODA_MANAGE: 'oda:manage', // pillar / block / question CRUD
 
-  // ── Directory ─────────────────────────────────────
+  // Directory
   DIRECTORY_VIEW_CONTACTS: 'directory:view_contacts',
 
-  // ── Audit Logs ────────────────────────────────────
+  // Audit Logs
   AUDIT_READ: 'audit:read',
 
-  // ── Mentor REquest ────────────────────────────────────
+  // Mentor REquest
   MENTOR_REQUEST_READ: 'mentor:read',
   MENTOR_REQUEST_WRITE: 'mentor:write',
   MENTOR_REQUEST_MANAGE: 'mentor:manage',
@@ -94,6 +88,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.CONTENT_WRITE,
     PERMISSIONS.CONTENT_DELETE,
     PERMISSIONS.SPOTLIGHT_MANAGE,
+    PERMISSIONS.ODA_MANAGE,
     // Cross-cutting read access
     PERMISSIONS.USER_READ,
     PERMISSIONS.ORG_READ,
@@ -133,6 +128,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.RESOURCE_READ,
     PERMISSIONS.FORUM_READ,
     PERMISSIONS.FORUM_WRITE,
+    PERMISSIONS.ODA_READ,
     PERMISSIONS.ODA_SUBMIT,
     PERMISSIONS.EVENT_READ,
     PERMISSIONS.DIRECTORY_VIEW_CONTACTS,

@@ -214,6 +214,7 @@ const mockPrisma = {
   },
   organizationActivity: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -229,6 +230,9 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+  },
+  event: {
+    findMany: jest.fn(),
   },
   auditLog: { create: jest.fn() },
   $transaction: jest.fn(),
@@ -1688,6 +1692,277 @@ describe('Organizations Module — E2E', () => {
       expect(body.status).toBe(true);
       expect(mockAzure.delete).not.toHaveBeenCalled();
       expect(body.message).toMatch(/deleted successfully/i);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /organizations/me/dashboard
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('GET /organizations/me/dashboard', () => {
+    // Minimal org fixture that includes _count + user.badges shape returned
+    // by the include query in getDashboard()
+    function makeDashboardOrg(overrides: Record<string, any> = {}): any {
+      return {
+        ...makeOrg(),
+        // Filled-in optional fields so we get a predictable completion score
+        acronym: 'STCN',
+        publicEmail: 'info@stcn.org',
+        address: '12 NGO Way',
+        description: 'We exist to save children',
+        logoUrl: 'https://blob.example.com/logo.png',
+        mission: 'Save every child',
+        vision: 'A better world',
+        numberOfStaff: 45,
+        numberOfVolunteers: 120,
+        annualBudget: '₦50m',
+        sectors: ['Health', 'Education'],
+        socials: [{ platform: 'facebook', url: 'https://fb.com/stcn' }],
+        _count: { activities: 7, odaAssessments: 2 },
+        user: { pointsCount: 150, badges: [{ id: 'b1' }, { id: 'b2' }] },
+        ...overrides,
+      };
+    }
+
+    function makeUpcomingEvent(overrides: Record<string, any> = {}): any {
+      return {
+        id: 'evt-' + Math.random().toString(36).slice(2),
+        title: 'NGO Leadership Summit',
+        description: 'Annual summit for NGO leaders.',
+        startTime: new Date(Date.now() + 86_400_000), // tomorrow
+        endTime: new Date(Date.now() + 2 * 86_400_000),
+        coverImageUrl: null,
+        externalMeetingUrl: null,
+        capacity: 200,
+        tags: ['Leadership'],
+        ...overrides,
+      };
+    }
+
+    function makeRecentActivity(overrides: Record<string, any> = {}): any {
+      return {
+        id: 'act-' + Math.random().toString(36).slice(2),
+        sector: 'Health',
+        who: 'Children under 5',
+        where: 'Lagos',
+        when: 2024,
+        activity: 'Vaccination drive',
+        createdAt: new Date(),
+        ...overrides,
+      };
+    }
+
+    beforeEach(() => {
+      // Default happy-path mocks for dashboard tests
+      mockPrisma.organization.findUnique.mockResolvedValue(makeDashboardOrg());
+      mockPrisma.event.findMany.mockResolvedValue([makeUpcomingEvent()]);
+      mockPrisma.organizationActivity.findMany.mockResolvedValue([
+        makeRecentActivity(),
+      ]);
+    });
+
+    it('401 — no token', async () => {
+      await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .expect(401);
+    });
+
+    it('403 — GUEST role rejected', async () => {
+      await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${guestToken()}`)
+        .expect(403);
+    });
+
+    it('404 — NGO_MEMBER with no organization', async () => {
+      mockPrisma.organization.findUnique.mockResolvedValue(null);
+
+      const { body } = await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      expect(body.status).toBe(false);
+      expect(body.statusCode).toBe(404);
+      expect(body.message).toMatch(/not found/i);
+    });
+
+    it('200 — returns all dashboard fields with correct shape', async () => {
+      const { body } = await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      expect(body.status).toBe(true);
+      expect(body.data).toMatchObject({
+        profileCompletion: expect.any(Number),
+        activityCount: expect.any(Number),
+        assessmentCount: expect.any(Number),
+        pointsEarned: expect.any(Number),
+        badgeCount: expect.any(Number),
+        upcomingEvents: expect.any(Array),
+        recentActivities: expect.any(Array),
+      });
+    });
+
+    it('200 — profileCompletion is 100 when all tracked fields are filled', async () => {
+      const { body } = await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      expect(body.data.profileCompletion).toBe(100);
+    });
+
+    it('200 — profileCompletion is less than 100 when optional fields are missing', async () => {
+      mockPrisma.organization.findUnique.mockResolvedValue(
+        makeDashboardOrg({
+          acronym: null,
+          publicEmail: null,
+          address: null,
+          description: null,
+          logoUrl: null,
+          mission: null,
+          vision: null,
+          numberOfStaff: null,
+          numberOfVolunteers: null,
+          annualBudget: null,
+          sectors: [],
+          socials: [],
+        }),
+      );
+
+      const { body } = await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      expect(body.data.profileCompletion).toBeLessThan(100);
+      expect(body.data.profileCompletion).toBeGreaterThanOrEqual(0);
+    });
+
+    it('200 — activityCount and assessmentCount come from _count', async () => {
+      mockPrisma.organization.findUnique.mockResolvedValue(
+        makeDashboardOrg({ _count: { activities: 13, odaAssessments: 4 } }),
+      );
+
+      const { body } = await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      expect(body.data.activityCount).toBe(13);
+      expect(body.data.assessmentCount).toBe(4);
+    });
+
+    it('200 — pointsEarned and badgeCount come from owner user', async () => {
+      mockPrisma.organization.findUnique.mockResolvedValue(
+        makeDashboardOrg({
+          user: {
+            pointsCount: 500,
+            badges: [{ id: 'b1' }, { id: 'b2' }, { id: 'b3' }],
+          },
+        }),
+      );
+
+      const { body } = await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      expect(body.data.pointsEarned).toBe(500);
+      expect(body.data.badgeCount).toBe(3);
+    });
+
+    it('200 — upcomingEvents is capped at 10', async () => {
+      const events = Array.from({ length: 10 }, (_, i) =>
+        makeUpcomingEvent({ title: `Event ${i + 1}` }),
+      );
+      mockPrisma.event.findMany.mockResolvedValue(events);
+
+      const { body } = await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      expect(body.data.upcomingEvents).toHaveLength(10);
+    });
+
+    it('200 — recentActivities is capped at 10', async () => {
+      const activities = Array.from({ length: 10 }, (_, i) =>
+        makeRecentActivity({ activity: `Activity ${i + 1}` }),
+      );
+      mockPrisma.organizationActivity.findMany.mockResolvedValue(activities);
+
+      const { body } = await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      expect(body.data.recentActivities).toHaveLength(10);
+    });
+
+    it('200 — upcomingEvents is empty array when no events scheduled', async () => {
+      mockPrisma.event.findMany.mockResolvedValue([]);
+
+      const { body } = await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      expect(body.data.upcomingEvents).toEqual([]);
+    });
+
+    it('200 — event query excludes past and cancelled events', async () => {
+      await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      expect(mockPrisma.event.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isPast: false,
+            isCancelled: false,
+            startTime: expect.objectContaining({ gt: expect.any(Date) }),
+          }),
+          take: 10,
+          orderBy: { startTime: 'asc' },
+        }),
+      );
+    });
+
+    it('200 — activity query is scoped to this org and ordered by createdAt desc', async () => {
+      await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      expect(mockPrisma.organizationActivity.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { organizationId: ORG_UUID },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        }),
+      );
+    });
+
+    it('200 — upcomingEvent shape includes required fields', async () => {
+      const evt = makeUpcomingEvent({ title: 'Big Summit', capacity: 300 });
+      mockPrisma.event.findMany.mockResolvedValue([evt]);
+
+      const { body } = await request(app.getHttpServer())
+        .get('/organizations/me/dashboard')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+
+      const e = body.data.upcomingEvents[0];
+      expect(e).toHaveProperty('id');
+      expect(e).toHaveProperty('title', 'Big Summit');
+      expect(e).toHaveProperty('startTime');
+      expect(e).toHaveProperty('endTime');
+      expect(e).toHaveProperty('capacity', 300);
+      expect(e).toHaveProperty('tags');
     });
   });
 });

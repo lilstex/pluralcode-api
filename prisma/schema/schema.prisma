@@ -43,6 +43,11 @@ enum MentorRequestStatus {
   COMPLETED
 }
 
+enum ODABlockStatus {
+  IN_PROGRESS
+  SUBMITTED
+}
+
 model User {
   id                     String         @id @default(uuid())
   email                  String         @unique
@@ -135,10 +140,10 @@ model Organization {
 
   members OrganizationMember[]
 
-  activities  OrganizationActivity[]
-  donors      OrganizationDonor[]
-  assessments OrganizationAssessment[]
-  odaForms    ODAForm[]
+  activities     OrganizationActivity[]
+  donors         OrganizationDonor[]
+  assessments    OrganizationAssessment[]
+  odaAssessments ODAAssessment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -233,18 +238,88 @@ model AuditLog {
   createdAt DateTime @default(now())
 }
 
-model ODAForm {
-  id             String     @id @default(uuid())
-  status         FormStatus @default(IN_PROGRESS)
-  buildingBlock  String // e.g., "Governance"
-  indicatorScore Int? // The 1-4 score suggested by AI
-  evidenceUrl    String? // PDF uploaded by NGO
-  aiAnalysis     String?    @db.Text // The "Growth Pathway" report
+model ODAPillar {
+  id    String @id @default(uuid())
+  name  String @unique
+  order Int
 
-  organization Organization @relation(fields: [orgId], references: [id])
+  buildingBlocks ODABuildingBlock[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ODABuildingBlock {
+  id       String @id @default(uuid())
+  name     String @unique
+  order    Int
+  maxScore Int    @default(100)
+
+  pillarId String
+  pillar   ODAPillar @relation(fields: [pillarId], references: [id], onDelete: Cascade)
+
+  questions      ODAQuestion[]
+  blockResponses ODABlockResponse[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pillarId])
+}
+
+model ODAQuestion {
+  id    String @id @default(uuid())
+  text  String @db.Text
+  order Int
+
+  buildingBlockId String
+  buildingBlock   ODABuildingBlock @relation(fields: [buildingBlockId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([buildingBlockId])
+}
+
+model ODAAssessment {
+  id           String     @id @default(uuid())
+  status       FormStatus @default(IN_PROGRESS)
+  overallScore Float?
+  aiSummary    String?    @db.Text
+  startedAt    DateTime   @default(now())
+  completedAt  DateTime?
+
   orgId        String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  blockResponses ODABlockResponse[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([status])
+}
+
+model ODABlockResponse {
+  id         String         @id @default(uuid())
+  status     ODABlockStatus @default(IN_PROGRESS)
+  blockScore Float?
+
+  // answers: [{ questionId, questionText, selectedScale (1-4), evidence }]
+  answers Json @default("[]")
+
+  assessmentId String
+  assessment   ODAAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  buildingBlockId String
+  buildingBlock   ODABuildingBlock @relation(fields: [buildingBlockId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assessmentId, buildingBlockId])
+  @@index([assessmentId])
 }
 
 model Badge {

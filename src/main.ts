@@ -23,7 +23,11 @@ async function bootstrap() {
     .setDescription('PLRCAP/NORCAP NGO API Docs')
     .setVersion('1.0')
     .addServer('http://localhost:2200', 'Local environment')
-    .addServer('https://pluralcode-api.onrender.com', 'Production')
+    .addServer('https://pluralcode-api.onrender.com', 'Development')
+    .addServer(
+      'https://plrcap-backend.ambitiousground-313553a9.westeurope.azurecontainerapps.io',
+      'Production',
+    )
     .addBearerAuth()
     .build();
 

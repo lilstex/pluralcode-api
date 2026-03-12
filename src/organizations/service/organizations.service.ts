@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
@@ -834,6 +833,8 @@ export class OrganizationService {
             // GUEST accounts are auto-approved so they can access the platform immediately
             status: 'APPROVED',
             isEmailVerified: false,
+            otp,
+            otpExpiresAt: otpExpiry,
           },
         });
 
@@ -1251,6 +1252,147 @@ export class OrganizationService {
       };
     } catch (error) {
       this.logger.error('deleteAssessment error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // DASHBOARD
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Returns a summary dashboard for the authenticated NGO_MEMBER's organization:
+   *   - Profile completion %
+   *   - Activity count
+   *   - ODA assessment count
+   *   - Points earned by the owner
+   *   - Badge count earned by the owner
+   *   - Up to 10 upcoming (non-cancelled) events
+   *   - Up to 10 most recent program activities
+   */
+  async getDashboard(userId: string) {
+    try {
+      // ── 1. Load org + owner + counts in parallel ──────────────────────────
+      const org = await this.prisma.organization.findUnique({
+        where: { userId },
+        include: {
+          _count: {
+            select: {
+              activities: true,
+              odaAssessments: true,
+            },
+          },
+          user: {
+            select: {
+              pointsCount: true,
+              badges: { select: { id: true } },
+            },
+          },
+        },
+      });
+
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization profile not found.',
+        };
+      }
+
+      // ── 2. Profile completion ─────────────────────────────────────────────
+      // Each field contributes 1 point; completion = filled / total × 100
+      const COMPLETION_FIELDS: Array<{ key: keyof typeof org; label: string }> =
+        [
+          { key: 'name', label: 'Name' },
+          { key: 'acronym', label: 'Acronym' },
+          { key: 'phoneNumber', label: 'Phone' },
+          { key: 'publicEmail', label: 'Public email' },
+          { key: 'state', label: 'State' },
+          { key: 'lga', label: 'LGA' },
+          { key: 'address', label: 'Address' },
+          { key: 'description', label: 'Description' },
+          { key: 'logoUrl', label: 'Logo' },
+          { key: 'mission', label: 'Mission' },
+          { key: 'vision', label: 'Vision' },
+          { key: 'numberOfStaff', label: 'Staff count' },
+          { key: 'numberOfVolunteers', label: 'Volunteer count' },
+          { key: 'annualBudget', label: 'Annual budget' },
+        ];
+
+      const sectorsFilled =
+        Array.isArray(org.sectors) && org.sectors.length > 0;
+      const socialsFilled =
+        Array.isArray(org.socials) && (org.socials as any[]).length > 0;
+
+      const filledCount =
+        COMPLETION_FIELDS.filter(({ key }) => {
+          const v = org[key];
+          return v !== null && v !== undefined && v !== '';
+        }).length +
+        (sectorsFilled ? 1 : 0) +
+        (socialsFilled ? 1 : 0);
+
+      const totalFields = COMPLETION_FIELDS.length + 2; // +sectors +socials
+      const profileCompletion = Math.round((filledCount / totalFields) * 100);
+
+      // ── 3. Upcoming events (next 10, soonest first) ───────────────────────
+      const upcomingEvents = await this.prisma.event.findMany({
+        where: {
+          isPast: false,
+          isCancelled: false,
+          startTime: { gt: new Date() },
+        },
+        orderBy: { startTime: 'asc' },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          startTime: true,
+          endTime: true,
+          coverImageUrl: true,
+          externalMeetingUrl: true,
+          capacity: true,
+          tags: true,
+        },
+      });
+
+      // ── 4. Recent activities (latest 10) ─────────────────────────────────
+      const recentActivities = await this.prisma.organizationActivity.findMany({
+        where: { organizationId: org.id },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          sector: true,
+          who: true,
+          where: true,
+          when: true,
+          activity: true,
+          createdAt: true,
+        },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Dashboard retrieved.',
+        data: {
+          profileCompletion,
+          activityCount: org._count.activities,
+          assessmentCount: org._count.odaAssessments,
+          pointsEarned: org.user.pointsCount,
+          badgeCount: org.user.badges.length,
+          upcomingEvents,
+          recentActivities,
+        },
+      };
+    } catch (error) {
+      this.logger.error('getDashboard error', error);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,

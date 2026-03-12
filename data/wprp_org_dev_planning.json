@@ -1,0 +1,26 @@
+[
+  {
+    "ID": 1,
+    "org_id": 0,
+    "assessment_id": 26,
+    "dev_planning": "[{\"block\":\"block1\",\"report\":\"\",\"indicator\":\"\",\"score\":\"1\",\"strength\":\"1. Registered with relevant bodies; LGA, STATE and The CAC\\n2. Strong team of dedicated volunteers with relevant capacity \\n\",\"weakness\":\"1. Lack of available finance to further the activities\\n2. Lack of Strong partnership with key stakeholders due to the inexperienced state of the organisation \",\"opportunity\":\"1. Few local organisations are involved in projects and programmes related to our objectives in the location\\n2. Availability of volunteers willing to offer their services\\n3. Availability of funding opportunities for Climate projects\",\"threat\":\"1. Lack of Visibility of our organisation may hinder our progress in the future \\n2. Funding agencies usually support organisations with experience in project management \",\"priority\":\"4\",\"action\":\"yes\"},{\"block\":\"\",\"report\":\"\",\"indicator\":\"\",\"score\":\"1\",\"strength\":\"Add text\",\"weakness\":\"Add text\",\"opportunity\":\"Add text\",\"threat\":\"Add text\",\"priority\":\"1\",\"action\":\"yes\"}]",
+    "date_created": "2025-04-14T23:00:00.000Z",
+    "date_updated": "2025-04-14T23:00:00.000Z"
+  },
+  {
+    "ID": 10,
+    "org_id": 861,
+    "assessment_id": null,
+    "dev_planning": "[{\"block\":\"\",\"report\":\"\",\"indicator\":\"\",\"score\":\"0\",\"strength\":\"Add text\",\"weakness\":\"Add text\",\"opportunity\":\"Add text\",\"threat\":\"Add text\",\"priority\":\"1\",\"action\":\"yes\"}]",
+    "date_created": "2025-02-05T23:00:00.000Z",
+    "date_updated": "2025-02-05T23:00:00.000Z"
+  },
+  {
+    "ID": 8,
+    "org_id": 643,
+    "assessment_id": null,
+    "dev_planning": "[{\"block\":\"block1\",\"report\":\"Aug 12, 2024\",\"indicator\":\"We do not have a functioning GB\",\"score\":\"1\",\"strength\":\"We are strong.\",\"weakness\":\"None\",\"opportunity\":\"none\",\"threat\":\"none\",\"priority\":\"4\",\"action\":\"yes\"}]",
+    "date_created": "2024-09-11T23:00:00.000Z",
+    "date_updated": "2024-09-11T23:00:00.000Z"
+  }
+]

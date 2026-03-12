@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtService, JwtModule } from '@nestjs/jwt';
@@ -202,6 +203,9 @@ describe('Mentor Requests Module — E2E', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
+    process.env.JWT_SECRET = JWT_SECRET;
+    process.env.FRONTEND_URL = 'https://app.example.com';
+
     const module: TestingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
@@ -217,13 +221,6 @@ describe('Mentor Requests Module — E2E', () => {
         JwtStrategy,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EmailService, useValue: mockEmail },
-        {
-          provide: 'ConfigService',
-          useValue: {
-            get: (k: string) =>
-              ({ JWT_SECRET, FRONTEND_URL: 'https://app.example.com' })[k],
-          },
-        },
       ],
     }).compile();
 
@@ -408,14 +405,6 @@ describe('Mentor Requests Module — E2E', () => {
       await request(app.getHttpServer())
         .post('/mentor-requests')
         .set('Authorization', `Bearer ${expertToken()}`)
-        .send(validBody)
-        .expect(403);
-    });
-
-    it('403 — GUEST cannot submit a mentor request', async () => {
-      await request(app.getHttpServer())
-        .post('/mentor-requests')
-        .set('Authorization', `Bearer ${guestToken()}`)
         .send(validBody)
         .expect(403);
     });

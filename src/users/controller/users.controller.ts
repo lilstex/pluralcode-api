@@ -37,7 +37,7 @@ import {
   ResetPasswordDto,
   UpdateProfileDto,
   UpsertExpertProfileDto,
-  UpdateOrganizationDto,
+  UpdateUserOrganizationDto,
   SignUpResponseDto,
   LoginResponseDto,
   UserResponseDto,
@@ -291,7 +291,7 @@ export class UserController {
   })
   async updateOrganization(
     @CurrentUser() user: any,
-    @Body() dto: UpdateOrganizationDto,
+    @Body() dto: UpdateUserOrganizationDto,
   ) {
     return this.userService.updateOrganization(user.id, dto);
   }

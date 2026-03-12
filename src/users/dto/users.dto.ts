@@ -311,7 +311,7 @@ export class UpsertExpertProfileDto {
 // ORGANIZATION DTOs
 // ─────────────────────────────────────────────
 
-export class UpdateOrganizationDto {
+export class UpdateUserOrganizationDto {
   @ApiPropertyOptional({ example: 'Save The Children Nigeria' })
   @IsOptional()
   @IsString()

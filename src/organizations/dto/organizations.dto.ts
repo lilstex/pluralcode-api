@@ -431,3 +431,64 @@ export class OrganizationSummaryResponseDto {
   @ApiPropertyOptional() website?: string;
   @ApiProperty() createdAt: Date;
 }
+
+// ─────────────────────────────────────────────
+// DASHBOARD DTOs
+// ─────────────────────────────────────────────
+
+export class DashboardEventDto {
+  @ApiProperty() id: string;
+  @ApiProperty() title: string;
+  @ApiProperty() description: string;
+  @ApiProperty() startTime: Date;
+  @ApiProperty() endTime: Date;
+  @ApiPropertyOptional() coverImageUrl?: string;
+  @ApiPropertyOptional() externalMeetingUrl?: string;
+  @ApiPropertyOptional() capacity?: number;
+  @ApiProperty({ type: [String] }) tags: string[];
+}
+
+export class DashboardActivityDto {
+  @ApiProperty() id: string;
+  @ApiProperty() sector: string;
+  @ApiProperty() who: string;
+  @ApiProperty() where: string;
+  @ApiProperty() when: number;
+  @ApiProperty() activity: string;
+  @ApiProperty() createdAt: Date;
+}
+
+export class OrgDashboardResponseDto {
+  @ApiProperty({ description: 'Profile completion percentage (0–100)' })
+  profileCompletion: number;
+
+  @ApiProperty({ description: 'Total number of program activities logged' })
+  activityCount: number;
+
+  @ApiProperty({
+    description: 'Total number of ODA assessments (all statuses)',
+  })
+  assessmentCount: number;
+
+  @ApiProperty({
+    description: 'Points earned by the organization owner (resource downloads)',
+  })
+  pointsEarned: number;
+
+  @ApiProperty({
+    description: 'Number of badges earned by the organization owner',
+  })
+  badgeCount: number;
+
+  @ApiProperty({
+    type: [DashboardEventDto],
+    description: 'Up to 10 upcoming events',
+  })
+  upcomingEvents: DashboardEventDto[];
+
+  @ApiProperty({
+    type: [DashboardActivityDto],
+    description: 'Up to 10 most recent activities',
+  })
+  recentActivities: DashboardActivityDto[];
+}

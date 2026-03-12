@@ -12,7 +12,7 @@ import {
   VerifyOtpDto,
   ResetPasswordDto,
   UpdateProfileDto,
-  UpdateOrganizationDto,
+  UpdateUserOrganizationDto,
   UpsertExpertProfileDto,
 } from '../dto/users.dto';
 import { PrismaService } from 'src/prisma.service';
@@ -786,7 +786,7 @@ export class UserService {
     }
   }
 
-  async updateOrganization(userId: string, dto: UpdateOrganizationDto) {
+  async updateOrganization(userId: string, dto: UpdateUserOrganizationDto) {
     try {
       const org = await this.prisma.organization.findUnique({
         where: { userId },

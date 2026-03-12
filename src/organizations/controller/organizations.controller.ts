@@ -43,6 +43,7 @@ import {
   OrganizationResponseDto,
   OrganizationSummaryResponseDto,
   MemberResponseDto,
+  OrgDashboardResponseDto,
 } from '../dto/organizations.dto';
 import { OrganizationService } from '../service/organizations.service';
 
@@ -133,6 +134,21 @@ export class OrganizationController {
   // ─────────────────────────────────────────────────────────────────────────────
   // NGO_MEMBER — OWN ORGANIZATION PROFILE
   // ─────────────────────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER)
+  @ApiBearerAuth()
+  @Get('me/dashboard')
+  @ApiOperation({
+    summary: 'Get my organization dashboard overview (NGO_MEMBER)',
+    description:
+      'Returns profile completion %, activity/assessment counts, points & badges earned, ' +
+      'up to 10 upcoming events, and the 10 most recent program activities.',
+  })
+  @ApiResponse({ status: 200, type: OrgDashboardResponseDto })
+  getMyDashboard(@CurrentUser() user: any) {
+    return this.orgService.getDashboard(user.id);
+  }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.NGO_MEMBER, Role.SUPER_ADMIN)
