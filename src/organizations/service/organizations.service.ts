@@ -74,7 +74,7 @@ const ORG_SUMMARY_SELECT = {
   mission: true,
   numberOfStaff: true,
   numberOfVolunteers: true,
-  website: true,
+  vision: true,
   createdAt: true,
 } as const;
 

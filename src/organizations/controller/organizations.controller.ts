@@ -71,8 +71,6 @@ export class OrganizationController {
   // PUBLIC / AUTHENTICATED — DIRECTORY
   // ─────────────────────────────────────────────────────────────────────────────
 
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @Get()
   @ApiOperation({
     summary: 'Browse the NGO directory',
