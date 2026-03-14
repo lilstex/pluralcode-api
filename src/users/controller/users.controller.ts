@@ -258,6 +258,14 @@ export class UserController {
     return this.userService.listExperts({ search, expertise, page, limit });
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('experts/drop-down')
+  @ApiOperation({ summary: 'Lists experts in a dropdown' })
+  async dropDownListExperts() {
+    return this.userService.dropDownListExperts();
+  }
+
   @Get('experts/:userId')
   @ApiOperation({
     summary: 'Get a specific expert profile by user ID (public)',
@@ -328,6 +336,14 @@ export class UserController {
     return this.userService.uploadLogo(user.id, file);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('guests')
+  @ApiOperation({ summary: 'Drop down list of all guest users' })
+  async guestUsersList() {
+    return this.userService.guestUsersList();
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // ADMIN: USER MANAGEMENT
   // ─────────────────────────────────────────────────────────────────────────────
@@ -338,6 +354,7 @@ export class UserController {
     Role.CONTENT_ADMIN,
     Role.EVENT_ADMIN,
     Role.RESOURCE_ADMIN,
+    Role.NGO_MEMBER,
   )
   @Permissions(PERMISSIONS.USER_READ)
   @ApiBearerAuth()

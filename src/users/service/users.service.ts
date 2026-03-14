@@ -759,6 +759,38 @@ export class UserService {
     }
   }
 
+  async dropDownListExperts() {
+    try {
+      const users = await this.prisma.user.findMany({
+        where: {
+          role: Role.EXPERT,
+          status: 'APPROVED',
+        },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatarUrl: true,
+        },
+        orderBy: { fullName: 'asc' },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Approved expert users retrieved for dropdown.',
+        data: users,
+      };
+    } catch (error) {
+      this.logger.error('list experts error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // ORGANIZATION — GET & UPDATE
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1126,6 +1158,38 @@ export class UserService {
       };
     } catch (error) {
       this.logger.error('deleteUser error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async guestUsersList() {
+    try {
+      const users = await this.prisma.user.findMany({
+        where: {
+          role: Role.GUEST,
+          status: 'APPROVED',
+        },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatarUrl: true,
+        },
+        orderBy: { fullName: 'asc' },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Approved guest users retrieved for dropdown.',
+        data: users,
+      };
+    } catch (error) {
+      this.logger.error('listApprovedGuestsForDropdown error', error);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
