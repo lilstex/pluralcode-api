@@ -119,8 +119,6 @@ export class OrganizationController {
     return this.orgService.leaveOrganization(user.id, organizationId);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @Get(':id')
   @ApiOperation({ summary: 'Get full organization profile by ID' })
   @ApiParam({ name: 'id', description: 'Organization UUID' })

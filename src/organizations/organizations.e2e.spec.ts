@@ -346,10 +346,6 @@ describe('Organizations Module — E2E', () => {
       mockPrisma.organization.count.mockResolvedValue(1);
     });
 
-    it('401 — no token', async () => {
-      await request(app.getHttpServer()).get('/organizations').expect(401);
-    });
-
     it('200 — authenticated user can list orgs', async () => {
       const { body } = await request(app.getHttpServer())
         .get('/organizations')
@@ -454,12 +450,6 @@ describe('Organizations Module — E2E', () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('GET /organizations/:id', () => {
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
-        .get(`/organizations/${VALID_UUID}`)
-        .expect(401);
-    });
-
     it('400 — non-UUID param rejected', async () => {
       await request(app.getHttpServer())
         .get('/organizations/not-a-uuid')

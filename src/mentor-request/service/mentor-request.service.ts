@@ -189,7 +189,7 @@ export class MentorRequestService {
         mentorEmail: mentor.email,
         ngoName: ngoUser.organization.name,
         ngoUserName: ngoUser.fullName,
-        dashboardUrl: `${process.env.FRONTEND_URL}/dashboard/mentor-requests`,
+        dashboardUrl: `${process.env.FRONTEND_URL}/mentor-requests`,
       })
       .catch((err) =>
         this.logger.error('Failed to send mentor request email', err),

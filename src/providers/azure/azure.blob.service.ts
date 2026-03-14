@@ -12,7 +12,11 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 
-export type AzureContainer = 'avatars' | 'resources' | 'oda-evidence';
+export type AzureContainer =
+  | 'avatars'
+  | 'resources'
+  | 'oda-evidence'
+  | 'communities';
 
 @Injectable()
 export class AzureBlobService {

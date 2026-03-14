@@ -153,7 +153,7 @@ export class UserService {
                 applicantName: createdUser.fullName,
                 applicantEmail: createdUser.email,
                 role: createdUser.role,
-                adminDashboardUrl: `${this.config.get('ADMIN_DASHBOARD_URL')}/users/${createdUser.id}`,
+                adminDashboardUrl: `${this.config.get('FRONTEND_URL')}/admin`,
               }),
             ),
           ),
@@ -958,13 +958,13 @@ export class UserService {
     const existing = await this.prisma.user.findFirst({
       where: { role: Role.SUPER_ADMIN },
     });
-    // if (existing) {
-    //   return {
-    //     status: false,
-    //     statusCode: HttpStatus.CONFLICT,
-    //     message: 'A Super Admin account already exists.',
-    //   };
-    // }
+    if (existing) {
+      return {
+        status: false,
+        statusCode: HttpStatus.CONFLICT,
+        message: 'A Super Admin account already exists.',
+      };
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const superAdmin = await this.prisma.user.create({

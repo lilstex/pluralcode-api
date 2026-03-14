@@ -68,14 +68,20 @@ model User {
   organizationMemberships OrganizationMember[]
   expertProfile           ExpertProfile?
   adminPermission         AdminPermission?
-  forumThreads            ForumThread[]
-  posts                   Post[]
   badges                  Badge[]
   events                  EventRegistration[]
   downloads               DownloadLog[]
   actionsPerformed        AuditLog[]
   mentorRequests          MentorRequest[]      @relation("MentorRequests")
   mentorAssignments       MentorRequest[]      @relation("MentorAssignments")
+
+  communitiesCreated   Community[]           @relation("CommunityCreator")
+  communityMemberships CommunityMembership[] @relation("CommunityMemberships")
+  topicsAuthored       CommunityTopic[]      @relation("TopicAuthor")
+  commentsAuthored     CommunityComment[]    @relation("CommentAuthor")
+  communityLikes       CommunityLike[]       @relation("CommunityLikes")
+  communityReports     CommunityReport[]     @relation("CommunityReports")
+  communityMentions    CommunityMention[]    @relation("CommunityMentions")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -144,6 +150,7 @@ model Organization {
   donors         OrganizationDonor[]
   assessments    OrganizationAssessment[]
   odaAssessments ODAAssessment[]
+  devPlanPriorityAreas DevPlanPriorityArea[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -244,6 +251,7 @@ model ODAPillar {
   order Int
 
   buildingBlocks ODABuildingBlock[]
+  devPlanPriorityAreas DevPlanPriorityArea[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -260,6 +268,7 @@ model ODABuildingBlock {
 
   questions      ODAQuestion[]
   blockResponses ODABlockResponse[]
+  devPlanPriorityAreas DevPlanPriorityArea[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -274,6 +283,8 @@ model ODAQuestion {
 
   buildingBlockId String
   buildingBlock   ODABuildingBlock @relation(fields: [buildingBlockId], references: [id], onDelete: Cascade)
+
+  devPlanPriorityAreas DevPlanPriorityArea[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -433,27 +444,6 @@ model EventRegistration {
   @@unique([userId, eventId]) // Prevents double registration
 }
 
-model ForumThread {
-  id        String   @id @default(uuid())
-  title     String
-  content   String   @db.Text
-  isPrivate Boolean  @default(false)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  posts     Post[]
-  createdAt DateTime @default(now())
-}
-
-model Post {
-  id        String      @id @default(uuid())
-  content   String      @db.Text
-  threadId  String
-  thread    ForumThread @relation(fields: [threadId], references: [id])
-  authorId  String
-  author    User        @relation(fields: [authorId], references: [id])
-  createdAt DateTime    @default(now())
-}
-
 model MentorRequest {
   id String @id @default(uuid())
 
@@ -476,4 +466,201 @@ model MentorRequest {
 
   @@index([ngoUserId])
   @@index([mentorId])
+}
+
+model DevPlanPriorityArea {
+  id    String @id @default(uuid())
+
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  pillarId String
+  pillar   ODAPillar @relation(fields: [pillarId], references: [id])
+
+  buildingBlockId String
+  buildingBlock   ODABuildingBlock @relation(fields: [buildingBlockId], references: [id])
+
+  indicatorId String
+  indicator   ODAQuestion @relation(fields: [indicatorId], references: [id])
+
+  score       Float?
+  strength    String? @db.Text
+  weakness    String? @db.Text
+  opportunity String? @db.Text
+  threat      String? @db.Text
+  priority    Int     // 1 | 2 | 3 | 4
+  act         String? @db.Text
+
+  actionPlan DevPlanActionPlan?
+  evaluation DevPlanEvaluation?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([pillarId])
+  @@index([buildingBlockId])
+  @@index([indicatorId])
+}
+
+model DevPlanActionPlan {
+  id String @id @default(uuid())
+
+  priorityAreaId String              @unique
+  priorityArea   DevPlanPriorityArea @relation(fields: [priorityAreaId], references: [id], onDelete: Cascade)
+
+  objective         String?   @db.Text
+  kpi               String?   @db.Text
+  actionSteps       String?   @db.Text
+  responsiblePerson String?
+  timeline          DateTime?
+  support           String?   @db.Text
+  resourcePlan      String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DevPlanEvaluation {
+  id String @id @default(uuid())
+
+  priorityAreaId String              @unique
+  priorityArea   DevPlanPriorityArea @relation(fields: [priorityAreaId], references: [id], onDelete: Cascade)
+
+  whatWasDone        String? @db.Text
+  wereObjectivesMet  String? @db.Text
+  whatDidWeLearn     String? @db.Text
+  nextSteps          String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// COMMUNITY
+
+model Community {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String? @db.Text
+  imageUrl    String?
+  isActive    Boolean @default(true)
+
+  createdById String
+  createdBy   User   @relation("CommunityCreator", fields: [createdById], references: [id])
+
+  memberships CommunityMembership[]
+  topics      CommunityTopic[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model CommunityMembership {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation("CommunityMemberships", fields: [userId], references: [id], onDelete: Cascade)
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  joinedAt    DateTime  @default(now())
+
+  @@unique([userId, communityId])
+  @@index([userId])
+  @@index([communityId])
+}
+
+model CommunityTopic {
+  id          String    @id @default(uuid())
+  title       String
+  body        String    @db.Text
+  isBlocked   Boolean   @default(false)
+  likeCount   Int       @default(0)
+
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation("TopicAuthor", fields: [authorId], references: [id])
+
+  comments CommunityComment[]
+  reports  CommunityReport[]
+  likes    CommunityLike[]
+  mentions CommunityMention[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([communityId])
+  @@index([authorId])
+  @@index([isBlocked])
+}
+
+model CommunityComment {
+  id        String @id @default(uuid())
+  body      String @db.Text
+  likeCount Int    @default(0)
+
+  topicId String
+  topic   CommunityTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation("CommentAuthor", fields: [authorId], references: [id])
+
+  // Flat threading — replies point to a top-level comment
+  parentId String?
+  parent   CommunityComment?  @relation("Replies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies  CommunityComment[] @relation("Replies")
+
+  likes    CommunityLike[]
+  mentions CommunityMention[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([topicId])
+  @@index([authorId])
+  @@index([parentId])
+}
+
+model CommunityLike {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation("CommunityLikes", fields: [userId], references: [id], onDelete: Cascade)
+  topicId   String?
+  topic     CommunityTopic?   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  commentId String?
+  comment   CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, topicId])
+  @@unique([userId, commentId])
+  @@index([userId])
+}
+
+model CommunityReport {
+  id           String @id @default(uuid())
+  reason       String? @db.Text
+  reportedById String
+  reportedBy   User   @relation("CommunityReports", fields: [reportedById], references: [id], onDelete: Cascade)
+  topicId      String
+  topic        CommunityTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@unique([topicId, reportedById])
+  @@index([topicId])
+  @@index([reportedById])
+}
+
+model CommunityMention {
+  id              String   @id @default(uuid())
+  mentionedUserId String
+  mentionedUser   User     @relation("CommunityMentions", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+  topicId         String?
+  topic           CommunityTopic?   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  commentId       String?
+  comment         CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@index([mentionedUserId])
 }

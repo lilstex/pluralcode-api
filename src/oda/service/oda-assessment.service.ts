@@ -567,7 +567,7 @@ export class OdaAssessmentService {
             fullName: user.fullName,
             email: user.email,
             orgName,
-            dashboardUrl: `${process.env.FRONTEND_URL}/dashboard/oda/${assessmentId}`,
+            dashboardUrl: `${process.env.FRONTEND_URL}/admin/oda/${assessmentId}`,
           })
           .catch((err) =>
             this.logger.error('ODA completion email failed', err),
