@@ -44,6 +44,7 @@ import {
   OrganizationSummaryResponseDto,
   MemberResponseDto,
   OrgDashboardResponseDto,
+  ExternalAssessmentListResponseDto,
 } from '../dto/organizations.dto';
 import { OrganizationService } from '../service/organizations.service';
 
@@ -358,6 +359,18 @@ export class OrganizationController {
   })
   addAssessment(@CurrentUser() user: any, @Body() dto: CreateAssessmentDto) {
     return this.orgService.addAssessment(user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER)
+  @ApiBearerAuth()
+  @Get('me/assessments')
+  @ApiOperation({
+    summary: 'Get all external assessment records for my organization',
+  })
+  @ApiResponse({ status: 200, type: ExternalAssessmentListResponseDto })
+  getMyAssessments(@CurrentUser() user: any) {
+    return this.orgService.getMyAssessments(user.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

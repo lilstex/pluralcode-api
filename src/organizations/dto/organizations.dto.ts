@@ -492,3 +492,21 @@ export class OrgDashboardResponseDto {
   })
   recentActivities: DashboardActivityDto[];
 }
+
+// Response DTO for a single assessment item
+export class ExternalAssessmentRecordResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() assessmentBody: string;
+  @ApiProperty() month: number;
+  @ApiProperty() year: number;
+  @ApiProperty() createdAt: Date;
+  @ApiProperty() updatedAt: Date;
+}
+
+// Wrapped response for the API
+export class ExternalAssessmentListResponseDto {
+  @ApiProperty() status: boolean;
+  @ApiProperty() statusCode: number;
+  @ApiProperty({ type: [ExternalAssessmentRecordResponseDto] })
+  data: ExternalAssessmentRecordResponseDto[];
+}

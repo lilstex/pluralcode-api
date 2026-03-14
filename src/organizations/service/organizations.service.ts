@@ -1188,6 +1188,42 @@ export class OrganizationService {
     }
   }
 
+  async getMyAssessments(userId: string) {
+    try {
+      const org = await this.prisma.organization.findUnique({
+        where: { userId },
+      });
+
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization not found.',
+        };
+      }
+
+      const assessments = await this.prisma.organizationAssessment.findMany({
+        where: {
+          organizationId: org.id,
+        },
+        orderBy: [{ year: 'desc' }, { month: 'desc' }],
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        data: assessments,
+      };
+    } catch (error) {
+      this.logger.error('getMyAssessments error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
   async updateAssessment(
     userId: string,
     assessmentId: string,
