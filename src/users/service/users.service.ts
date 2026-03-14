@@ -68,6 +68,20 @@ export class UserService {
       };
     }
 
+    // Check if CAC Number already exists (only for NGO_MEMBER role)
+    if (dto.role === Role.NGO_MEMBER && dto.cacNumber) {
+      const existingOrg = await this.prisma.organization.findUnique({
+        where: { cacNumber: dto.cacNumber },
+      });
+      if (existingOrg) {
+        return {
+          status: false,
+          statusCode: HttpStatus.CONFLICT,
+          message: `The CAC Number ${dto.cacNumber} is already registered to another organization.`,
+        };
+      }
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const otp = generateOtp();
     const otpExpiry = otpExpiresAt(15);
@@ -90,7 +104,7 @@ export class UserService {
           },
         });
 
-        // ── NGO_MEMBER: create the Organization record ────────────────────────
+        // NGO_MEMBER: create the Organization record
         if (dto.role === Role.NGO_MEMBER) {
           await tx.organization.create({
             data: {
@@ -105,7 +119,7 @@ export class UserService {
           });
         }
 
-        // ── EXPERT: create the ExpertProfile record with seed data ─────────────
+        // EXPERT: create the ExpertProfile record with seed data
         if (dto.role === Role.EXPERT) {
           await tx.expertProfile.create({
             data: {
@@ -113,8 +127,6 @@ export class UserService {
               title: dto.title ?? null,
               yearsOfExperience: dto.yearsOfExperience ?? null,
               areasOfExpertise: dto.areasOfExpertise ?? [],
-              // phoneNumber lives in ExpertProfile, not User
-              // Store via the profile update flow — seeded here from registration
             },
           });
         }
