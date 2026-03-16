@@ -366,15 +366,21 @@ export class UserController {
     required: false,
     enum: ['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'],
   })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search by fullName or email',
+  })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   async listUsers(
     @Query('role') role?: Role,
     @Query('status') status?: string,
+    @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.userService.listUsers({ role, status, page, limit });
+    return this.userService.listUsers({ role, status, search, page, limit });
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)

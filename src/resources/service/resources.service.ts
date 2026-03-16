@@ -547,7 +547,11 @@ export class ResourceService {
   // RESOURCES — LIST (full-text + faceted filters including format + tag)
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async listResources(query: ResourceQueryDto, isAuthenticated: boolean) {
+  async listResources(
+    query: ResourceQueryDto,
+    isAuthenticated: boolean,
+    userId?: string,
+  ) {
     try {
       const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
       const limit = Math.min(
@@ -558,7 +562,16 @@ export class ResourceService {
 
       const where: any = {};
 
-      if (query.categoryId) where.categoryId = query.categoryId;
+      // Category filter — include the category itself AND all its direct children
+      // so filtering by a parent category also returns resources in sub-categories.
+      if (query.categoryId) {
+        const children = await this.prisma.category.findMany({
+          where: { parentId: query.categoryId },
+          select: { id: true },
+        });
+        const categoryIds = [query.categoryId, ...children.map((c) => c.id)];
+        where.categoryId = { in: categoryIds };
+      }
       if (query.type) where.type = query.type; // format filter
       if (query.sector)
         where.sector = { contains: query.sector, mode: 'insensitive' };
@@ -610,6 +623,31 @@ export class ResourceService {
         requiresLogin: !isAuthenticated,
       }));
 
+      // Attach per-resource view/completion state for authenticated users
+      if (isAuthenticated && userId) {
+        const resourceIds = sanitized.map((r: any) => r.id);
+
+        const [views, completions] = await Promise.all([
+          this.prisma.resourceView.findMany({
+            where: { userId, resourceId: { in: resourceIds } },
+            select: { resourceId: true },
+          }),
+          this.prisma.resourceCompletion.findMany({
+            where: { userId, resourceId: { in: resourceIds } },
+            select: { resourceId: true },
+          }),
+        ]);
+
+        const viewedSet = new Set(views.map((v: any) => v.resourceId));
+        const completedSet = new Set(completions.map((c: any) => c.resourceId));
+
+        sanitized.forEach((r: any) => {
+          r.hasViewed = viewedSet.has(r.id);
+          r.hasCompleted = completedSet.has(r.id);
+          r.canComplete = r.hasViewed && !r.hasCompleted;
+        });
+      }
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -632,7 +670,7 @@ export class ResourceService {
     }
   }
 
-  async getResource(id: string, isAuthenticated: boolean) {
+  async getResource(id: string, isAuthenticated: boolean, userId?: string) {
     try {
       const resource = await this.prisma.resource.findUnique({
         where: { id },
@@ -654,6 +692,23 @@ export class ResourceService {
 
       const { rawText, ...safeResource } = resource as any;
 
+      // Fetch view/completion state for authenticated users
+      let hasViewed = false;
+      let hasCompleted = false;
+
+      if (userId) {
+        const [view, completion] = await this.prisma.$transaction([
+          this.prisma.resourceView.findUnique({
+            where: { userId_resourceId: { userId, resourceId: id } },
+          }),
+          this.prisma.resourceCompletion.findUnique({
+            where: { userId_resourceId: { userId, resourceId: id } },
+          }),
+        ]);
+        hasViewed = !!view;
+        hasCompleted = !!completion;
+      }
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -664,6 +719,9 @@ export class ResourceService {
           _count: undefined,
           contentUrl: isAuthenticated ? safeResource.contentUrl : null,
           requiresLogin: !isAuthenticated,
+          hasViewed,
+          hasCompleted,
+          canComplete: hasViewed && !hasCompleted,
         },
       };
     } catch (error) {
@@ -677,14 +735,13 @@ export class ResourceService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // RESOURCES — DOWNLOAD (points + badge award)
+  // RESOURCES — DOWNLOAD (file URL only — no points/badge)
   // ─────────────────────────────────────────────────────────────────────────────
 
   async downloadResource(resourceId: string, userId: string) {
     try {
       const resource = await this.prisma.resource.findUnique({
         where: { id: resourceId },
-        include: { badge: { select: { id: true, name: true } } },
       });
 
       if (!resource) {
@@ -703,65 +760,13 @@ export class ResourceService {
         };
       }
 
-      // Log download
       await this.prisma.downloadLog.create({ data: { userId, resourceId } });
-
-      // ── Award points + resource badge atomically ───────────────────────────
-      // Always fetch the user so we can return the accurate current pointsCount,
-      // even for resources with 0 points and no badge.
-      const newBadges: string[] = [];
-
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        include: { badges: { select: { id: true } } },
-      });
-
-      if (!user) {
-        // Extremely unlikely — token validated upstream — but handle gracefully
-        return {
-          status: false,
-          statusCode: HttpStatus.NOT_FOUND,
-          message: 'User not found.',
-        };
-      }
-
-      const updateData: any = {};
-
-      // Increment points whenever resource.points > 0
-      if (resource.points > 0) {
-        updateData.pointsCount = { increment: resource.points };
-      }
-
-      // Award resource badge if one is attached and user does not already have it
-      if (resource.badge) {
-        const alreadyHas = user.badges.some((b) => b.id === resource.badge!.id);
-        if (!alreadyHas) {
-          updateData.badges = { connect: { id: resource.badge.id } };
-          newBadges.push(resource.badge.name);
-        }
-      }
-
-      // Execute the update only if there is something to change;
-      // otherwise just read the current pointsCount with a lightweight select.
-      const updatedPoints =
-        Object.keys(updateData).length > 0
-          ? (
-              await this.prisma.user.update({
-                where: { id: userId },
-                data: updateData,
-                select: { pointsCount: true },
-              })
-            ).pointsCount
-          : user.pointsCount;
 
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Download recorded.',
         downloadUrl: resource.contentUrl,
-        pointsEarned: resource.points,
-        totalPoints: updatedPoints,
-        newBadges,
       };
     } catch (error) {
       this.logger.error('downloadResource error', error);
@@ -774,10 +779,156 @@ export class ResourceService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // RESOURCES — VIEW (unlocks the complete button)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async viewResource(resourceId: string, userId: string) {
+    try {
+      const resource = await this.prisma.resource.findUnique({
+        where: { id: resourceId },
+      });
+      if (!resource) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Resource not found.',
+        };
+      }
+
+      // Upsert — idempotent, calling view multiple times is harmless
+      await this.prisma.resourceView.upsert({
+        where: { userId_resourceId: { userId, resourceId } },
+        create: { userId, resourceId },
+        update: {}, // already viewed — no-op
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Resource marked as viewed. Complete button is now enabled.',
+        canComplete: true,
+      };
+    } catch (error) {
+      this.logger.error('viewResource error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RESOURCES — COMPLETE (awards points + badge, once per user per resource)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async completeResource(resourceId: string, userId: string) {
+    try {
+      const resource = await this.prisma.resource.findUnique({
+        where: { id: resourceId },
+        include: { badge: { select: { id: true, name: true } } },
+      });
+      if (!resource) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Resource not found.',
+        };
+      }
+
+      // Must have viewed the resource first
+      const view = await this.prisma.resourceView.findUnique({
+        where: { userId_resourceId: { userId, resourceId } },
+      });
+      if (!view) {
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message: 'You must view this resource before marking it as complete.',
+        };
+      }
+
+      // Already completed — idempotent guard
+      const existing = await this.prisma.resourceCompletion.findUnique({
+        where: { userId_resourceId: { userId, resourceId } },
+      });
+      if (existing) {
+        return {
+          status: false,
+          statusCode: HttpStatus.CONFLICT,
+          message:
+            'You have already completed this resource. Points and badge have already been awarded.',
+        };
+      }
+
+      // Fetch user to check existing badges
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { badges: { select: { id: true } } },
+      });
+      if (!user) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'User not found.',
+        };
+      }
+
+      const newBadges: string[] = [];
+      const updateData: any = {};
+
+      if (resource.points > 0) {
+        updateData.pointsCount = { increment: resource.points };
+      }
+
+      if (resource.badge) {
+        const alreadyHas = user.badges.some((b) => b.id === resource.badge!.id);
+        if (!alreadyHas) {
+          updateData.badges = { connect: { id: resource.badge.id } };
+          newBadges.push(resource.badge.name);
+        }
+      }
+
+      // Create completion record + update user in a transaction
+      const [completion, updatedUser] = await this.prisma.$transaction([
+        this.prisma.resourceCompletion.create({
+          data: { userId, resourceId, pointsEarned: resource.points },
+        }),
+        this.prisma.user.update({
+          where: { id: userId },
+          data: Object.keys(updateData).length > 0 ? updateData : {},
+          select: { pointsCount: true },
+        }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Resource marked as complete.',
+        pointsEarned: resource.points,
+        totalPoints: updatedUser.pointsCount,
+        newBadges,
+      };
+    } catch (error) {
+      this.logger.error('completeResource error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // RESOURCES — UPDATE
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async updateResource(adminId: string, id: string, dto: UpdateResourceDto) {
+  async updateResource(
+    adminId: string,
+    id: string,
+    dto: UpdateResourceDto,
+    file?: Express.Multer.File,
+  ) {
     try {
       const resource = await this.prisma.resource.findUnique({ where: { id } });
       if (!resource) {
@@ -814,12 +965,39 @@ export class ResourceService {
         }
       }
 
-      const { tagIds, ...rest } = dto;
+      // ── Content / file update ─────────────────────────────────────────────
+      let contentUrlUpdate: string | undefined;
+      let rawTextUpdate: string | null | undefined;
+
+      if (file) {
+        // DOCUMENT file replacement — delete old blob, upload new, re-run OCR
+        if (resource.contentUrl) {
+          await this.azureBlob
+            .delete(resource.contentUrl, 'resources')
+            .catch(() => null);
+        }
+        contentUrlUpdate = await this.azureBlob.upload(file, 'resources');
+        rawTextUpdate = EXTRACTABLE_MIMETYPES.has(file.mimetype)
+          ? await this.ocr.extractText(file.buffer, file.mimetype)
+          : null;
+      } else if (dto.externalUrl !== undefined) {
+        // VIDEO external URL change
+        contentUrlUpdate = dto.externalUrl;
+      } else if (dto.articleBody !== undefined) {
+        // ARTICLE body change — stored as rawText
+        rawTextUpdate = dto.articleBody;
+      }
+
+      const { tagIds, externalUrl, articleBody, ...metaRest } = dto;
 
       const updated = await this.prisma.resource.update({
         where: { id },
         data: {
-          ...rest,
+          ...metaRest,
+          ...(contentUrlUpdate !== undefined && {
+            contentUrl: contentUrlUpdate,
+          }),
+          ...(rawTextUpdate !== undefined && { rawText: rawTextUpdate }),
           ...(tagIds && { tags: { set: tagIds.map((tid) => ({ id: tid })) } }),
         },
         include: {
@@ -834,7 +1012,7 @@ export class ResourceService {
           action: 'RESOURCE_UPDATED',
           entity: 'Resource',
           entityId: id,
-          details: { ...rest } as any,
+          details: { ...metaRest } as any,
           adminId,
         },
       });

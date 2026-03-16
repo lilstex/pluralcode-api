@@ -11,6 +11,12 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+// ─────────────────────────────────────────────
+// LOCAL ENUMS (mirrors Prisma schema — decoupled from @prisma/client
+// so ValidationPipe's @IsEnum works correctly at runtime without requiring
+// a generated Prisma client at compile/test time)
+// ─────────────────────────────────────────────
+
 export enum ResourceType {
   DOCUMENT = 'DOCUMENT',
   VIDEO = 'VIDEO',
@@ -158,6 +164,18 @@ export class UpdateResourceDto {
   @Min(0)
   @Type(() => Number)
   points?: number;
+  @ApiPropertyOptional({
+    description: 'For VIDEO type: new external URL (e.g. YouTube link)',
+  })
+  @IsOptional()
+  @IsString()
+  externalUrl?: string;
+  @ApiPropertyOptional({
+    description: 'For ARTICLE type: updated article body text',
+  })
+  @IsOptional()
+  @IsString()
+  articleBody?: string;
 }
 
 export class ResourceQueryDto {
@@ -173,7 +191,7 @@ export class ResourceQueryDto {
 
   @ApiPropertyOptional({
     enum: ResourceType,
-    description: 'Filter by format: DOCUMENT, VIDEO, AUDIO, ARTICLE',
+    description: 'Filter by format: DOCUMENT, VIDEO, ARTICLE',
   })
   @IsOptional()
   @IsEnum(ResourceType)

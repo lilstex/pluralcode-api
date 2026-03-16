@@ -83,6 +83,9 @@ model User {
   communityReports     CommunityReport[]     @relation("CommunityReports")
   communityMentions    CommunityMention[]    @relation("CommunityMentions")
 
+  resourceViews       ResourceView[]       @relation("ResourceViews")
+  resourceCompletions ResourceCompletion[] @relation("ResourceCompletions")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -383,6 +386,9 @@ model Resource {
   tags       Tag[]
   downloads  DownloadLog[]
 
+  views       ResourceView[]
+  completions ResourceCompletion[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -393,6 +399,33 @@ model Resource {
   @@index([region])
   @@index([createdAt])
   @@index([badgeId])
+}
+
+model ResourceView {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation("ResourceViews", fields: [userId], references: [id], onDelete: Cascade)
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  viewedAt   DateTime @default(now())
+
+  @@unique([userId, resourceId])
+  @@index([userId])
+  @@index([resourceId])
+}
+
+model ResourceCompletion {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation("ResourceCompletions", fields: [userId], references: [id], onDelete: Cascade)
+  resourceId  String
+  resource    Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  pointsEarned Int     @default(0)
+  completedAt DateTime @default(now())
+
+  @@unique([userId, resourceId])
+  @@index([userId])
+  @@index([resourceId])
 }
 
 model DownloadLog {

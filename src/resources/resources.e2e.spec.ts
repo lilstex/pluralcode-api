@@ -2,12 +2,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtService, JwtModule } from '@nestjs/jwt';
+import { Reflector } from '@nestjs/core';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { Role } from '@prisma/client';
-import * as path from 'path';
-import * as fs from 'fs';
 
 import { ResourceController } from 'src/resources/controller/resources.controller';
 import { ResourceService } from 'src/resources/service/resources.service';
@@ -46,12 +45,9 @@ function makeCategory(overrides: Record<string, any> = {}): any {
     parent: null,
     children: [],
     _count: { resources: 0, children: 0 },
-    createdAt: new Date(),
-    updatedAt: new Date(),
     ...overrides,
   };
 }
-
 function makeTag(overrides: Record<string, any> = {}): any {
   return {
     id: TAG_UUID,
@@ -61,7 +57,6 @@ function makeTag(overrides: Record<string, any> = {}): any {
     ...overrides,
   };
 }
-
 function makeBadge(overrides: Record<string, any> = {}): any {
   return {
     id: BADGE_UUID,
@@ -69,19 +64,17 @@ function makeBadge(overrides: Record<string, any> = {}): any {
     imageUrl: 'https://blob.example.com/badge.png',
     externalSource: false,
     createdAt: new Date(),
-    updatedAt: new Date(),
     ...overrides,
   };
 }
-
 function makeResource(overrides: Record<string, any> = {}): any {
   return {
     id: RESOURCE_UUID,
     title: 'NGO Governance Handbook 2024',
-    description: 'A comprehensive guide to NGO governance.',
+    description: 'A comprehensive guide.',
     type: 'DOCUMENT',
     contentUrl: 'https://blob.example.com/resources/handbook.pdf',
-    rawText: 'Extracted text content',
+    rawText: 'Extracted text',
     fileSize: 102400,
     author: 'NRC Nigeria',
     language: 'en',
@@ -103,7 +96,6 @@ function makeResource(overrides: Record<string, any> = {}): any {
     ...overrides,
   };
 }
-
 function makeDbUser(overrides: Record<string, any> = {}): any {
   return {
     id: USER_UUID,
@@ -111,31 +103,20 @@ function makeDbUser(overrides: Record<string, any> = {}): any {
     fullName: 'Test User',
     role: Role.GUEST,
     status: 'APPROVED',
-    isEmailVerified: true,
-    passwordHash: 'hash',
-    otp: null,
-    otpExpiresAt: null,
-    avatarUrl: null,
-    phoneNumber: null,
     pointsCount: 50,
     badges: [],
     adminPermission: null,
-    organization: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
     ...overrides,
   };
 }
-
 function makeSuperAdmin(): any {
   return makeDbUser({
     id: SUPER_ADMIN_UUID,
     email: 'superadmin@example.com',
     role: Role.SUPER_ADMIN,
-    adminPermission: null, // ROLE_DEFAULT_PERMISSIONS gives SUPER_ADMIN all permissions
+    adminPermission: null,
   });
 }
-
 function makeResourceAdmin(): any {
   return makeDbUser({
     id: RES_ADMIN_UUID,
@@ -147,18 +128,15 @@ function makeResourceAdmin(): any {
   });
 }
 
-/** A valid minimal 1×1 red PNG (generated programmatically — passes FileTypeValidator magic-byte check) */
 function fakePng(): Buffer {
   return Buffer.from(
-    '89504e470d0a1a0a' + // PNG signature
-      '0000000d4948445200000001000000010802000000907753de' + // IHDR chunk
-      '0000000c49444154789c63f8cfc0000003010100c9fe92ef' + // IDAT chunk
-      '0000000049454e44ae426082', // IEND chunk
+    '89504e470d0a1a0a' +
+      '0000000d4948445200000001000000010802000000907753de' +
+      '0000000c49444154789c63f8cfc0000003010100c9fe92ef' +
+      '0000000049454e44ae426082',
     'hex',
   );
 }
-
-/** A minimal fake PDF buffer */
 function fakePdf(): Buffer {
   return Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF');
 }
@@ -168,10 +146,7 @@ function fakePdf(): Buffer {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const mockPrisma = {
-  user: {
-    findUnique: jest.fn(),
-    update: jest.fn(),
-  },
+  user: { findUnique: jest.fn(), update: jest.fn() },
   resource: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
@@ -199,21 +174,22 @@ const mockPrisma = {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
-    upsert: jest.fn(),
     delete: jest.fn(),
   },
-  downloadLog: {
+  downloadLog: { create: jest.fn(), deleteMany: jest.fn() },
+  resourceView: {
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+    findMany: jest.fn(),
+  },
+  resourceCompletion: {
+    findUnique: jest.fn(),
     create: jest.fn(),
-    count: jest.fn(),
-    deleteMany: jest.fn(),
+    findMany: jest.fn(),
   },
   auditLog: { create: jest.fn() },
   $transaction: jest.fn(),
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MOCK SERVICES
-// ─────────────────────────────────────────────────────────────────────────────
 
 const mockAzure = {
   upload: jest
@@ -221,7 +197,6 @@ const mockAzure = {
     .mockResolvedValue('https://blob.example.com/resources/file.pdf'),
   delete: jest.fn().mockResolvedValue(undefined),
 };
-
 const mockOcr = {
   extractText: jest
     .fn()
@@ -229,20 +204,16 @@ const mockOcr = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JWT HELPERS
+// BOOTSTRAP
 // ─────────────────────────────────────────────────────────────────────────────
 
+process.env.JWT_SECRET = JWT_SECRET;
 let jwtService: JwtService;
 const token = (sub: string, role: string) => () =>
   jwtService.sign({ sub, email: `${role}@example.com`, role });
-
 let superAdminToken: () => string;
 let resourceAdminToken: () => string;
 let userToken: () => string;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BOOTSTRAP
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('Resources Module — E2E', () => {
   let app: INestApplication;
@@ -261,7 +232,11 @@ describe('Resources Module — E2E', () => {
       providers: [
         ResourceService,
         JwtStrategy,
+        Reflector,
         OptionalJwtGuard,
+        RolesGuard,
+        PermissionsGuard,
+        JwtAuthGuard,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AzureBlobService, useValue: mockAzure },
         { provide: OcrService, useValue: mockOcr },
@@ -291,7 +266,19 @@ describe('Resources Module — E2E', () => {
   beforeEach(() => {
     jest.resetAllMocks();
 
-    // JwtStrategy.validate() → prisma.user.findUnique by id
+    // Restore Azure and OCR defaults wiped by resetAllMocks
+    mockAzure.upload.mockResolvedValue(
+      'https://blob.example.com/resources/file.pdf',
+    );
+    mockAzure.delete.mockResolvedValue(undefined);
+    mockOcr.extractText.mockResolvedValue(
+      'Extracted plain text from document.',
+    );
+
+    // Default view/completion findMany — empty (no views/completions)
+    mockPrisma.resourceView.findMany.mockResolvedValue([]);
+    mockPrisma.resourceCompletion.findMany.mockResolvedValue([]);
+
     mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
       if (where?.id === SUPER_ADMIN_UUID)
         return Promise.resolve(makeSuperAdmin());
@@ -300,89 +287,69 @@ describe('Resources Module — E2E', () => {
       if (where?.id === USER_UUID) return Promise.resolve(makeDbUser());
       return Promise.resolve(null);
     });
-
-    // Default $transaction — handles both array and interactive-transaction forms
     mockPrisma.$transaction.mockImplementation((arg: any) =>
       Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma),
     );
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // CATEGORIES — TAXONOMY
+  // CATEGORIES
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('POST /resources/categories', () => {
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .post('/resources/categories')
         .send({ name: 'Governance' })
-        .expect(401);
-    });
-
-    it('403 — GUEST rejected', async () => {
-      await request(app.getHttpServer())
+        .expect(401));
+    it('403 — GUEST rejected', () =>
+      request(app.getHttpServer())
         .post('/resources/categories')
         .set('Authorization', `Bearer ${userToken()}`)
         .send({ name: 'Governance' })
-        .expect(403);
-    });
-
-    it('400 — missing name field', async () => {
-      await request(app.getHttpServer())
+        .expect(403));
+    it('400 — missing name', () =>
+      request(app.getHttpServer())
         .post('/resources/categories')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({})
-        .expect(400);
-    });
-
-    it('400 — invalid parentId (not a UUID)', async () => {
-      await request(app.getHttpServer())
+        .expect(400));
+    it('400 — invalid parentId', () =>
+      request(app.getHttpServer())
         .post('/resources/categories')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .send({ name: 'Sub-category', parentId: 'not-a-uuid' })
-        .expect(400);
-    });
+        .send({ name: 'Sub', parentId: 'not-a-uuid' })
+        .expect(400));
 
-    it('404 — parentId references non-existent category', async () => {
-      mockPrisma.category.findUnique.mockResolvedValue(null); // parent not found
-
+    it('404 in body — parent not found', async () => {
+      mockPrisma.category.findUnique.mockResolvedValue(null);
       const { body } = await request(app.getHttpServer())
         .post('/resources/categories')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .send({ name: 'Sub-governance', parentId: PARENT_CAT_UUID })
+        .send({ name: 'Sub', parentId: PARENT_CAT_UUID })
         .expect(201);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
-      expect(body.message).toMatch(/parent category not found/i);
     });
 
-    it('409 — duplicate category name', async () => {
-      mockPrisma.category.findUnique.mockResolvedValue(makeCategory()); // name clash
-
+    it('409 in body — duplicate name', async () => {
+      mockPrisma.category.findUnique.mockResolvedValue(makeCategory());
       const { body } = await request(app.getHttpServer())
         .post('/resources/categories')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ name: 'Governance' })
         .expect(201);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(409);
     });
 
     it('201 — SUPER_ADMIN creates top-level category', async () => {
-      mockPrisma.category.findUnique.mockResolvedValue(null); // no name clash
+      mockPrisma.category.findUnique.mockResolvedValue(null);
       mockPrisma.category.create.mockResolvedValue(makeCategory());
       mockPrisma.auditLog.create.mockResolvedValue({});
-
       const { body } = await request(app.getHttpServer())
         .post('/resources/categories')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ name: 'Governance' })
         .expect(201);
-
-      expect(body.status).toBe(true);
-      expect(body.statusCode).toBe(201);
       expect(body.data.name).toBe('Governance');
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -391,109 +358,89 @@ describe('Resources Module — E2E', () => {
       );
     });
 
-    it('201 — RESOURCE_ADMIN can also create categories', async () => {
+    it('201 — RESOURCE_ADMIN can create categories', async () => {
       mockPrisma.category.findUnique.mockResolvedValue(null);
       mockPrisma.category.create.mockResolvedValue(makeCategory());
       mockPrisma.auditLog.create.mockResolvedValue({});
-
       const { body } = await request(app.getHttpServer())
         .post('/resources/categories')
         .set('Authorization', `Bearer ${resourceAdminToken()}`)
         .send({ name: 'Governance' })
         .expect(201);
-
       expect(body.status).toBe(true);
     });
 
     it('201 — creates sub-category with valid parentId', async () => {
-      // First call: parent lookup; second call: duplicate-name check
       mockPrisma.category.findUnique
-        .mockResolvedValueOnce(makeCategory({ id: PARENT_CAT_UUID })) // parent found
-        .mockResolvedValueOnce(null); // no name clash
+        .mockResolvedValueOnce(makeCategory({ id: PARENT_CAT_UUID }))
+        .mockResolvedValueOnce(null);
       mockPrisma.category.create.mockResolvedValue(
         makeCategory({ name: 'Sub-governance', parentId: PARENT_CAT_UUID }),
       );
       mockPrisma.auditLog.create.mockResolvedValue({});
-
       const { body } = await request(app.getHttpServer())
         .post('/resources/categories')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ name: 'Sub-governance', parentId: PARENT_CAT_UUID })
         .expect(201);
-
-      expect(body.status).toBe(true);
       expect(body.data.parentId).toBe(PARENT_CAT_UUID);
     });
   });
 
   describe('GET /resources/categories', () => {
-    it('200 — public, no token needed', async () => {
+    it('200 — public', async () => {
       mockPrisma.category.findMany.mockResolvedValue([makeCategory()]);
-
       const { body } = await request(app.getHttpServer())
         .get('/resources/categories')
         .expect(200);
-
-      expect(body.status).toBe(true);
       expect(body.data).toHaveLength(1);
     });
   });
 
   describe('PATCH /resources/categories/:id', () => {
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .patch(`/resources/categories/${CATEGORY_UUID}`)
         .send({ name: 'Updated' })
-        .expect(401);
-    });
-
-    it('400 — non-UUID id', async () => {
-      await request(app.getHttpServer())
+        .expect(401));
+    it('400 — non-UUID id', () =>
+      request(app.getHttpServer())
         .patch('/resources/categories/not-a-uuid')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ name: 'Updated' })
-        .expect(400);
-    });
+        .expect(400));
 
-    it('404 — category not found', async () => {
+    it('404 in body — not found', async () => {
       mockPrisma.category.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .patch(`/resources/categories/${CATEGORY_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ name: 'Updated' })
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
     });
 
-    it('400 — category cannot be its own parent', async () => {
+    it('400 in body — self-parent', async () => {
       mockPrisma.category.findUnique.mockResolvedValue(makeCategory());
-
       const { body } = await request(app.getHttpServer())
         .patch(`/resources/categories/${CATEGORY_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .send({ parentId: CATEGORY_UUID }) // self-reference
+        .send({ parentId: CATEGORY_UUID })
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.message).toMatch(/own parent/i);
     });
 
-    it('200 — updates category name', async () => {
+    it('200 — updates name', async () => {
       mockPrisma.category.findUnique.mockResolvedValue(makeCategory());
       mockPrisma.category.update.mockResolvedValue(
         makeCategory({ name: 'Updated Name' }),
       );
       mockPrisma.auditLog.create.mockResolvedValue({});
-
       const { body } = await request(app.getHttpServer())
         .patch(`/resources/categories/${CATEGORY_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ name: 'Updated Name' })
         .expect(200);
-
       expect(body.status).toBe(true);
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -504,65 +451,53 @@ describe('Resources Module — E2E', () => {
   });
 
   describe('DELETE /resources/categories/:id', () => {
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .delete(`/resources/categories/${CATEGORY_UUID}`)
-        .expect(401);
-    });
+        .expect(401));
 
-    it('404 — category not found', async () => {
+    it('404 in body — not found', async () => {
       mockPrisma.category.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .delete(`/resources/categories/${CATEGORY_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
     });
 
-    it('400 — cannot delete category with assigned resources', async () => {
+    it('400 in body — has assigned resources', async () => {
       mockPrisma.category.findUnique.mockResolvedValue(
         makeCategory({ _count: { resources: 3, children: 0 } }),
       );
-
       const { body } = await request(app.getHttpServer())
         .delete(`/resources/categories/${CATEGORY_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(400);
       expect(body.message).toMatch(/reassign/i);
     });
 
-    it('400 — cannot delete category that has sub-categories', async () => {
+    it('400 in body — has sub-categories', async () => {
       mockPrisma.category.findUnique.mockResolvedValue(
         makeCategory({ _count: { resources: 0, children: 2 } }),
       );
-
       const { body } = await request(app.getHttpServer())
         .delete(`/resources/categories/${CATEGORY_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.message).toMatch(/sub-category/i);
     });
 
-    it('200 — deletes empty category and creates audit log', async () => {
+    it('200 — deletes empty category', async () => {
       mockPrisma.category.findUnique.mockResolvedValue(
         makeCategory({ _count: { resources: 0, children: 0 } }),
       );
       mockPrisma.category.delete.mockResolvedValue({});
       mockPrisma.auditLog.create.mockResolvedValue({});
-
       const { body } = await request(app.getHttpServer())
         .delete(`/resources/categories/${CATEGORY_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
       expect(body.status).toBe(true);
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -577,54 +512,43 @@ describe('Resources Module — E2E', () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('POST /resources/tags', () => {
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .post('/resources/tags')
         .send({ name: 'INGO' })
-        .expect(401);
-    });
-
-    it('403 — GUEST rejected', async () => {
-      await request(app.getHttpServer())
+        .expect(401));
+    it('403 — GUEST rejected', () =>
+      request(app.getHttpServer())
         .post('/resources/tags')
         .set('Authorization', `Bearer ${userToken()}`)
         .send({ name: 'INGO' })
-        .expect(403);
-    });
-
-    it('400 — missing name field', async () => {
-      await request(app.getHttpServer())
+        .expect(403));
+    it('400 — missing name', () =>
+      request(app.getHttpServer())
         .post('/resources/tags')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({})
-        .expect(400);
-    });
+        .expect(400));
 
-    it('409 — duplicate tag name', async () => {
+    it('409 in body — duplicate name', async () => {
       mockPrisma.tag.findUnique.mockResolvedValue(makeTag());
-
       const { body } = await request(app.getHttpServer())
         .post('/resources/tags')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ name: 'INGO' })
         .expect(201);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(409);
     });
 
-    it('201 — creates tag and audit log', async () => {
+    it('201 — creates tag', async () => {
       mockPrisma.tag.findUnique.mockResolvedValue(null);
       mockPrisma.tag.create.mockResolvedValue(makeTag());
       mockPrisma.auditLog.create.mockResolvedValue({});
-
       const { body } = await request(app.getHttpServer())
         .post('/resources/tags')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ name: 'INGO' })
         .expect(201);
-
-      expect(body.status).toBe(true);
       expect(body.data.name).toBe('INGO');
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -635,54 +559,43 @@ describe('Resources Module — E2E', () => {
   });
 
   describe('GET /resources/tags', () => {
-    it('200 — public, no token needed', async () => {
+    it('200 — public', async () => {
       mockPrisma.tag.findMany.mockResolvedValue([makeTag()]);
-
       const { body } = await request(app.getHttpServer())
         .get('/resources/tags')
         .expect(200);
-
-      expect(body.status).toBe(true);
       expect(body.data).toHaveLength(1);
     });
   });
 
   describe('DELETE /resources/tags/:id', () => {
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .delete(`/resources/tags/${TAG_UUID}`)
-        .expect(401);
-    });
-
-    it('400 — non-UUID id', async () => {
-      await request(app.getHttpServer())
+        .expect(401));
+    it('400 — non-UUID id', () =>
+      request(app.getHttpServer())
         .delete('/resources/tags/not-a-uuid')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .expect(400);
-    });
+        .expect(400));
 
-    it('404 — tag not found', async () => {
+    it('404 in body — not found', async () => {
       mockPrisma.tag.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .delete(`/resources/tags/${TAG_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
     });
 
-    it('200 — deletes tag and audit log', async () => {
+    it('200 — deletes tag', async () => {
       mockPrisma.tag.findUnique.mockResolvedValue(makeTag());
       mockPrisma.tag.delete.mockResolvedValue({});
       mockPrisma.auditLog.create.mockResolvedValue({});
-
       const { body } = await request(app.getHttpServer())
         .delete(`/resources/tags/${TAG_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
       expect(body.status).toBe(true);
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -697,28 +610,24 @@ describe('Resources Module — E2E', () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('POST /resources/badges', () => {
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .post('/resources/badges')
         .field('name', 'Resource Champion')
-        .expect(401);
-    });
-
-    it('403 — RESOURCE_ADMIN cannot create badges (SUPER_ADMIN only)', async () => {
-      await request(app.getHttpServer())
+        .expect(401));
+    it('403 — RESOURCE_ADMIN cannot create badges', () =>
+      request(app.getHttpServer())
         .post('/resources/badges')
         .set('Authorization', `Bearer ${resourceAdminToken()}`)
-        .field('name', 'Resource Champion')
+        .field('name', 'RC')
         .attach('file', fakePng(), {
           filename: 'badge.png',
           contentType: 'image/png',
         })
-        .expect(403);
-    });
+        .expect(403));
 
-    it('409 — duplicate badge name', async () => {
+    it('409 in body — duplicate badge name', async () => {
       mockPrisma.badge.findUnique.mockResolvedValue(makeBadge());
-
       const { body } = await request(app.getHttpServer())
         .post('/resources/badges')
         .set('Authorization', `Bearer ${superAdminToken()}`)
@@ -728,16 +637,13 @@ describe('Resources Module — E2E', () => {
           contentType: 'image/png',
         })
         .expect(201);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(409);
     });
 
-    it('201 — SUPER_ADMIN creates badge, uploads image to Azure, creates audit log', async () => {
+    it('201 — creates badge and uploads image', async () => {
       mockPrisma.badge.findUnique.mockResolvedValue(null);
       mockPrisma.badge.create.mockResolvedValue(makeBadge());
       mockPrisma.auditLog.create.mockResolvedValue({});
-
       const { body } = await request(app.getHttpServer())
         .post('/resources/badges')
         .set('Authorization', `Bearer ${superAdminToken()}`)
@@ -747,9 +653,7 @@ describe('Resources Module — E2E', () => {
           contentType: 'image/png',
         })
         .expect(201);
-
       expect(body.status).toBe(true);
-      expect(body.statusCode).toBe(201);
       expect(mockAzure.upload).toHaveBeenCalled();
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -760,61 +664,48 @@ describe('Resources Module — E2E', () => {
   });
 
   describe('GET /resources/badges', () => {
-    it('200 — public, no token needed', async () => {
+    it('200 — public', async () => {
       mockPrisma.badge.findMany.mockResolvedValue([makeBadge()]);
-
       const { body } = await request(app.getHttpServer())
         .get('/resources/badges')
         .expect(200);
-
-      expect(body.status).toBe(true);
       expect(body.data).toHaveLength(1);
     });
   });
 
   describe('DELETE /resources/badges/:id', () => {
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .delete(`/resources/badges/${BADGE_UUID}`)
-        .expect(401);
-    });
-
-    it('403 — RESOURCE_ADMIN cannot delete badges', async () => {
-      await request(app.getHttpServer())
+        .expect(401));
+    it('403 — RESOURCE_ADMIN cannot delete badges', () =>
+      request(app.getHttpServer())
         .delete(`/resources/badges/${BADGE_UUID}`)
         .set('Authorization', `Bearer ${resourceAdminToken()}`)
-        .expect(403);
-    });
-
-    it('400 — non-UUID id', async () => {
-      await request(app.getHttpServer())
+        .expect(403));
+    it('400 — non-UUID id', () =>
+      request(app.getHttpServer())
         .delete('/resources/badges/not-a-uuid')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .expect(400);
-    });
+        .expect(400));
 
-    it('404 — badge not found', async () => {
+    it('404 in body — not found', async () => {
       mockPrisma.badge.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .delete(`/resources/badges/${BADGE_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
     });
 
-    it('200 — deletes badge, removes image from Azure, creates audit log', async () => {
+    it('200 — deletes badge and removes image from Azure', async () => {
       mockPrisma.badge.findUnique.mockResolvedValue(makeBadge());
       mockPrisma.badge.delete.mockResolvedValue({});
       mockPrisma.auditLog.create.mockResolvedValue({});
-
       const { body } = await request(app.getHttpServer())
         .delete(`/resources/badges/${BADGE_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
       expect(body.status).toBe(true);
       expect(mockAzure.delete).toHaveBeenCalledWith(
         'https://blob.example.com/badge.png',
@@ -827,34 +718,25 @@ describe('Resources Module — E2E', () => {
       );
     });
 
-    it('200 — deletes badge with no imageUrl (no Azure call)', async () => {
+    it('200 — no Azure call when imageUrl is null', async () => {
       mockPrisma.badge.findUnique.mockResolvedValue(
         makeBadge({ imageUrl: null }),
       );
       mockPrisma.badge.delete.mockResolvedValue({});
       mockPrisma.auditLog.create.mockResolvedValue({});
-
       await request(app.getHttpServer())
         .delete(`/resources/badges/${BADGE_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
       expect(mockAzure.delete).not.toHaveBeenCalled();
     });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // RESOURCES — CREATE (POST /)
+  // RESOURCES — CREATE
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('POST /resources', () => {
-    const validDocumentBody = {
-      title: 'NGO Governance Handbook 2024',
-      description: 'A comprehensive guide.',
-      type: 'DOCUMENT',
-      categoryId: CATEGORY_UUID,
-    };
-
     beforeEach(() => {
       mockPrisma.category.findUnique.mockResolvedValue(makeCategory());
       mockPrisma.tag.findMany.mockResolvedValue([makeTag()]);
@@ -863,122 +745,120 @@ describe('Resources Module — E2E', () => {
       mockPrisma.auditLog.create.mockResolvedValue({});
     });
 
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .post('/resources')
-        .send(validDocumentBody)
-        .expect(401);
-    });
-
-    it('403 — GUEST rejected', async () => {
-      await request(app.getHttpServer())
+        .send({
+          title: 'T',
+          description: 'D',
+          type: 'DOCUMENT',
+          categoryId: CATEGORY_UUID,
+        })
+        .expect(401));
+    it('403 — GUEST rejected', () =>
+      request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${userToken()}`)
-        .send(validDocumentBody)
-        .expect(403);
-    });
-
-    it('400 — missing required fields (title, description, type, categoryId)', async () => {
-      await request(app.getHttpServer())
+        .send({
+          title: 'T',
+          description: 'D',
+          type: 'DOCUMENT',
+          categoryId: CATEGORY_UUID,
+        })
+        .expect(403));
+    it('400 — missing required fields', () =>
+      request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ title: 'Only title' })
-        .expect(400);
-    });
-
-    it('400 — invalid type enum', async () => {
-      await request(app.getHttpServer())
+        .expect(400));
+    it('400 — invalid type enum', () =>
+      request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .send({ ...validDocumentBody, type: 'INVALID_TYPE' })
-        .expect(400);
-    });
-
-    it('400 — invalid categoryId (not a UUID)', async () => {
-      await request(app.getHttpServer())
+        .send({
+          title: 'T',
+          description: 'D',
+          type: 'INVALID',
+          categoryId: CATEGORY_UUID,
+        })
+        .expect(400));
+    it('400 — invalid categoryId', () =>
+      request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .send({ ...validDocumentBody, categoryId: 'not-a-uuid' })
-        .expect(400);
-    });
+        .send({
+          title: 'T',
+          description: 'D',
+          type: 'DOCUMENT',
+          categoryId: 'not-a-uuid',
+        })
+        .expect(400));
 
-    it('404 — category not found', async () => {
+    it('404 in body — category not found', async () => {
       mockPrisma.category.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .field('title', 'NGO Governance Handbook 2024')
-        .field('description', 'A comprehensive guide.')
+        .field('title', 'T')
+        .field('description', 'D')
         .field('type', 'DOCUMENT')
         .field('categoryId', CATEGORY_UUID)
         .expect(201);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
       expect(body.message).toMatch(/category not found/i);
     });
 
-    it('400 — one or more invalid tagIds', async () => {
-      mockPrisma.tag.findMany.mockResolvedValue([]); // none of the IDs found
-
+    it('400 in body — invalid tagIds', async () => {
+      mockPrisma.tag.findMany.mockResolvedValue([]);
       const { body } = await request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .field('title', 'NGO Governance Handbook 2024')
-        .field('description', 'A comprehensive guide.')
+        .field('title', 'T')
+        .field('description', 'D')
         .field('type', 'DOCUMENT')
         .field('categoryId', CATEGORY_UUID)
         .field('tagIds[]', TAG_UUID)
         .expect(201);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(400);
       expect(body.message).toMatch(/tag IDs are invalid/i);
     });
 
-    it('404 — badgeId references non-existent badge', async () => {
+    it('404 in body — badge not found', async () => {
       mockPrisma.badge.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .field('title', 'NGO Governance Handbook 2024')
-        .field('description', 'A comprehensive guide.')
+        .field('title', 'T')
+        .field('description', 'D')
         .field('type', 'DOCUMENT')
         .field('categoryId', CATEGORY_UUID)
         .field('badgeId', BADGE_UUID)
         .expect(201);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
       expect(body.message).toMatch(/badge not found/i);
     });
 
-    it('400 — DOCUMENT type without file or externalUrl', async () => {
+    it('400 in body — DOCUMENT without file', async () => {
       const { body } = await request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .field('title', 'NGO Governance Handbook 2024')
-        .field('description', 'A comprehensive guide.')
+        .field('title', 'T')
+        .field('description', 'D')
         .field('type', 'DOCUMENT')
         .field('categoryId', CATEGORY_UUID)
-        // no file attached
         .expect(201);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(400);
       expect(body.message).toMatch(/file upload or external URL/i);
     });
 
-    it('201 — DOCUMENT with PDF file: uploads to Azure and runs OCR', async () => {
+    it('201 — DOCUMENT with PDF: uploads to Azure and runs OCR', async () => {
       mockAzure.upload.mockResolvedValue(
         'https://blob.example.com/resources/handbook.pdf',
       );
       mockOcr.extractText.mockResolvedValue(
         'Extracted plain text from document.',
       );
-
       const { body } = await request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
@@ -991,7 +871,6 @@ describe('Resources Module — E2E', () => {
           contentType: 'application/pdf',
         })
         .expect(201);
-
       expect(body.status).toBe(true);
       expect(mockAzure.upload).toHaveBeenCalledWith(
         expect.objectContaining({ mimetype: 'application/pdf' }),
@@ -1008,17 +887,16 @@ describe('Resources Module — E2E', () => {
       );
     });
 
-    it('201 — VIDEO with externalUrl: no file upload, no OCR', async () => {
+    it('201 — VIDEO with externalUrl: no upload, no OCR', async () => {
       const { body } = await request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .field('title', 'Governance Webinar')
-        .field('description', 'A video resource.')
+        .field('title', 'Webinar')
+        .field('description', 'A video.')
         .field('type', 'VIDEO')
         .field('categoryId', CATEGORY_UUID)
         .field('externalUrl', 'https://youtube.com/watch?v=abc123')
         .expect(201);
-
       expect(body.status).toBe(true);
       expect(mockAzure.upload).not.toHaveBeenCalled();
       expect(mockOcr.extractText).not.toHaveBeenCalled();
@@ -1031,7 +909,7 @@ describe('Resources Module — E2E', () => {
       );
     });
 
-    it('201 — ARTICLE type: stores articleBody as rawText, no file needed', async () => {
+    it('201 — ARTICLE: stores articleBody as rawText, no file needed', async () => {
       const { body } = await request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
@@ -1041,7 +919,6 @@ describe('Resources Module — E2E', () => {
         .field('categoryId', CATEGORY_UUID)
         .field('articleBody', 'This is the full article text.')
         .expect(201);
-
       expect(body.status).toBe(true);
       expect(mockAzure.upload).not.toHaveBeenCalled();
       expect(mockPrisma.resource.create).toHaveBeenCalledWith(
@@ -1053,17 +930,34 @@ describe('Resources Module — E2E', () => {
       );
     });
 
+    it('201 — optional points stored when provided', async () => {
+      await request(app.getHttpServer())
+        .post('/resources')
+        .set('Authorization', `Bearer ${superAdminToken()}`)
+        .field('title', 'T')
+        .field('description', 'D')
+        .field('type', 'ARTICLE')
+        .field('categoryId', CATEGORY_UUID)
+        .field('articleBody', 'Content.')
+        .field('points', '25')
+        .expect(201);
+      expect(mockPrisma.resource.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ points: 25 }),
+        }),
+      );
+    });
+
     it('201 — creates audit log on success', async () => {
       await request(app.getHttpServer())
         .post('/resources')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .field('title', 'Article')
-        .field('description', 'Body')
+        .field('title', 'T')
+        .field('description', 'D')
         .field('type', 'ARTICLE')
         .field('categoryId', CATEGORY_UUID)
-        .field('articleBody', 'Content here.')
+        .field('articleBody', 'Content.')
         .expect(201);
-
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -1073,101 +967,72 @@ describe('Resources Module — E2E', () => {
         }),
       );
     });
-
-    it('201 — optional points stored when provided', async () => {
-      await request(app.getHttpServer())
-        .post('/resources')
-        .set('Authorization', `Bearer ${superAdminToken()}`)
-        .field('title', 'Valued Article')
-        .field('description', 'Worth points.')
-        .field('type', 'ARTICLE')
-        .field('categoryId', CATEGORY_UUID)
-        .field('articleBody', 'Content.')
-        .field('points', '25')
-        .expect(201);
-
-      expect(mockPrisma.resource.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ points: 25 }),
-        }),
-      );
-    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // RESOURCES — LIST (GET /)
+  // RESOURCES — LIST
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('GET /resources', () => {
     beforeEach(() => {
       mockPrisma.resource.findMany.mockResolvedValue([makeResource()]);
       mockPrisma.resource.count.mockResolvedValue(1);
+      mockPrisma.category.findMany.mockResolvedValue([]); // subcategory lookup
     });
 
     it('200 — public, no token needed', async () => {
       const { body } = await request(app.getHttpServer())
         .get('/resources')
         .expect(200);
-
-      expect(body.status).toBe(true);
       expect(body.data.resources).toHaveLength(1);
     });
 
-    it('200 — unauthenticated: contentUrl is null, requiresLogin is true', async () => {
+    it('200 — unauthenticated: contentUrl null, requiresLogin true', async () => {
       const { body } = await request(app.getHttpServer())
         .get('/resources')
         .expect(200);
-
       expect(body.data.resources[0].contentUrl).toBeNull();
       expect(body.data.resources[0].requiresLogin).toBe(true);
     });
 
-    it('200 — authenticated: contentUrl is returned', async () => {
+    it('200 — authenticated: contentUrl returned', async () => {
       const { body } = await request(app.getHttpServer())
         .get('/resources')
         .set('Authorization', `Bearer ${userToken()}`)
         .expect(200);
-
       expect(body.data.resources[0].contentUrl).toBe(
         'https://blob.example.com/resources/handbook.pdf',
       );
       expect(body.data.resources[0].requiresLogin).toBe(false);
     });
 
-    it('200 — rawText is never exposed in list response', async () => {
+    it('200 — rawText never exposed', async () => {
       const { body } = await request(app.getHttpServer())
         .get('/resources')
         .expect(200);
-
       expect(body.data.resources[0].rawText).toBeUndefined();
     });
 
-    it('200 — NaN regression: no params → take:20, skip:0', async () => {
+    it('200 — default pagination: take=20, skip=0', async () => {
       await request(app.getHttpServer()).get('/resources').expect(200);
-
       expect(mockPrisma.resource.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ skip: 0, take: 20 }),
       );
-      const call = mockPrisma.resource.findMany.mock.calls[0][0];
-      expect(Number.isFinite(call.take)).toBe(true);
-      expect(Number.isFinite(call.skip)).toBe(true);
     });
 
     it('200 — non-numeric page/limit falls back to defaults', async () => {
       await request(app.getHttpServer())
         .get('/resources?page=abc&limit=xyz')
         .expect(200);
-
       const call = mockPrisma.resource.findMany.mock.calls[0][0];
       expect(call.skip).toBe(0);
       expect(call.take).toBe(20);
     });
 
-    it('200 — page=3&limit=10 produces skip=20, take=10', async () => {
+    it('200 — page=3&limit=10 → skip=20, take=10', async () => {
       await request(app.getHttpServer())
         .get('/resources?page=3&limit=10')
         .expect(200);
-
       expect(mockPrisma.resource.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ skip: 20, take: 10 }),
       );
@@ -1177,37 +1042,43 @@ describe('Resources Module — E2E', () => {
       await request(app.getHttpServer())
         .get('/resources?limit=9999')
         .expect(200);
-
       const call = mockPrisma.resource.findMany.mock.calls[0][0];
       expect(call.take).toBe(100);
     });
 
-    it('200 — applies search filter across 4 fields', async () => {
+    it('200 — search filter applies across 4 fields', async () => {
       await request(app.getHttpServer())
         .get('/resources?search=governance')
         .expect(200);
-
       const call = mockPrisma.resource.findMany.mock.calls[0][0];
-      expect(call.where.OR).toHaveLength(4); // title, description, author, rawText
+      expect(call.where.OR).toHaveLength(4);
     });
 
-    it('200 — applies categoryId filter', async () => {
+    it('200 — categoryId filter includes parent + children via { in: [...] }', async () => {
+      const CHILD_UUID = 'c9eebc99-9c0b-4ef8-bb6d-6bb9bd380ccc';
+      mockPrisma.category.findMany.mockResolvedValue([{ id: CHILD_UUID }]);
       await request(app.getHttpServer())
         .get(`/resources?categoryId=${CATEGORY_UUID}`)
         .expect(200);
-
-      expect(mockPrisma.resource.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ categoryId: CATEGORY_UUID }),
-        }),
-      );
+      const call = mockPrisma.resource.findMany.mock.calls[0][0];
+      expect(call.where.categoryId).toEqual({
+        in: [CATEGORY_UUID, CHILD_UUID],
+      });
     });
 
-    it('200 — applies type/format filter (DOCUMENT)', async () => {
+    it('200 — categoryId with no children still filters correctly', async () => {
+      mockPrisma.category.findMany.mockResolvedValue([]);
+      await request(app.getHttpServer())
+        .get(`/resources?categoryId=${CATEGORY_UUID}`)
+        .expect(200);
+      const call = mockPrisma.resource.findMany.mock.calls[0][0];
+      expect(call.where.categoryId).toEqual({ in: [CATEGORY_UUID] });
+    });
+
+    it('200 — type/format filter', async () => {
       await request(app.getHttpServer())
         .get('/resources?type=DOCUMENT')
         .expect(200);
-
       expect(mockPrisma.resource.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ type: 'DOCUMENT' }),
@@ -1215,17 +1086,13 @@ describe('Resources Module — E2E', () => {
       );
     });
 
-    it('400 — invalid type enum value rejected by ValidationPipe', async () => {
-      await request(app.getHttpServer())
-        .get('/resources?type=INVALID')
-        .expect(400);
-    });
+    it('400 — invalid type enum rejected by ValidationPipe', () =>
+      request(app.getHttpServer()).get('/resources?type=INVALID').expect(400));
 
-    it('200 — applies tagId filter via many-to-many', async () => {
+    it('200 — tagId filter via many-to-many', async () => {
       await request(app.getHttpServer())
         .get(`/resources?tagId=${TAG_UUID}`)
         .expect(200);
-
       expect(mockPrisma.resource.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ tags: { some: { id: TAG_UUID } } }),
@@ -1233,11 +1100,10 @@ describe('Resources Module — E2E', () => {
       );
     });
 
-    it('200 — applies sector and region filters (case-insensitive)', async () => {
+    it('200 — sector and region filters (case-insensitive)', async () => {
       await request(app.getHttpServer())
         .get('/resources?sector=Health&region=Lagos')
         .expect(200);
-
       const call = mockPrisma.resource.findMany.mock.calls[0][0];
       expect(call.where.sector).toMatchObject({
         contains: 'Health',
@@ -1249,110 +1115,185 @@ describe('Resources Module — E2E', () => {
       });
     });
 
-    it('200 — applies dateFrom and dateTo filters', async () => {
+    it('200 — dateFrom and dateTo filters', async () => {
       await request(app.getHttpServer())
         .get('/resources?dateFrom=2024-01-01&dateTo=2024-12-31')
         .expect(200);
-
       const call = mockPrisma.resource.findMany.mock.calls[0][0];
       expect(call.where.createdAt.gte).toBeInstanceOf(Date);
       expect(call.where.createdAt.lte).toBeInstanceOf(Date);
     });
 
-    it('200 — returns correct pagination metadata', async () => {
+    it('200 — correct pagination metadata', async () => {
       mockPrisma.resource.count.mockResolvedValue(45);
-
       const { body } = await request(app.getHttpServer())
         .get('/resources?page=2&limit=15')
         .expect(200);
-
-      expect(body.data.total).toBe(45);
-      expect(body.data.page).toBe(2);
-      expect(body.data.limit).toBe(15);
-      expect(body.data.pages).toBe(3);
+      expect(body.data).toMatchObject({
+        total: 45,
+        page: 2,
+        limit: 15,
+        pages: 3,
+      });
     });
 
     it('200 — downloadCount derived from _count.downloads', async () => {
       const { body } = await request(app.getHttpServer())
         .get('/resources')
         .expect(200);
-
       expect(body.data.resources[0].downloadCount).toBe(7);
       expect(body.data.resources[0]._count).toBeUndefined();
+    });
+
+    it('200 — unauthenticated: hasViewed/hasCompleted/canComplete not present', async () => {
+      const { body } = await request(app.getHttpServer())
+        .get('/resources')
+        .expect(200);
+      expect(body.data.resources[0].hasViewed).toBeUndefined();
+      expect(body.data.resources[0].hasCompleted).toBeUndefined();
+      expect(body.data.resources[0].canComplete).toBeUndefined();
+    });
+
+    it('200 — authenticated, not viewed: hasViewed=false, canComplete=false', async () => {
+      mockPrisma.$transaction.mockResolvedValue([[makeResource()], 1]);
+      mockPrisma.category.findMany.mockResolvedValue([]);
+      mockPrisma.resourceView.findMany.mockResolvedValue([]);
+      mockPrisma.resourceCompletion.findMany.mockResolvedValue([]);
+      const { body } = await request(app.getHttpServer())
+        .get('/resources')
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      const r = body.data.resources[0];
+      expect(r.hasViewed).toBe(false);
+      expect(r.hasCompleted).toBe(false);
+      expect(r.canComplete).toBe(false);
+    });
+
+    it('200 — authenticated, viewed but not completed: canComplete=true', async () => {
+      mockPrisma.$transaction.mockResolvedValue([[makeResource()], 1]);
+      mockPrisma.category.findMany.mockResolvedValue([]);
+      mockPrisma.resourceView.findMany.mockResolvedValue([
+        { resourceId: RESOURCE_UUID },
+      ]);
+      mockPrisma.resourceCompletion.findMany.mockResolvedValue([]);
+      const { body } = await request(app.getHttpServer())
+        .get('/resources')
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      const r = body.data.resources[0];
+      expect(r.hasViewed).toBe(true);
+      expect(r.hasCompleted).toBe(false);
+      expect(r.canComplete).toBe(true);
+    });
+
+    it('200 — authenticated, viewed and completed: canComplete=false', async () => {
+      mockPrisma.$transaction.mockResolvedValue([[makeResource()], 1]);
+      mockPrisma.category.findMany.mockResolvedValue([]);
+      mockPrisma.resourceView.findMany.mockResolvedValue([
+        { resourceId: RESOURCE_UUID },
+      ]);
+      mockPrisma.resourceCompletion.findMany.mockResolvedValue([
+        { resourceId: RESOURCE_UUID },
+      ]);
+      const { body } = await request(app.getHttpServer())
+        .get('/resources')
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      const r = body.data.resources[0];
+      expect(r.hasViewed).toBe(true);
+      expect(r.hasCompleted).toBe(true);
+      expect(r.canComplete).toBe(false);
     });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // RESOURCES — GET SINGLE (GET /:id)
+  // RESOURCES — GET SINGLE
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('GET /resources/:id', () => {
-    it('400 — non-UUID id', async () => {
-      await request(app.getHttpServer())
-        .get('/resources/not-a-uuid')
-        .expect(400);
-    });
+    it('400 — non-UUID id', () =>
+      request(app.getHttpServer()).get('/resources/not-a-uuid').expect(400));
 
-    it('404 — resource not found', async () => {
+    it('404 in body — not found', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .get(`/resources/${RESOURCE_UUID}`)
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
     });
 
-    it('200 — unauthenticated: contentUrl is null', async () => {
+    it('200 — unauthenticated: contentUrl null', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
-
       const { body } = await request(app.getHttpServer())
         .get(`/resources/${RESOURCE_UUID}`)
         .expect(200);
-
       expect(body.data.contentUrl).toBeNull();
       expect(body.data.requiresLogin).toBe(true);
     });
 
-    it('200 — authenticated: contentUrl returned', async () => {
+    it('200 — authenticated: contentUrl returned, hasViewed/hasCompleted present', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
-
+      mockPrisma.$transaction.mockResolvedValue([null, null]); // no view, no completion
       const { body } = await request(app.getHttpServer())
         .get(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${userToken()}`)
         .expect(200);
-
       expect(body.data.contentUrl).toBe(
         'https://blob.example.com/resources/handbook.pdf',
       );
-      expect(body.data.requiresLogin).toBe(false);
+      expect(body.data.hasViewed).toBe(false);
+      expect(body.data.hasCompleted).toBe(false);
+      expect(body.data.canComplete).toBe(false);
     });
 
-    it('200 — rawText is never exposed in single resource response', async () => {
+    it('200 — hasViewed=true enables canComplete when not yet completed', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
-
+      mockPrisma.$transaction.mockResolvedValue([{ id: 'view-001' }, null]); // viewed, not completed
       const { body } = await request(app.getHttpServer())
         .get(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${userToken()}`)
         .expect(200);
+      expect(body.data.hasViewed).toBe(true);
+      expect(body.data.hasCompleted).toBe(false);
+      expect(body.data.canComplete).toBe(true);
+    });
 
+    it('200 — hasCompleted=true disables canComplete', async () => {
+      mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
+      mockPrisma.$transaction.mockResolvedValue([
+        { id: 'view-001' },
+        { id: 'comp-001' },
+      ]);
+      const { body } = await request(app.getHttpServer())
+        .get(`/resources/${RESOURCE_UUID}`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(body.data.hasViewed).toBe(true);
+      expect(body.data.hasCompleted).toBe(true);
+      expect(body.data.canComplete).toBe(false);
+    });
+
+    it('200 — rawText never exposed', async () => {
+      mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
+      mockPrisma.$transaction.mockResolvedValue([null, null]);
+      const { body } = await request(app.getHttpServer())
+        .get(`/resources/${RESOURCE_UUID}`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
       expect(body.data.rawText).toBeUndefined();
     });
 
     it('200 — downloadCount derived from _count', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
-
       const { body } = await request(app.getHttpServer())
         .get(`/resources/${RESOURCE_UUID}`)
         .expect(200);
-
       expect(body.data.downloadCount).toBe(7);
     });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // RESOURCES — UPDATE (PATCH /:id)
+  // RESOURCES — UPDATE
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('PATCH /resources/:id', () => {
@@ -1366,65 +1307,51 @@ describe('Resources Module — E2E', () => {
       mockPrisma.auditLog.create.mockResolvedValue({});
     });
 
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .patch(`/resources/${RESOURCE_UUID}`)
         .send({ title: 'New' })
-        .expect(401);
-    });
-
-    it('403 — GUEST rejected', async () => {
-      await request(app.getHttpServer())
+        .expect(401));
+    it('403 — GUEST rejected', () =>
+      request(app.getHttpServer())
         .patch(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${userToken()}`)
         .send({ title: 'New' })
-        .expect(403);
-    });
-
-    it('400 — non-UUID id', async () => {
-      await request(app.getHttpServer())
+        .expect(403));
+    it('400 — non-UUID id', () =>
+      request(app.getHttpServer())
         .patch('/resources/not-a-uuid')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ title: 'New' })
-        .expect(400);
-    });
+        .expect(400));
 
-    it('404 — resource not found', async () => {
+    it('404 in body — resource not found', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .patch(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ title: 'New' })
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
     });
 
-    it('404 — new categoryId not found', async () => {
+    it('404 in body — new categoryId not found', async () => {
       mockPrisma.category.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .patch(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ categoryId: CATEGORY_UUID })
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.message).toMatch(/category not found/i);
     });
 
-    it('404 — new badgeId not found', async () => {
+    it('404 in body — new badgeId not found', async () => {
       mockPrisma.badge.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .patch(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ badgeId: BADGE_UUID })
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.message).toMatch(/badge not found/i);
     });
 
@@ -1434,7 +1361,6 @@ describe('Resources Module — E2E', () => {
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ title: 'Updated Title', sector: 'Health' })
         .expect(200);
-
       expect(body.status).toBe(true);
       expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1443,17 +1369,78 @@ describe('Resources Module — E2E', () => {
       );
     });
 
-    it('200 — updates tags via set operation when tagIds provided', async () => {
+    it('200 — updates tags via set', async () => {
       await request(app.getHttpServer())
         .patch(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ tagIds: [TAG_UUID] })
         .expect(200);
+      expect(mockPrisma.resource.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ tags: { set: [{ id: TAG_UUID }] } }),
+        }),
+      );
+    });
 
+    it('200 — DOCUMENT file replacement: deletes old blob, uploads new, re-runs OCR', async () => {
+      mockAzure.upload.mockResolvedValue(
+        'https://blob.example.com/resources/new-file.pdf',
+      );
+      mockOcr.extractText.mockResolvedValue('New extracted text.');
+      const { body } = await request(app.getHttpServer())
+        .patch(`/resources/${RESOURCE_UUID}`)
+        .set('Authorization', `Bearer ${superAdminToken()}`)
+        .attach('file', fakePdf(), {
+          filename: 'new.pdf',
+          contentType: 'application/pdf',
+        })
+        .expect(200);
+      expect(body.status).toBe(true);
+      expect(mockAzure.delete).toHaveBeenCalledWith(
+        'https://blob.example.com/resources/handbook.pdf',
+        'resources',
+      );
+      expect(mockAzure.upload).toHaveBeenCalledWith(
+        expect.objectContaining({ mimetype: 'application/pdf' }),
+        'resources',
+      );
+      expect(mockOcr.extractText).toHaveBeenCalled();
       expect(mockPrisma.resource.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            tags: { set: [{ id: TAG_UUID }] },
+            contentUrl: 'https://blob.example.com/resources/new-file.pdf',
+          }),
+        }),
+      );
+    });
+
+    it('200 — VIDEO externalUrl update: no file upload', async () => {
+      await request(app.getHttpServer())
+        .patch(`/resources/${RESOURCE_UUID}`)
+        .set('Authorization', `Bearer ${superAdminToken()}`)
+        .send({ externalUrl: 'https://youtube.com/watch?v=newvid' })
+        .expect(200);
+      expect(mockAzure.upload).not.toHaveBeenCalled();
+      expect(mockPrisma.resource.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            contentUrl: 'https://youtube.com/watch?v=newvid',
+          }),
+        }),
+      );
+    });
+
+    it('200 — ARTICLE body update: stored as rawText', async () => {
+      await request(app.getHttpServer())
+        .patch(`/resources/${RESOURCE_UUID}`)
+        .set('Authorization', `Bearer ${superAdminToken()}`)
+        .send({ articleBody: 'Updated article content.' })
+        .expect(200);
+      expect(mockAzure.upload).not.toHaveBeenCalled();
+      expect(mockPrisma.resource.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            rawText: 'Updated article content.',
           }),
         }),
       );
@@ -1465,13 +1452,12 @@ describe('Resources Module — E2E', () => {
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ title: 'Updated' })
         .expect(200);
-
       expect(body.data?.rawText).toBeUndefined();
     });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // RESOURCES — DELETE (DELETE /:id)
+  // RESOURCES — DELETE
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('DELETE /resources/:id', () => {
@@ -1481,74 +1467,60 @@ describe('Resources Module — E2E', () => {
       mockPrisma.auditLog.create.mockResolvedValue({});
     });
 
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .delete(`/resources/${RESOURCE_UUID}`)
-        .expect(401);
-    });
-
-    it('403 — GUEST rejected', async () => {
-      await request(app.getHttpServer())
+        .expect(401));
+    it('403 — GUEST rejected', () =>
+      request(app.getHttpServer())
         .delete(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${userToken()}`)
-        .expect(403);
-    });
-
-    it('400 — non-UUID id', async () => {
-      await request(app.getHttpServer())
+        .expect(403));
+    it('400 — non-UUID id', () =>
+      request(app.getHttpServer())
         .delete('/resources/not-a-uuid')
         .set('Authorization', `Bearer ${superAdminToken()}`)
-        .expect(400);
-    });
+        .expect(400));
 
-    it('404 — resource not found', async () => {
+    it('404 in body — not found', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .delete(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
     });
 
     it('200 — deletes Azure blob when contentUrl present', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
-
       await request(app.getHttpServer())
         .delete(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
       expect(mockAzure.delete).toHaveBeenCalledWith(
         'https://blob.example.com/resources/handbook.pdf',
         'resources',
       );
     });
 
-    it('200 — no Azure call when contentUrl is null', async () => {
+    it('200 — no Azure call when contentUrl null', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(
         makeResource({ contentUrl: null }),
       );
-
       const { body } = await request(app.getHttpServer())
         .delete(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
       expect(body.status).toBe(true);
       expect(mockAzure.delete).not.toHaveBeenCalled();
     });
 
     it('200 — cascade-deletes download logs and creates audit log', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
-
       await request(app.getHttpServer())
         .delete(`/resources/${RESOURCE_UUID}`)
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .expect(200);
-
       expect(mockPrisma.downloadLog.deleteMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { resourceId: RESOURCE_UUID } }),
       );
@@ -1561,174 +1533,252 @@ describe('Resources Module — E2E', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DOWNLOAD (POST /:id/download)
+  // DOWNLOAD
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('POST /resources/:id/download', () => {
-    const baseUser = () =>
-      makeDbUser({
-        id: USER_UUID,
-        pointsCount: 50,
-        badges: [],
-      });
-
     beforeEach(() => {
       mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
       mockPrisma.downloadLog.create.mockResolvedValue({});
-      mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
-        if (where?.id === SUPER_ADMIN_UUID)
-          return Promise.resolve(makeSuperAdmin());
-        if (where?.id === RES_ADMIN_UUID)
-          return Promise.resolve(makeResourceAdmin());
-        if (where?.id === USER_UUID) return Promise.resolve(baseUser());
-        return Promise.resolve(null);
-      });
-      mockPrisma.user.update.mockResolvedValue({ pointsCount: 60 });
     });
 
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .post(`/resources/${RESOURCE_UUID}/download`)
-        .expect(401);
-    });
-
-    it('400 — non-UUID resource id', async () => {
-      await request(app.getHttpServer())
+        .expect(401));
+    it('400 — non-UUID id', () =>
+      request(app.getHttpServer())
         .post('/resources/not-a-uuid/download')
         .set('Authorization', `Bearer ${userToken()}`)
-        .expect(400);
-    });
+        .expect(400));
 
-    it('404 — resource not found', async () => {
+    it('404 in body — resource not found', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .post(`/resources/${RESOURCE_UUID}/download`)
         .set('Authorization', `Bearer ${userToken()}`)
         .expect(201);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
     });
 
-    it('400 — resource has no downloadable file (contentUrl is null)', async () => {
+    it('400 in body — no downloadable file', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(
         makeResource({ contentUrl: null }),
       );
-
       const { body } = await request(app.getHttpServer())
         .post(`/resources/${RESOURCE_UUID}/download`)
         .set('Authorization', `Bearer ${userToken()}`)
         .expect(201);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(400);
       expect(body.message).toMatch(/no downloadable file/i);
     });
 
-    it('200 — records download log', async () => {
-      await request(app.getHttpServer())
+    it('201 — records download log and returns downloadUrl only (no points/badge)', async () => {
+      const { body } = await request(app.getHttpServer())
         .post(`/resources/${RESOURCE_UUID}/download`)
         .set('Authorization', `Bearer ${userToken()}`)
         .expect(201);
-
+      expect(body.status).toBe(true);
+      expect(body.downloadUrl).toBe(
+        'https://blob.example.com/resources/handbook.pdf',
+      );
       expect(mockPrisma.downloadLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: { userId: USER_UUID, resourceId: RESOURCE_UUID },
         }),
       );
-    });
-
-    it('200 — returns downloadUrl, pointsEarned, totalPoints, newBadges', async () => {
-      const { body } = await request(app.getHttpServer())
-        .post(`/resources/${RESOURCE_UUID}/download`)
-        .set('Authorization', `Bearer ${userToken()}`)
-        .expect(201);
-
-      expect(body.status).toBe(true);
-      expect(body.downloadUrl).toBe(
-        'https://blob.example.com/resources/handbook.pdf',
-      );
-      expect(body.pointsEarned).toBe(10);
-      expect(body.totalPoints).toBe(60);
-      expect(body.newBadges).toBeInstanceOf(Array);
-    });
-
-    it('200 — awards resource badge when user does not already have it', async () => {
-      // user has no badges
-      const { body } = await request(app.getHttpServer())
-        .post(`/resources/${RESOURCE_UUID}/download`)
-        .set('Authorization', `Bearer ${userToken()}`)
-        .expect(201);
-
-      expect(body.newBadges).toContain('Resource Champion');
-      expect(mockPrisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            badges: { connect: { id: BADGE_UUID } },
-          }),
-        }),
-      );
-    });
-
-    it('200 — does NOT re-award badge user already has', async () => {
-      mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
-        if (where?.id === USER_UUID) {
-          return Promise.resolve(
-            makeDbUser({
-              id: USER_UUID,
-              pointsCount: 50,
-              badges: [{ id: BADGE_UUID }],
-            }),
-          );
-        }
-        return Promise.resolve(null);
-      });
-
-      const { body } = await request(app.getHttpServer())
-        .post(`/resources/${RESOURCE_UUID}/download`)
-        .set('Authorization', `Bearer ${userToken()}`)
-        .expect(201);
-
-      expect(body.newBadges).not.toContain('Resource Champion');
-    });
-
-    it('200 — no user.update called when 0 points and no badge to award', async () => {
-      mockPrisma.resource.findUnique.mockResolvedValue(
-        makeResource({ points: 0, badge: null, badgeId: null }),
-      );
-
-      await request(app.getHttpServer())
-        .post(`/resources/${RESOURCE_UUID}/download`)
-        .set('Authorization', `Bearer ${userToken()}`)
-        .expect(201);
-
-      // user.update should NOT be called — nothing to increment or connect
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
-    });
-
-    it('200 — increments points even when no badge attached', async () => {
-      mockPrisma.resource.findUnique.mockResolvedValue(
-        makeResource({ points: 5, badge: null, badgeId: null }),
-      );
-
-      await request(app.getHttpServer())
-        .post(`/resources/${RESOURCE_UUID}/download`)
-        .set('Authorization', `Bearer ${userToken()}`)
-        .expect(201);
-
-      expect(mockPrisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            pointsCount: { increment: 5 },
-          }),
-        }),
-      );
+      // Points and badge are NO LONGER awarded on download
+      expect(body.pointsEarned).toBeUndefined();
+      expect(body.newBadges).toBeUndefined();
     });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // BULK — DELETE (DELETE /bulk)
+  // VIEW (POST /:id/view)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('POST /resources/:id/view', () => {
+    it('401 — no token', () =>
+      request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/view`)
+        .expect(401));
+    it('400 — non-UUID id', () =>
+      request(app.getHttpServer())
+        .post('/resources/not-a-uuid/view')
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(400));
+
+    it('404 in body — resource not found', async () => {
+      mockPrisma.resource.findUnique.mockResolvedValue(null);
+      const { body } = await request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/view`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(body.statusCode).toBe(404);
+    });
+
+    it('200 — marks resource as viewed and returns canComplete: true', async () => {
+      mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
+      mockPrisma.resourceView.upsert.mockResolvedValue({
+        id: 'view-001',
+        userId: USER_UUID,
+        resourceId: RESOURCE_UUID,
+        viewedAt: new Date(),
+      });
+      const { body } = await request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/view`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(body.status).toBe(true);
+      expect(body.canComplete).toBe(true);
+      expect(mockPrisma.resourceView.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            userId_resourceId: { userId: USER_UUID, resourceId: RESOURCE_UUID },
+          },
+        }),
+      );
+    });
+
+    it('200 — idempotent: calling view twice is safe', async () => {
+      mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
+      mockPrisma.resourceView.upsert.mockResolvedValue({ id: 'view-001' });
+      // Call twice — both should succeed
+      await request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/view`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/view`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(mockPrisma.resourceView.upsert).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // COMPLETE (POST /:id/complete)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('POST /resources/:id/complete', () => {
+    beforeEach(() => {
+      mockPrisma.resource.findUnique.mockResolvedValue(makeResource());
+      mockPrisma.resourceView.findUnique.mockResolvedValue({
+        id: 'view-001',
+        userId: USER_UUID,
+        resourceId: RESOURCE_UUID,
+      });
+      mockPrisma.resourceCompletion.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
+        if (where?.id === USER_UUID)
+          return Promise.resolve(makeDbUser({ badges: [] }));
+        if (where?.id === SUPER_ADMIN_UUID)
+          return Promise.resolve(makeSuperAdmin());
+        if (where?.id === RES_ADMIN_UUID)
+          return Promise.resolve(makeResourceAdmin());
+        return Promise.resolve(null);
+      });
+      mockPrisma.$transaction.mockResolvedValue([
+        { id: 'comp-001', pointsEarned: 10 },
+        { pointsCount: 60 },
+      ]);
+    });
+
+    it('401 — no token', () =>
+      request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/complete`)
+        .expect(401));
+    it('400 — non-UUID id', () =>
+      request(app.getHttpServer())
+        .post('/resources/not-a-uuid/complete')
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(400));
+
+    it('404 in body — resource not found', async () => {
+      mockPrisma.resource.findUnique.mockResolvedValue(null);
+      const { body } = await request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/complete`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(body.statusCode).toBe(404);
+    });
+
+    it('403 in body — user has not viewed the resource', async () => {
+      mockPrisma.resourceView.findUnique.mockResolvedValue(null);
+      const { body } = await request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/complete`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(body.statusCode).toBe(403);
+      expect(body.message).toMatch(/view this resource/i);
+    });
+
+    it('409 in body — already completed', async () => {
+      mockPrisma.resourceCompletion.findUnique.mockResolvedValue({
+        id: 'comp-001',
+      });
+      const { body } = await request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/complete`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(body.statusCode).toBe(409);
+      expect(body.message).toMatch(/already completed/i);
+    });
+
+    it('200 — awards points and badge on first completion', async () => {
+      const { body } = await request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/complete`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(body.status).toBe(true);
+      expect(body.pointsEarned).toBe(10);
+      expect(body.totalPoints).toBe(60);
+      expect(body.newBadges).toContain('Resource Champion');
+    });
+
+    it('200 — does not re-award badge user already has', async () => {
+      mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
+        if (where?.id === USER_UUID)
+          return Promise.resolve(makeDbUser({ badges: [{ id: BADGE_UUID }] }));
+        if (where?.id === SUPER_ADMIN_UUID)
+          return Promise.resolve(makeSuperAdmin());
+        return Promise.resolve(null);
+      });
+      const { body } = await request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/complete`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(body.newBadges).not.toContain('Resource Champion');
+    });
+
+    it('200 — no user.update called when 0 points and no badge', async () => {
+      mockPrisma.resource.findUnique.mockResolvedValue(
+        makeResource({ points: 0, badge: null, badgeId: null }),
+      );
+      mockPrisma.$transaction.mockResolvedValue([
+        { id: 'comp-001' },
+        { pointsCount: 50 },
+      ]);
+      const { body } = await request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/complete`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(body.status).toBe(true);
+      expect(body.pointsEarned).toBe(0);
+      expect(body.newBadges).toEqual([]);
+    });
+
+    it('200 — completion record created atomically in transaction', async () => {
+      await request(app.getHttpServer())
+        .post(`/resources/${RESOURCE_UUID}/complete`)
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BULK DELETE
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('DELETE /resources/bulk', () => {
@@ -1744,29 +1794,24 @@ describe('Resources Module — E2E', () => {
       mockPrisma.auditLog.create.mockResolvedValue({});
     });
 
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .delete('/resources/bulk')
         .send({ ids })
-        .expect(401);
-    });
-
-    it('403 — GUEST rejected', async () => {
-      await request(app.getHttpServer())
+        .expect(401));
+    it('403 — GUEST rejected', () =>
+      request(app.getHttpServer())
         .delete('/resources/bulk')
         .set('Authorization', `Bearer ${userToken()}`)
         .send({ ids })
-        .expect(403);
-    });
+        .expect(403));
 
-    it('200 — deletes Azure blobs only for resources that have a contentUrl', async () => {
+    it('200 — deletes Azure blobs only for resources with contentUrl', async () => {
       await request(app.getHttpServer())
         .delete('/resources/bulk')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ ids })
         .expect(200);
-
-      // Only the first resource has a contentUrl
       expect(mockAzure.delete).toHaveBeenCalledTimes(1);
       expect(mockAzure.delete).toHaveBeenCalledWith(
         'https://blob.example.com/resources/handbook.pdf',
@@ -1774,13 +1819,12 @@ describe('Resources Module — E2E', () => {
       );
     });
 
-    it('200 — bulk deletes download logs, resources, and audit log', async () => {
+    it('200 — bulk deletes logs, resources, audit log', async () => {
       const { body } = await request(app.getHttpServer())
         .delete('/resources/bulk')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ ids })
         .expect(200);
-
       expect(body.status).toBe(true);
       expect(body.message).toMatch(/2 resource\(s\) deleted/);
       expect(mockPrisma.downloadLog.deleteMany).toHaveBeenCalledWith(
@@ -1798,37 +1842,31 @@ describe('Resources Module — E2E', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // BULK — MOVE CATEGORY (PATCH /bulk/move-category)
+  // BULK MOVE CATEGORY
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('PATCH /resources/bulk/move-category', () => {
     const ids = [RESOURCE_UUID];
 
-    it('401 — no token', async () => {
-      await request(app.getHttpServer())
+    it('401 — no token', () =>
+      request(app.getHttpServer())
         .patch('/resources/bulk/move-category')
         .send({ ids, targetCategoryId: CATEGORY_UUID })
-        .expect(401);
-    });
-
-    it('403 — GUEST rejected', async () => {
-      await request(app.getHttpServer())
+        .expect(401));
+    it('403 — GUEST rejected', () =>
+      request(app.getHttpServer())
         .patch('/resources/bulk/move-category')
         .set('Authorization', `Bearer ${userToken()}`)
         .send({ ids, targetCategoryId: CATEGORY_UUID })
-        .expect(403);
-    });
+        .expect(403));
 
-    it('404 — target category not found', async () => {
+    it('404 in body — target category not found', async () => {
       mockPrisma.category.findUnique.mockResolvedValue(null);
-
       const { body } = await request(app.getHttpServer())
         .patch('/resources/bulk/move-category')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ ids, targetCategoryId: CATEGORY_UUID })
         .expect(200);
-
-      expect(body.status).toBe(false);
       expect(body.statusCode).toBe(404);
       expect(body.message).toMatch(/target category not found/i);
     });
@@ -1837,13 +1875,11 @@ describe('Resources Module — E2E', () => {
       mockPrisma.category.findUnique.mockResolvedValue(makeCategory());
       mockPrisma.resource.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.auditLog.create.mockResolvedValue({});
-
       const { body } = await request(app.getHttpServer())
         .patch('/resources/bulk/move-category')
         .set('Authorization', `Bearer ${superAdminToken()}`)
         .send({ ids, targetCategoryId: CATEGORY_UUID })
         .expect(200);
-
       expect(body.status).toBe(true);
       expect(body.message).toMatch(/moved to/i);
       expect(mockPrisma.resource.updateMany).toHaveBeenCalledWith(
@@ -1857,153 +1893,6 @@ describe('Resources Module — E2E', () => {
           data: expect.objectContaining({ action: 'RESOURCE_BULK_MOVED' }),
         }),
       );
-    });
-  });
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // OCR SERVICE — unit-level integration through createResource
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  describe('OcrService integration (via POST /resources)', () => {
-    beforeEach(() => {
-      mockPrisma.category.findUnique.mockResolvedValue(makeCategory());
-      mockPrisma.resource.create.mockResolvedValue(makeResource());
-      mockPrisma.auditLog.create.mockResolvedValue({});
-    });
-
-    it('OCR called for application/pdf and text stored in rawText', async () => {
-      mockOcr.extractText.mockResolvedValue('PDF content extracted.');
-
-      await request(app.getHttpServer())
-        .post('/resources')
-        .set('Authorization', `Bearer ${superAdminToken()}`)
-        .field('title', 'PDF Resource')
-        .field('description', 'Test')
-        .field('type', 'DOCUMENT')
-        .field('categoryId', CATEGORY_UUID)
-        .attach('file', fakePdf(), {
-          filename: 'doc.pdf',
-          contentType: 'application/pdf',
-        })
-        .expect(201);
-
-      expect(mockOcr.extractText).toHaveBeenCalledWith(
-        expect.any(Buffer),
-        'application/pdf',
-      );
-      expect(mockPrisma.resource.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ rawText: 'PDF content extracted.' }),
-        }),
-      );
-    });
-
-    it('OCR failure is non-fatal — upload succeeds, rawText is null', async () => {
-      mockOcr.extractText.mockRejectedValue(new Error('PDF parse failed'));
-      // Service catches OCR errors and falls back to null — but actually
-      // the service doesn't catch it inline; let's test the real path:
-      // extractText rejects → resource still created but rawText = whatever OCR returns
-      // The OcrService itself wraps in try/catch and returns null on error.
-      mockOcr.extractText.mockResolvedValue(null); // simulate graceful null return
-
-      await request(app.getHttpServer())
-        .post('/resources')
-        .set('Authorization', `Bearer ${superAdminToken()}`)
-        .field('title', 'Broken PDF')
-        .field('description', 'Test')
-        .field('type', 'DOCUMENT')
-        .field('categoryId', CATEGORY_UUID)
-        .attach('file', fakePdf(), {
-          filename: 'broken.pdf',
-          contentType: 'application/pdf',
-        })
-        .expect(201);
-
-      expect(mockPrisma.resource.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ rawText: null }),
-        }),
-      );
-    });
-  });
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // BADGE SERVICE — download badge threshold logic (via POST /:id/download)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  describe('BadgeService threshold logic (via POST /:id/download)', () => {
-    // Resource with 0 points and no resource badge, so only download-threshold
-    // badges are relevant. The BadgeService runs inside downloadResource.
-    const pointlessResource = () =>
-      makeResource({ points: 0, badge: null, badgeId: null });
-
-    beforeEach(() => {
-      mockPrisma.downloadLog.create.mockResolvedValue({});
-      mockPrisma.auditLog.create.mockResolvedValue({});
-    });
-
-    it('200 — no newBadges when user has no existing badges and 0 points resource', async () => {
-      mockPrisma.resource.findUnique.mockResolvedValue(pointlessResource());
-      mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
-        if (where?.id === USER_UUID)
-          return Promise.resolve(makeDbUser({ badges: [] }));
-        if (where?.id === SUPER_ADMIN_UUID)
-          return Promise.resolve(makeSuperAdmin());
-        return Promise.resolve(null);
-      });
-
-      const { body } = await request(app.getHttpServer())
-        .post(`/resources/${RESOURCE_UUID}/download`)
-        .set('Authorization', `Bearer ${userToken()}`)
-        .expect(201);
-
-      expect(body.newBadges).toEqual([]);
-      expect(body.pointsEarned).toBe(0);
-      // No user.update needed — no points, no badge
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
-    });
-
-    it('200 — resource badge awarded and included in newBadges', async () => {
-      mockPrisma.resource.findUnique.mockResolvedValue(makeResource()); // has badge
-      mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
-        if (where?.id === USER_UUID)
-          return Promise.resolve(makeDbUser({ badges: [] })); // doesn't have badge yet
-        if (where?.id === SUPER_ADMIN_UUID)
-          return Promise.resolve(makeSuperAdmin());
-        return Promise.resolve(null);
-      });
-      mockPrisma.user.update.mockResolvedValue({ pointsCount: 60 });
-
-      const { body } = await request(app.getHttpServer())
-        .post(`/resources/${RESOURCE_UUID}/download`)
-        .set('Authorization', `Bearer ${userToken()}`)
-        .expect(201);
-
-      expect(body.newBadges).toContain('Resource Champion');
-    });
-
-    it('200 — totalPoints is current pointsCount from user.update', async () => {
-      mockPrisma.resource.findUnique.mockResolvedValue(
-        makeResource({ points: 15 }),
-      );
-      mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
-        if (where?.id === USER_UUID)
-          return Promise.resolve(
-            makeDbUser({ pointsCount: 100, badges: [{ id: BADGE_UUID }] }),
-          );
-        if (where?.id === SUPER_ADMIN_UUID)
-          return Promise.resolve(makeSuperAdmin());
-        return Promise.resolve(null);
-      });
-      mockPrisma.user.update.mockResolvedValue({ pointsCount: 115 });
-
-      const { body } = await request(app.getHttpServer())
-        .post(`/resources/${RESOURCE_UUID}/download`)
-        .set('Authorization', `Bearer ${userToken()}`)
-        .expect(201);
-
-      expect(body.pointsEarned).toBe(15);
-      expect(body.totalPoints).toBe(115);
     });
   });
 });

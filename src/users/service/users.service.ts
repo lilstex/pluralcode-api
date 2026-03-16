@@ -1205,6 +1205,7 @@ export class UserService {
   async listUsers(query: {
     role?: Role;
     status?: string;
+    search?: string;
     page?: number;
     limit?: number;
   }) {
@@ -1219,6 +1220,13 @@ export class UserService {
       const where: any = {};
       if (query.role) where.role = query.role;
       if (query.status) where.status = query.status;
+
+      if (query.search) {
+        where.OR = [
+          { fullName: { contains: query.search, mode: 'insensitive' } },
+          { email: { contains: query.search, mode: 'insensitive' } },
+        ];
+      }
 
       const [users, total] = await this.prisma.$transaction([
         this.prisma.user.findMany({

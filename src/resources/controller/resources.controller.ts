@@ -13,6 +13,8 @@ import {
   ParseFilePipe,
   MaxFileSizeValidator,
   ParseUUIDPipe,
+  HttpCode,
+  HttpStatus,
   Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -329,6 +331,7 @@ export class ResourceController {
   }
 
   @UseGuards(OptionalJwtGuard)
+  @ApiBearerAuth()
   @Get()
   @ApiOperation({
     summary:
@@ -359,11 +362,13 @@ export class ResourceController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   async listResources(@Query() query: ResourceQueryDto, @Req() req: Request) {
-    const isAuthenticated = !!(req as any).user;
-    return this.resourceService.listResources(query, isAuthenticated);
+    const user = (req as any).user;
+    const isAuthenticated = !!user;
+    return this.resourceService.listResources(query, isAuthenticated, user?.id);
   }
 
   @UseGuards(OptionalJwtGuard)
+  @ApiBearerAuth()
   @Get(':id')
   @ApiOperation({ summary: 'Get a single resource by ID' })
   @ApiParam({ name: 'id', description: 'Resource UUID' })
@@ -372,8 +377,9 @@ export class ResourceController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: Request,
   ) {
-    const isAuthenticated = !!(req as any).user;
-    return this.resourceService.getResource(id, isAuthenticated);
+    const user = (req as any).user;
+    const isAuthenticated = !!user;
+    return this.resourceService.getResource(id, isAuthenticated, user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -381,14 +387,23 @@ export class ResourceController {
   @Permissions(PERMISSIONS.RESOURCE_UPLOAD)
   @ApiBearerAuth()
   @Patch(':id')
-  @ApiOperation({ summary: 'Admin: Update resource metadata' })
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Admin: Update resource metadata and/or content',
+    description:
+      'Metadata fields (title, description, etc.) are sent as form fields. ' +
+      'To replace content: attach a new file for DOCUMENT types, ' +
+      'send externalUrl for VIDEO types, or send articleBody for ARTICLE types.',
+  })
   @ApiParam({ name: 'id', description: 'Resource UUID' })
+  @ApiConsumes('multipart/form-data', 'application/json')
   async updateResource(
     @CurrentUser() admin: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateResourceDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.resourceService.updateResource(admin.id, id, dto);
+    return this.resourceService.updateResource(admin.id, id, dto, file);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -415,7 +430,7 @@ export class ResourceController {
   @ApiOperation({
     summary: 'Record a download and return the file URL',
     description:
-      'Logs the download, evaluates badge thresholds, and returns the Azure Blob URL.',
+      'Logs the download and returns the Azure Blob URL. Does NOT award points or badges — use POST :id/complete for that.',
   })
   @ApiParam({ name: 'id', description: 'Resource UUID' })
   @ApiResponse({ status: 200, type: DownloadResponseDto })
@@ -424,5 +439,41 @@ export class ResourceController {
     @CurrentUser() user: any,
   ) {
     return this.resourceService.downloadResource(id, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post(':id/view')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark a resource as viewed',
+    description:
+      'Must be called when a user opens the resource detail screen. ' +
+      'Enables the Complete button on the frontend. Idempotent — safe to call multiple times.',
+  })
+  @ApiParam({ name: 'id', description: 'Resource UUID' })
+  async viewResource(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.resourceService.viewResource(id, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post(':id/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark a resource as completed — awards points and badge',
+    description:
+      'Requires the user to have first called POST :id/view. ' +
+      'Once completed, calling this endpoint again returns 409 — points and badge are only awarded once.',
+  })
+  @ApiParam({ name: 'id', description: 'Resource UUID' })
+  async completeResource(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.resourceService.completeResource(id, user.id);
   }
 }
