@@ -16,7 +16,9 @@ export type AzureContainer =
   | 'avatars'
   | 'resources'
   | 'oda-evidence'
-  | 'communities';
+  | 'communities'
+  | 'news-attachments'
+  | 'news';
 
 @Injectable()
 export class AzureBlobService {

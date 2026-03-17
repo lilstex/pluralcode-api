@@ -46,6 +46,7 @@ import {
   MentionResponseDto,
   GeneralAnalyticsDto,
   CommunityAnalyticsDto,
+  AllTopicResponseDto,
 } from '../dto/community.dto';
 import { CommunityService } from '../service/community.service';
 
@@ -107,8 +108,6 @@ export class CommunityController {
   // COMMUNITY CRUD
   // ─────────────────────────────────────────────────────────────────────────────
 
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @Get()
   @ApiOperation({ summary: 'List all active communities (paginated)' })
   @ApiResponse({ status: 200, type: CommunityResponseDto, isArray: true })
@@ -240,6 +239,17 @@ export class CommunityController {
   // ─────────────────────────────────────────────────────────────────────────────
   // TOPICS
   // ─────────────────────────────────────────────────────────────────────────────
+
+  @Get('topics/all/global')
+  @ApiOperation({
+    summary: 'List all non-blocked topics globally (paginated)',
+    description:
+      'Fetches topics from all communities with community details included.',
+  })
+  @ApiResponse({ status: 200, type: AllTopicResponseDto, isArray: true })
+  listAllTopics(@Query() query: TopicQueryDto) {
+    return this.communityService.listAllTopicsGlobal(query);
+  }
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

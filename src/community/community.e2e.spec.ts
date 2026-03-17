@@ -231,8 +231,6 @@ describe('Community Module — E2E', () => {
   // ─── AUTH ─────────────────────────────────────────────────────────────────
 
   describe('Auth guards', () => {
-    it('401 — no token on GET /communities', () =>
-      request(app.getHttpServer()).get('/communities').expect(401));
     it('401 — no token on POST /communities', () =>
       request(app.getHttpServer()).post('/communities').expect(401));
     it('401 — no token on GET /communities/mentions', () =>

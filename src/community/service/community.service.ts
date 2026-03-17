@@ -500,6 +500,62 @@ export class CommunityService {
   // TOPICS
   // ─────────────────────────────────────────────────────────────────────────────
 
+  async listAllTopicsGlobal(query: TopicQueryDto) {
+    try {
+      const { page, limit, skip } = this.safePaginate(query.page, query.limit);
+
+      // We only want non-blocked topics
+      const where: any = { isBlocked: false };
+
+      if (query.search) {
+        where.OR = [
+          { title: { contains: query.search, mode: 'insensitive' } },
+          { body: { contains: query.search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [topics, total] = await this.prisma.$transaction([
+        this.prisma.communityTopic.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            ...TOPIC_INCLUDE,
+            community: {
+              select: {
+                id: true,
+                name: true,
+                imageUrl: true,
+              },
+            },
+          },
+        }),
+        this.prisma.communityTopic.count({ where }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Global topics retrieved.',
+        data: {
+          topics: topics.map((t) => this.formatTopic(t)),
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (err) {
+      this.logger.error('listAllTopicsGlobal error', err);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
   async createTopic(userId: string, communityId: string, dto: CreateTopicDto) {
     try {
       const community = await this.prisma.community.findUnique({

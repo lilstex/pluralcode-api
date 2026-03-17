@@ -7,6 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// STATUS
+
 enum Role {
   SUPER_ADMIN
   CONTENT_ADMIN
@@ -48,6 +50,14 @@ enum ODABlockStatus {
   SUBMITTED
 }
 
+enum NewsPostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// MODELS
+
 model User {
   id                     String         @id @default(uuid())
   email                  String         @unique
@@ -85,6 +95,8 @@ model User {
 
   resourceViews       ResourceView[]       @relation("ResourceViews")
   resourceCompletions ResourceCompletion[] @relation("ResourceCompletions")
+
+  newsPosts NewsPost[] @relation("NewsAuthor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -696,4 +708,33 @@ model CommunityMention {
   createdAt       DateTime @default(now())
 
   @@index([mentionedUserId])
+}
+
+// NEWS / BLOG
+
+model NewsPost {
+  id          String          @id @default(uuid())
+  title       String
+  slug        String          @unique
+  type        String
+  body        String          @db.Text
+  excerpt     String?         @db.Text
+  thumbnailUrl String?
+  attachments Json            @default("[]")  // [{ name, url, size }]
+  status      NewsPostStatus  @default(DRAFT)
+  publishedAt DateTime?
+  tags        String[]
+  viewCount   Int             @default(0)
+
+  authorId String
+  author   User   @relation("NewsAuthor", fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([authorId])
+  @@index([publishedAt])
+  @@index([viewCount])
 }

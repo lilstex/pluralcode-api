@@ -194,6 +194,25 @@ export class TopicResponseDto {
   @ApiProperty() updatedAt: Date;
 }
 
+export class CommunityMinDto {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiPropertyOptional() imageUrl?: string;
+}
+export class AllTopicResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() title: string;
+  @ApiProperty() body: string;
+  @ApiProperty() isBlocked: boolean;
+  @ApiProperty() likeCount: number;
+  @ApiProperty({ type: CommunityMinDto }) community: CommunityMinDto;
+  @ApiProperty({ type: CommunityAuthorDto }) author: CommunityAuthorDto;
+  @ApiProperty({ type: [CommentResponseDto] }) comments: CommentResponseDto[];
+  @ApiProperty() commentCount: number;
+  @ApiProperty() createdAt: Date;
+  @ApiProperty() updatedAt: Date;
+}
+
 export class LikeResponseDto {
   @ApiProperty() liked: boolean;
   @ApiProperty() likeCount: number;
