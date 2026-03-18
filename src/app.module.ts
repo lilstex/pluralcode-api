@@ -9,6 +9,7 @@ import { MentorRequestModule } from './mentor-request/mentor-request.module';
 import { OdaModule } from './oda/oda.module';
 import { DevPlanModule } from './dev-plan/dev-plan.module';
 import { CommunityModule } from './community/community.module';
+import { SpotlightModule } from './spotlight/spotlight.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { CommunityModule } from './community/community.module';
     OdaModule,
     DevPlanModule,
     CommunityModule,
+    SpotlightModule,
   ],
   controllers: [AppController],
   providers: [AppService],

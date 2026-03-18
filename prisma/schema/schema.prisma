@@ -56,6 +56,11 @@ enum NewsPostStatus {
   ARCHIVED
 }
 
+enum SpotlightMode {
+  AUTO
+  MANUAL
+}
+
 // MODELS
 
 model User {
@@ -166,6 +171,9 @@ model Organization {
   assessments    OrganizationAssessment[]
   odaAssessments ODAAssessment[]
   devPlanPriorityAreas DevPlanPriorityArea[]
+
+  spotlightEntries  SpotlightEntry[]
+  spotlightHistory  SpotlightHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -737,4 +745,42 @@ model NewsPost {
   @@index([authorId])
   @@index([publishedAt])
   @@index([viewCount])
+}
+
+// Spotlight
+
+model SpotlightSettings {
+  id               String        @id @default("singleton")
+  defaultPeriodDays Int          @default(2)
+  mode             SpotlightMode @default(AUTO)
+  updatedAt        DateTime      @updatedAt
+}
+
+model SpotlightEntry {
+  id        String       @id @default(uuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  startAt   DateTime
+  endAt     DateTime
+  isActive  Boolean      @default(false)
+  wasAuto   Boolean      @default(false)
+  order     Int?
+  createdAt DateTime     @default(now())
+
+  @@index([isActive])
+  @@index([startAt])
+  @@index([endAt])
+}
+
+model SpotlightHistory {
+  id        String       @id @default(uuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  startAt   DateTime
+  endAt     DateTime
+  wasAuto   Boolean
+  createdAt DateTime     @default(now())
+
+  @@index([orgId])
+  @@index([startAt])
 }
