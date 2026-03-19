@@ -64,14 +64,6 @@ export class CreateEventDto {
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
-
-  @ApiPropertyOptional({
-    example: 'https://external-platform.com/meeting',
-    description: 'External meeting URL (overrides Jitsi if set)',
-  })
-  @IsOptional()
-  @IsUrl()
-  externalMeetingUrl?: string;
 }
 
 export class UpdateEventDto {

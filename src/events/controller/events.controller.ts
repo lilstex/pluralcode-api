@@ -187,7 +187,7 @@ export class EventController {
   // ─────────────────────────────────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN, Role.NGO_MEMBER)
   @Permissions(PERMISSIONS.EVENT_WRITE)
   @ApiBearerAuth()
   @Post()

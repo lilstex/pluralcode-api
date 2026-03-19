@@ -119,6 +119,7 @@ export class EventService {
       }
 
       const jitsiRoomId = this.jitsi.generateRoomId();
+      const meetingUrl = this.jitsi.getMeetingUrl(jitsiRoomId);
 
       const event = await this.prisma.event.create({
         data: {
@@ -129,7 +130,7 @@ export class EventService {
           jitsiRoomId,
           capacity: dto.capacity ?? null,
           tags: dto.tags ?? [],
-          externalMeetingUrl: dto.externalMeetingUrl ?? null,
+          externalMeetingUrl: meetingUrl ?? null,
         },
         include: { _count: { select: { registrations: true } } },
       });
