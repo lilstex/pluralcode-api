@@ -52,7 +52,6 @@ function makeOrg(overrides: Record<string, any> = {}): any {
     numberOfStaff: null,
     numberOfVolunteers: null,
     annualBudget: null,
-    website: null,
     description: null,
     socials: [],
     otherLinks: [],
@@ -1069,7 +1068,6 @@ describe('Organizations Module — E2E', () => {
           lga: 'Ikeja',
           sectors: [],
           mission: null,
-          website: null,
         },
       };
       mockPrisma.organizationMember.findMany.mockResolvedValue([membership]);

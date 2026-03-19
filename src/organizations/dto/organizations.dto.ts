@@ -394,7 +394,6 @@ export class OrganizationResponseDto {
   @ApiProperty() lga: string;
   @ApiPropertyOptional() address?: string;
   @ApiPropertyOptional() logoUrl?: string;
-  @ApiPropertyOptional() website?: string;
   @ApiPropertyOptional() description?: string;
   @ApiPropertyOptional() mission?: string;
   @ApiPropertyOptional() vision?: string;
@@ -426,7 +425,6 @@ export class OrganizationSummaryResponseDto {
   @ApiPropertyOptional() mission?: string;
   @ApiPropertyOptional() numberOfStaff?: number;
   @ApiPropertyOptional() numberOfVolunteers?: number;
-  @ApiPropertyOptional() website?: string;
   @ApiProperty() createdAt: Date;
 }
 

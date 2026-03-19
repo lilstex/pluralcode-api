@@ -406,11 +406,6 @@ export class UpdateUserOrganizationDto {
   @IsOptional()
   otherLinks?: any[];
 
-  @ApiPropertyOptional({ example: 'https://savethechildren.org.ng' })
-  @IsOptional()
-  @IsString()
-  website?: string;
-
   @ApiPropertyOptional({ example: 'We work across Nigeria to...' })
   @IsOptional()
   @IsString()

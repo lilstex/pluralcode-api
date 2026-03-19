@@ -872,7 +872,6 @@ export class UserService {
           }),
           ...(dto.socials !== undefined && { socials: dto.socials }),
           ...(dto.otherLinks !== undefined && { otherLinks: dto.otherLinks }),
-          ...(dto.website !== undefined && { website: dto.website }),
           ...(dto.description !== undefined && {
             description: dto.description,
           }),
