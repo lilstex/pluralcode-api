@@ -210,6 +210,16 @@ export class MentorRequestService {
     const where: any = { ngoUserId };
     if (query.status) where.status = query.status;
 
+    // Filter by Search (Case-Insensitive) - ONLY searching the Mentor
+    if (query.search) {
+      where.mentor = {
+        OR: [
+          { fullName: { contains: query.search, mode: 'insensitive' } },
+          { email: { contains: query.search, mode: 'insensitive' } },
+        ],
+      };
+    }
+
     const [items, total] = await Promise.all([
       this.prisma.mentorRequest.findMany({
         where,
@@ -349,6 +359,27 @@ export class MentorRequestService {
     const { skip, take, page, limit } = this.paginate(query.page, query.limit);
     const where: any = { mentorId };
     if (query.status) where.status = query.status;
+
+    // Filter by Search (Case-Insensitive)
+    if (query.search) {
+      where.OR = [
+        // Search NGO User details (The Member)
+        {
+          ngoUser: {
+            OR: [
+              { fullName: { contains: query.search, mode: 'insensitive' } },
+              { email: { contains: query.search, mode: 'insensitive' } },
+            ],
+          },
+        },
+        // Search Request Details
+        { orgChallenges: { contains: query.search, mode: 'insensitive' } },
+        { background: { contains: query.search, mode: 'insensitive' } },
+
+        // Search in Array fields (Mentorship Areas)
+        { mentorshipAreas: { has: query.search } },
+      ];
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.mentorRequest.findMany({
@@ -505,6 +536,38 @@ export class MentorRequestService {
     const { skip, take, page, limit } = this.paginate(query.page, query.limit);
     const where: any = {};
     if (query.status) where.status = query.status;
+
+    // Filter by Search (Case-Insensitive)
+    if (query.search) {
+      where.OR = [
+        // Search in NGO User details (The Requester)
+        {
+          ngoUser: {
+            OR: [
+              { fullName: { contains: query.search, mode: 'insensitive' } },
+              { email: { contains: query.search, mode: 'insensitive' } },
+            ],
+          },
+        },
+        // Search in Mentor details (The Assigned Expert)
+        {
+          mentor: {
+            OR: [
+              { fullName: { contains: query.search, mode: 'insensitive' } },
+              { email: { contains: query.search, mode: 'insensitive' } },
+            ],
+          },
+        },
+        // Search in Request Text Fields
+        { orgChallenges: { contains: query.search, mode: 'insensitive' } },
+        { background: { contains: query.search, mode: 'insensitive' } },
+        { hoursPerWeek: { contains: query.search, mode: 'insensitive' } },
+
+        // Search in Array Fields
+        { mentorshipAreas: { hasSome: [query.search] } },
+        { commMethods: { hasSome: [query.search] } },
+      ];
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.mentorRequest.findMany({
