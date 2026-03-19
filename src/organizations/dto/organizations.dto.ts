@@ -106,15 +106,13 @@ export class UpdateOrganizationDto {
 
   @ApiPropertyOptional({
     description: 'Document links: [{ "plans": "url" }, { "report": "url" }]',
-    example: [{ report: 'https://stc.org/annual-report-2024.pdf' }],
+    example: [
+      { website: 'https://stc.org/annual-report-2024.pdf' },
+      { report: 'https://stc.org/annual-report-2024.pdf' },
+    ],
   })
   @IsOptional()
   otherLinks?: any[];
-
-  @ApiPropertyOptional({ example: 'https://savethechildren.org.ng' })
-  @IsOptional()
-  @IsString()
-  website?: string;
 
   @ApiPropertyOptional({
     example: 'We work across Nigeria to promote child welfare...',
