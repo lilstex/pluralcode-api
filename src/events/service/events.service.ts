@@ -940,7 +940,9 @@ export class EventService {
       }
 
       // Only registered users can get a token (unless they are admins)
-      const isAdmin = ['SUPER_ADMIN', 'EVENT_ADMIN'].includes(userRole);
+      const isAdmin = ['SUPER_ADMIN', 'EVENT_ADMIN', 'NGO_MEMBER'].includes(
+        userRole,
+      );
 
       if (!isAdmin) {
         const registration = await this.prisma.eventRegistration.findUnique({
