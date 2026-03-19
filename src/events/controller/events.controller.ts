@@ -56,7 +56,51 @@ export class EventController {
   constructor(private readonly eventService: EventService) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // PUBLIC / AUTHENTICATED — READ
+  // STATIC ROUTES — must precede :id wildcard
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('my/registrations')
+  @ApiOperation({
+    summary: 'Get all events the current user has registered for',
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async getMyRegistrations(
+    @CurrentUser() user: any,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.eventService.getMyRegistrations(user.id, { page, limit });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('my/created')
+  @ApiOperation({
+    summary: 'Get all events created by the current user (NGO, Expert, Admin)',
+    description:
+      'Returns events where createdById matches the authenticated user. Supports status filter.',
+  })
+  @ApiQuery({ name: 'status', enum: EventStatus, required: false })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async getMyCreatedEvents(
+    @CurrentUser() user: any,
+    @Query('status') status?: EventStatus,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.eventService.getMyCreatedEvents(user.id, {
+      status,
+      page,
+      limit,
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PUBLIC READ
   // ─────────────────────────────────────────────────────────────────────────────
 
   @Get()
@@ -112,22 +156,6 @@ export class EventController {
     return this.eventService.unregisterFromEvent(user.id, id);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @Get('my/registrations')
-  @ApiOperation({
-    summary: 'Get all events the current user has registered for',
-  })
-  @ApiQuery({ name: 'page', required: false })
-  @ApiQuery({ name: 'limit', required: false })
-  async getMyRegistrations(
-    @CurrentUser() user: any,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-  ) {
-    return this.eventService.getMyRegistrations(user.id, { page, limit });
-  }
-
   // ─────────────────────────────────────────────────────────────────────────────
   // AUTHENTICATED — JITSI TOKEN
   // ─────────────────────────────────────────────────────────────────────────────
@@ -138,8 +166,9 @@ export class EventController {
   @ApiOperation({
     summary: 'Get a Jitsi JWT token to join the event meeting room',
     description:
-      'Must be registered for the event (admins exempt). ' +
-      'Returns a signed JWT the frontend passes to the Jitsi IFrame API.',
+      'Must be registered for the event (admins and event creators are exempt). ' +
+      'Returns token, meetingUrl, and tokenizedUrl (meetingUrl + ?jwt=token). ' +
+      'The frontend should open tokenizedUrl — no username/password prompt.',
   })
   @ApiParam({ name: 'id', description: 'Event UUID' })
   @ApiResponse({ status: 200, type: JitsiTokenResponseDto })
@@ -159,8 +188,6 @@ export class EventController {
   @Get(':id/calendar')
   @ApiOperation({
     summary: 'Download ICS calendar file for a registered event',
-    description:
-      'Returns a .ics file compatible with Google Calendar, Outlook, and Apple Calendar.',
   })
   @ApiParam({ name: 'id', description: 'Event UUID' })
   async downloadCalendar(
@@ -169,11 +196,7 @@ export class EventController {
     @Res() res: Response,
   ) {
     const result = await this.eventService.getIcsFile(user.id, id);
-
-    if (!result.status) {
-      return res.status(result.statusCode).json(result);
-    }
-
+    if (!result.status) return res.status(result.statusCode).json(result);
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
@@ -183,59 +206,75 @@ export class EventController {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // ADMIN — CREATE / UPDATE / DELETE / COVER IMAGE
+  // CREATE — Admin + NGO_MEMBER + EXPERT
   // ─────────────────────────────────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN, Role.NGO_MEMBER)
+  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN, Role.NGO_MEMBER, Role.EXPERT)
   @Permissions(PERMISSIONS.EVENT_WRITE)
   @ApiBearerAuth()
   @Post()
-  @ApiOperation({ summary: 'Admin: Create a new event' })
+  @ApiOperation({
+    summary: 'Create a new event',
+    description:
+      'Available to SUPER_ADMIN, EVENT_ADMIN, NGO_MEMBER, and EXPERT. The creator automatically becomes the meeting moderator.',
+  })
   @ApiResponse({ status: 201, type: EventResponseDto })
-  async createEvent(@CurrentUser() admin: any, @Body() dto: CreateEventDto) {
-    return this.eventService.createEvent(admin.id, dto);
+  async createEvent(@CurrentUser() user: any, @Body() dto: CreateEventDto) {
+    return this.eventService.createEvent(user.id, dto);
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // UPDATE — owner or admin
+  // ─────────────────────────────────────────────────────────────────────────────
+
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN, Role.NGO_MEMBER, Role.EXPERT)
   @Permissions(PERMISSIONS.EVENT_WRITE)
   @ApiBearerAuth()
   @Patch(':id')
-  @ApiOperation({ summary: 'Admin: Update event details' })
+  @ApiOperation({
+    summary: 'Update event details',
+    description:
+      'Only the event creator, SUPER_ADMIN, or EVENT_ADMIN can update. Returns 403 for other users.',
+  })
   @ApiParam({ name: 'id', description: 'Event UUID' })
   async updateEvent(
-    @CurrentUser() admin: any,
+    @CurrentUser() user: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateEventDto,
   ) {
-    return this.eventService.updateEvent(admin.id, id, dto);
+    return this.eventService.updateEvent(user.id, user.role, id, dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN, Role.NGO_MEMBER, Role.EXPERT)
   @Permissions(PERMISSIONS.EVENT_WRITE)
   @ApiBearerAuth()
   @Patch(':id/cancel')
-  @ApiOperation({ summary: 'Admin: Cancel an event and notify all attendees' })
+  @ApiOperation({
+    summary: 'Cancel an event and notify all attendees',
+    description:
+      'Only the event creator, SUPER_ADMIN, or EVENT_ADMIN can cancel.',
+  })
   @ApiParam({ name: 'id', description: 'Event UUID' })
   async cancelEvent(
-    @CurrentUser() admin: any,
+    @CurrentUser() user: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CancelEventDto,
   ) {
-    return this.eventService.cancelEvent(admin.id, id, dto);
+    return this.eventService.cancelEvent(user.id, user.role, id, dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN, Role.NGO_MEMBER, Role.EXPERT)
   @Permissions(PERMISSIONS.EVENT_WRITE)
   @ApiBearerAuth()
   @Patch(':id/archive')
   @ApiOperation({
-    summary: 'Admin: Mark event as past and set archive URL',
+    summary: 'Mark event as past and optionally set archive recording URL',
     description:
-      'Sets isPast=true. Optionally attach an Azure Media Services recording URL.',
+      'Only the event creator, SUPER_ADMIN, or EVENT_ADMIN can archive.',
   })
   @ApiParam({ name: 'id', description: 'Event UUID' })
   @ApiBody({
@@ -250,20 +289,25 @@ export class EventController {
     },
   })
   async archiveEvent(
-    @CurrentUser() admin: any,
+    @CurrentUser() user: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body('archiveUrl') archiveUrl?: string,
   ) {
-    return this.eventService.markPastAndArchive(admin.id, id, archiveUrl);
+    return this.eventService.markPastAndArchive(
+      user.id,
+      user.role,
+      id,
+      archiveUrl,
+    );
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN, Role.NGO_MEMBER, Role.EXPERT)
   @Permissions(PERMISSIONS.EVENT_WRITE)
   @ApiBearerAuth()
   @Post(':id/cover')
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Admin: Upload event cover image' })
+  @ApiOperation({ summary: 'Upload event cover image (owner or admin)' })
   @ApiParam({ name: 'id', description: 'Event UUID' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -273,7 +317,7 @@ export class EventController {
     },
   })
   async uploadCover(
-    @CurrentUser() admin: any,
+    @CurrentUser() user: any,
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile(
       new ParseFilePipe({
@@ -285,21 +329,29 @@ export class EventController {
     )
     file: Express.Multer.File,
   ) {
-    return this.eventService.uploadCoverImage(admin.id, id, file);
+    return this.eventService.uploadCoverImage(user.id, user.role, id, file);
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // DELETE — owner or SUPER_ADMIN
+  // ─────────────────────────────────────────────────────────────────────────────
+
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN, Role.NGO_MEMBER, Role.EXPERT)
   @Permissions(PERMISSIONS.EVENT_DELETE)
   @ApiBearerAuth()
   @Delete(':id')
-  @ApiOperation({ summary: 'Super Admin: Permanently delete an event' })
+  @ApiOperation({
+    summary: 'Permanently delete an event',
+    description:
+      'Only the event creator or SUPER_ADMIN can delete. Returns 403 for others.',
+  })
   @ApiParam({ name: 'id', description: 'Event UUID' })
   async deleteEvent(
-    @CurrentUser() admin: any,
+    @CurrentUser() user: any,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.eventService.deleteEvent(admin.id, id);
+    return this.eventService.deleteEvent(user.id, user.role, id);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -307,12 +359,12 @@ export class EventController {
   // ─────────────────────────────────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN, Role.NGO_MEMBER, Role.EXPERT)
   @Permissions(PERMISSIONS.EVENT_MANAGE_ATTENDEES)
   @ApiBearerAuth()
   @Get(':id/attendees')
   @ApiOperation({
-    summary: 'Admin: List all registered attendees for an event',
+    summary: 'List all registered attendees for an event (owner or admin)',
   })
   @ApiParam({ name: 'id', description: 'Event UUID' })
   @ApiQuery({ name: 'page', required: false })

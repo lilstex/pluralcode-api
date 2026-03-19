@@ -102,6 +102,7 @@ model User {
   resourceCompletions ResourceCompletion[] @relation("ResourceCompletions")
 
   newsPosts NewsPost[] @relation("NewsAuthor")
+  eventsCreated Event[] @relation("EventCreator")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -466,15 +467,18 @@ model Event {
   description        String   @db.Text
   startTime          DateTime
   endTime            DateTime
-  coverImageUrl      String? // Azure Blob URL
+  coverImageUrl      String?
   jitsiRoomId        String   @unique
-  externalMeetingUrl String? // Overrides Jitsi if set (Zoom, Teams, etc.)
-  capacity           Int? // null = unlimited
-  tags               String[] // Thematic tags for discovery
+  externalMeetingUrl String?
+  capacity           Int?
+  tags               String[]
   isPast             Boolean  @default(false)
   isCancelled        Boolean  @default(false)
   cancellationReason String?
-  archiveUrl         String? // Azure Media Services recording URL
+  archiveUrl         String?
+
+  createdById String
+  createdBy   User   @relation("EventCreator", fields: [createdById], references: [id])
 
   registrations EventRegistration[]
 
@@ -484,6 +488,7 @@ model Event {
   @@index([startTime])
   @@index([isPast])
   @@index([isCancelled])
+  @@index([createdById])
 }
 
 model EventRegistration {
