@@ -16,6 +16,7 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -26,6 +27,7 @@ import {
   ApiParam,
   ApiConsumes,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 
@@ -47,6 +49,7 @@ import {
   GeneralAnalyticsDto,
   CommunityAnalyticsDto,
   AllTopicResponseDto,
+  TopicFilter,
 } from '../dto/community.dto';
 import { CommunityService } from '../service/community.service';
 
@@ -54,6 +57,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { OptionalJwtGuard } from 'src/common/guards/optional-jwt.guard';
 
 const IMAGE_PIPE = new ParseFilePipe({
   validators: [
@@ -108,11 +112,19 @@ export class CommunityController {
   // COMMUNITY CRUD
   // ─────────────────────────────────────────────────────────────────────────────
 
+  @UseGuards(OptionalJwtGuard)
+  @ApiBearerAuth()
   @Get()
-  @ApiOperation({ summary: 'List all active communities (paginated)' })
+  @ApiOperation({
+    summary: 'List all active communities (paginated)',
+    description:
+      'Public endpoint. When an auth token is provided, each community includes ' +
+      'a `joined` flag indicating whether the authenticated user is a member.',
+  })
   @ApiResponse({ status: 200, type: CommunityResponseDto, isArray: true })
-  listCommunities(@Query() query: CommunityQueryDto) {
-    return this.communityService.listCommunities(query);
+  listCommunities(@Query() query: CommunityQueryDto, @Req() req: Request) {
+    const userId = (req as any).user?.id;
+    return this.communityService.listCommunities(query, userId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -123,6 +135,28 @@ export class CommunityController {
   @ApiResponse({ status: 201, type: CommunityResponseDto })
   createCommunity(@CurrentUser() user: any, @Body() dto: CreateCommunityDto) {
     return this.communityService.createCommunity(user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.CONTENT_ADMIN)
+  @ApiBearerAuth()
+  @Get('admin/reports')
+  @ApiOperation({
+    summary: 'Admin: List all reported topics (paginated)',
+    description:
+      'Returns every report with its associated topic and reporter. ' +
+      'Supports search across topic title, topic body, and reporter name. ' +
+      'Accessible by SUPER_ADMIN and CONTENT_ADMIN.',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search across topic title, topic body, or reporter name',
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  listReportedTopics(@Query() query: CommunityQueryDto) {
+    return this.communityService.listReportedTopics(query);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -192,6 +226,28 @@ export class CommunityController {
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @Get(':communityId/members/search')
+  @ApiParam({ name: 'communityId', description: 'Community UUID' })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    description: 'Search by member name (min 1 character)',
+  })
+  @ApiOperation({
+    summary: 'Typeahead search for members in a community',
+    description:
+      'Returns up to 10 members whose name matches the query string. ' +
+      'Designed for @mention autocomplete — call when user types @ followed by at least one character.',
+  })
+  searchMembers(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Query('q') q: string,
+  ) {
+    return this.communityService.searchMembers(communityId, q);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Post(':communityId/subscribe')
   @ApiParam({ name: 'communityId', description: 'Community UUID' })
   @ApiOperation({ summary: 'Subscribe (join) a community' })
@@ -246,6 +302,12 @@ export class CommunityController {
     description:
       'Fetches topics from all communities with community details included.',
   })
+  @ApiQuery({
+    name: 'filter',
+    enum: TopicFilter,
+    required: false,
+    description: 'NEW (default) | RECENT | TRENDING',
+  })
   @ApiResponse({ status: 200, type: AllTopicResponseDto, isArray: true })
   listAllTopics(@Query() query: TopicQueryDto) {
     return this.communityService.listAllTopicsGlobal(query);
@@ -257,6 +319,12 @@ export class CommunityController {
   @ApiParam({ name: 'communityId', description: 'Community UUID' })
   @ApiOperation({
     summary: 'List non-blocked topics in a community (paginated)',
+  })
+  @ApiQuery({
+    name: 'filter',
+    enum: TopicFilter,
+    required: false,
+    description: 'NEW (default) | RECENT | TRENDING',
   })
   @ApiResponse({ status: 200, type: TopicResponseDto, isArray: true })
   listTopics(
@@ -437,7 +505,8 @@ export class CommunityController {
   @ApiOperation({
     summary: 'Add a comment or reply to a topic (member only)',
     description:
-      'Include parentId to reply to an existing comment. Supports @mentions.',
+      'Include parentId to reply to an existing comment. ' +
+      'Pass mentionedUserIds (from the @mention typeahead) to tag other members.',
   })
   createComment(
     @CurrentUser() user: any,
@@ -460,7 +529,10 @@ export class CommunityController {
   @ApiParam({ name: 'topicId', description: 'Topic UUID' })
   @ApiParam({ name: 'commentId', description: 'Comment UUID' })
   @ApiOperation({
-    summary: 'Edit own comment (author only). Re-parses @mentions.',
+    summary: 'Edit own comment (author only)',
+    description:
+      'Updates the comment body and re-applies mentions from mentionedUserIds. ' +
+      'Previous mentions for this comment are replaced entirely.',
   })
   updateComment(
     @CurrentUser() user: any,

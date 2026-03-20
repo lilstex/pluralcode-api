@@ -5,7 +5,15 @@ import {
   IsOptional,
   IsBoolean,
   IsUUID,
+  IsEnum,
+  IsArray,
 } from 'class-validator';
+
+export enum TopicFilter {
+  NEW = 'NEW',
+  RECENT = 'RECENT',
+  TRENDING = 'TRENDING',
+}
 
 // ─────────────────────────────────────────────
 // COMMUNITY
@@ -109,6 +117,15 @@ export class TopicQueryDto {
   @IsString()
   search?: string;
 
+  @ApiPropertyOptional({
+    enum: TopicFilter,
+    description:
+      'NEW = most recently created | RECENT = latest activity (updatedAt) | TRENDING = most liked in last 7 days',
+  })
+  @IsOptional()
+  @IsEnum(TopicFilter)
+  filter?: TopicFilter;
+
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
   page?: number;
@@ -123,9 +140,7 @@ export class TopicQueryDto {
 // ─────────────────────────────────────────────
 
 export class CreateCommentDto {
-  @ApiProperty({
-    example: 'Great point! @JohnDoe made a similar argument last week.',
-  })
+  @ApiProperty({ example: 'Great point! What do you think?' })
   @IsNotEmpty()
   @IsString()
   body: string;
@@ -136,6 +151,17 @@ export class CreateCommentDto {
   @IsOptional()
   @IsUUID()
   parentId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'UUIDs of users mentioned in this comment (from the @mention typeahead)',
+    type: [String],
+    example: ['uuid-1', 'uuid-2'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  mentionedUserIds?: string[];
 }
 
 export class UpdateCommentDto {
@@ -143,6 +169,16 @@ export class UpdateCommentDto {
   @IsNotEmpty()
   @IsString()
   body: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Updated list of mentioned user UUIDs. Replaces previous mentions.',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  mentionedUserIds?: string[];
 }
 
 // ─────────────────────────────────────────────

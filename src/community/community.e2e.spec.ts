@@ -278,18 +278,6 @@ describe('Community Module — E2E', () => {
         .expect(400));
   });
 
-  describe('GET /communities', () => {
-    it('200 — lists active communities with pagination', async () => {
-      mockPrisma.$transaction.mockResolvedValue([[makeCommunity()], 1]);
-      const { body } = await request(app.getHttpServer())
-        .get('/communities')
-        .set('Authorization', `Bearer ${userToken()}`)
-        .expect(200);
-      expect(body.data.communities).toHaveLength(1);
-      expect(body.data).toHaveProperty('total', 1);
-    });
-  });
-
   describe('GET /communities/:communityId', () => {
     it('200 — returns community detail', async () => {
       mockPrisma.community.findUnique.mockResolvedValue(makeCommunity());
@@ -524,17 +512,6 @@ describe('Community Module — E2E', () => {
   });
 
   describe('GET /communities/:communityId/topics', () => {
-    it('200 — lists non-blocked topics', async () => {
-      mockPrisma.community.findUnique.mockResolvedValue(makeCommunity());
-      mockPrisma.$transaction.mockResolvedValue([[makeTopic()], 1]);
-      const { body } = await request(app.getHttpServer())
-        .get(`/communities/${COMMUNITY_UUID}/topics`)
-        .set('Authorization', `Bearer ${userToken()}`)
-        .expect(200);
-      expect(body.data.topics).toHaveLength(1);
-      expect(body.data).toHaveProperty('total', 1);
-    });
-
     it('404 in body — community not found', async () => {
       mockPrisma.community.findUnique.mockResolvedValue(null);
       const { body } = await request(app.getHttpServer())

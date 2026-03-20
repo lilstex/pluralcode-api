@@ -11,6 +11,7 @@ import {
   TopicQueryDto,
   CreateCommentDto,
   UpdateCommentDto,
+  TopicFilter,
 } from '../dto/community.dto';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
 
@@ -48,16 +49,6 @@ const TOPIC_INCLUDE = {
 // MENTION PARSER
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Extracts @mention tokens from a body string.
- * Matches words immediately following '@', e.g. "@JaneDoe" → "JaneDoe".
- * Returns a de-duplicated array of raw handle strings.
- */
-function extractMentionHandles(body: string): string[] {
-  const matches = body.match(/@([\w.]+)/g) ?? [];
-  return [...new Set(matches.map((m) => m.slice(1)))];
-}
-
 @Injectable()
 export class CommunityService {
   private readonly logger = new Logger(CommunityService.name);
@@ -70,41 +61,6 @@ export class CommunityService {
   // ─────────────────────────────────────────────────────────────────────────────
   // HELPERS
   // ─────────────────────────────────────────────────────────────────────────────
-
-  private async resolveMentions(body: string): Promise<string[]> {
-    const handles = extractMentionHandles(body);
-    if (!handles.length) return [];
-
-    // Match handles against fullName (spaces stripped, case-insensitive)
-    const users = await this.prisma.user.findMany({
-      where: {
-        OR: handles.map((h) => ({
-          fullName: {
-            equals: h.replace(/\./g, ' '),
-            mode: 'insensitive' as const,
-          },
-        })),
-      },
-      select: { id: true },
-    });
-
-    return users.map((u) => u.id);
-  }
-
-  private async saveMentions(
-    userIds: string[],
-    ref: { topicId?: string; commentId?: string },
-  ) {
-    if (!userIds.length) return;
-    await this.prisma.communityMention.createMany({
-      data: userIds.map((mentionedUserId) => ({
-        mentionedUserId,
-        topicId: ref.topicId ?? null,
-        commentId: ref.commentId ?? null,
-      })),
-      skipDuplicates: true,
-    });
-  }
 
   private async isMember(
     userId: string,
@@ -131,6 +87,18 @@ export class CommunityService {
       Math.max(1, parseInt(String(limit ?? '20'), 10) || 20),
     );
     return { page: p, limit: l, skip: (p - 1) * l };
+  }
+
+  private resolveTopicOrderBy(filter?: TopicFilter): any {
+    switch (filter) {
+      case TopicFilter.RECENT:
+        return { updatedAt: 'desc' };
+      case TopicFilter.TRENDING:
+        return [{ likeCount: 'desc' }, { updatedAt: 'desc' }];
+      case TopicFilter.NEW:
+      default:
+        return { createdAt: 'desc' };
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -175,7 +143,7 @@ export class CommunityService {
     }
   }
 
-  async listCommunities(query: CommunityQueryDto) {
+  async listCommunities(query: CommunityQueryDto, userId?: string) {
     try {
       const { page, limit, skip } = this.safePaginate(query.page, query.limit);
       const where: any = { isActive: true };
@@ -196,12 +164,28 @@ export class CommunityService {
         this.prisma.community.count({ where }),
       ]);
 
+      // For authenticated users — resolve which communities they've joined
+      // in a single batch query rather than N per-community checks
+      let joinedSet = new Set<string>();
+
+      if (userId && communities.length > 0) {
+        const communityIds = communities.map((c) => c.id);
+        const memberships = await this.prisma.communityMembership.findMany({
+          where: { userId, communityId: { in: communityIds } },
+          select: { communityId: true },
+        });
+        joinedSet = new Set(memberships.map((m) => m.communityId));
+      }
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Communities retrieved.',
         data: {
-          communities: communities.map((c) => this.formatCommunity(c)),
+          communities: communities.map((c) => ({
+            ...this.formatCommunity(c),
+            ...(userId !== undefined && { joined: joinedSet.has(c.id) }),
+          })),
           total,
           page,
           limit,
@@ -386,6 +370,49 @@ export class CommunityService {
   // MEMBERSHIP
   // ─────────────────────────────────────────────────────────────────────────────
 
+  async searchMembers(communityId: string, q: string) {
+    try {
+      // Return empty immediately if no query — frontend should only call after @+char
+      if (!q || q.trim().length === 0) {
+        return {
+          status: true,
+          statusCode: HttpStatus.OK,
+          message: 'Members retrieved.',
+          data: [],
+        };
+      }
+
+      const memberships = await this.prisma.communityMembership.findMany({
+        where: {
+          communityId,
+          user: {
+            fullName: { contains: q.trim(), mode: 'insensitive' },
+            status: 'APPROVED',
+          },
+        },
+        take: 10,
+        orderBy: { user: { fullName: 'asc' } },
+        select: {
+          user: { select: AUTHOR_SELECT },
+        },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Members retrieved.',
+        data: memberships.map((m) => m.user),
+      };
+    } catch (err) {
+      this.logger.error('searchMembers error', err);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
   async subscribe(userId: string, communityId: string) {
     try {
       const community = await this.prisma.community.findUnique({
@@ -504,8 +531,14 @@ export class CommunityService {
     try {
       const { page, limit, skip } = this.safePaginate(query.page, query.limit);
 
-      // We only want non-blocked topics
       const where: any = { isBlocked: false };
+
+      // TRENDING: restrict to last 7 days so old viral topics don't dominate
+      if (query.filter === TopicFilter.TRENDING) {
+        where.createdAt = {
+          gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        };
+      }
 
       if (query.search) {
         where.OR = [
@@ -519,15 +552,11 @@ export class CommunityService {
           where,
           skip,
           take: limit,
-          orderBy: { createdAt: 'desc' },
+          orderBy: this.resolveTopicOrderBy(query.filter),
           include: {
             ...TOPIC_INCLUDE,
             community: {
-              select: {
-                id: true,
-                name: true,
-                imageUrl: true,
-              },
+              select: { id: true, name: true, imageUrl: true },
             },
           },
         }),
@@ -582,13 +611,6 @@ export class CommunityService {
         include: TOPIC_INCLUDE,
       });
 
-      // Parse and save @mentions
-      const mentionedIds = await this.resolveMentions(dto.body);
-      await this.saveMentions(
-        mentionedIds.filter((id) => id !== userId),
-        { topicId: topic.id },
-      );
-
       return {
         status: true,
         statusCode: HttpStatus.CREATED,
@@ -619,6 +641,14 @@ export class CommunityService {
 
       const { page, limit, skip } = this.safePaginate(query.page, query.limit);
       const where: any = { communityId, isBlocked: false };
+
+      // TRENDING: restrict to last 7 days
+      if (query.filter === TopicFilter.TRENDING) {
+        where.createdAt = {
+          gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        };
+      }
+
       if (query.search) {
         where.OR = [
           { title: { contains: query.search, mode: 'insensitive' } },
@@ -631,7 +661,7 @@ export class CommunityService {
           where,
           skip,
           take: limit,
-          orderBy: { createdAt: 'desc' },
+          orderBy: this.resolveTopicOrderBy(query.filter),
           include: TOPIC_INCLUDE,
         }),
         this.prisma.communityTopic.count({ where }),
@@ -737,16 +767,6 @@ export class CommunityService {
         include: TOPIC_INCLUDE,
       });
 
-      // Re-parse mentions if body changed
-      if (dto.body) {
-        await this.prisma.communityMention.deleteMany({ where: { topicId } });
-        const mentionedIds = await this.resolveMentions(dto.body);
-        await this.saveMentions(
-          mentionedIds.filter((id) => id !== userId),
-          { topicId },
-        );
-      }
-
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -851,6 +871,84 @@ export class CommunityService {
       };
     } catch (err) {
       this.logger.error('reportTopic error', err);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async listReportedTopics(query: CommunityQueryDto) {
+    try {
+      const { page, limit, skip } = this.safePaginate(query.page, query.limit);
+
+      const where: any = {};
+
+      if (query.search) {
+        where.OR = [
+          { topic: { title: { contains: query.search, mode: 'insensitive' } } },
+          { topic: { body: { contains: query.search, mode: 'insensitive' } } },
+          {
+            reportedBy: {
+              fullName: { contains: query.search, mode: 'insensitive' },
+            },
+          },
+        ];
+      }
+
+      const [reports, total] = await this.prisma.$transaction([
+        this.prisma.communityReport.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            topic: {
+              select: {
+                id: true,
+                title: true,
+                body: true,
+                isBlocked: true,
+                communityId: true,
+                authorId: true,
+                author: { select: AUTHOR_SELECT },
+                createdAt: true,
+              },
+            },
+            reportedBy: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        }),
+        this.prisma.communityReport.count({ where }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Reported topics retrieved.',
+        data: {
+          reports: reports.map((r) => ({
+            id: r.id,
+            reason: r.reason,
+            createdAt: r.createdAt,
+            topic: r.topic,
+            reportedBy: r.reportedBy,
+          })),
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (err) {
+      this.logger.error('listReportedTopics error', err);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -1079,12 +1177,19 @@ export class CommunityService {
         },
       });
 
-      // Parse @mentions
-      const mentionedIds = await this.resolveMentions(dto.body);
-      await this.saveMentions(
-        mentionedIds.filter((id) => id !== userId),
-        { commentId: comment.id },
+      // Create mention records from explicit IDs — skip the author themselves
+      const toMention = (dto.mentionedUserIds ?? []).filter(
+        (id) => id !== userId,
       );
+      if (toMention.length > 0) {
+        await this.prisma.communityMention.createMany({
+          data: toMention.map((mentionedUserId) => ({
+            mentionedUserId,
+            commentId: comment.id,
+          })),
+          skipDuplicates: true,
+        });
+      }
 
       return {
         status: true,
@@ -1140,13 +1245,21 @@ export class CommunityService {
         },
       });
 
-      // Re-parse mentions
+      // Replace all previous mentions for this comment with the new list
       await this.prisma.communityMention.deleteMany({ where: { commentId } });
-      const mentionedIds = await this.resolveMentions(dto.body);
-      await this.saveMentions(
-        mentionedIds.filter((id) => id !== userId),
-        { commentId },
+
+      const toMention = (dto.mentionedUserIds ?? []).filter(
+        (id) => id !== userId,
       );
+      if (toMention.length > 0) {
+        await this.prisma.communityMention.createMany({
+          data: toMention.map((mentionedUserId) => ({
+            mentionedUserId,
+            commentId,
+          })),
+          skipDuplicates: true,
+        });
+      }
 
       return {
         status: true,
