@@ -12,6 +12,7 @@ import {
   CreateBadgeDto,
 } from '../dto/resources.dto';
 import { OcrService } from './ocr.service';
+import { RewardsService } from 'src/reward/service/reward.service';
 
 const EXTRACTABLE_MIMETYPES = new Set([
   'application/pdf',
@@ -28,6 +29,7 @@ export class ResourceService {
     private readonly prisma: PrismaService,
     private readonly azureBlob: AzureBlobService,
     private readonly ocr: OcrService,
+    private readonly rewards: RewardsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -848,7 +850,7 @@ export class ResourceService {
         };
       }
 
-      // Already completed — idempotent guard
+      // Idempotent guard — already completed
       const existing = await this.prisma.resourceCompletion.findUnique({
         where: { userId_resourceId: { userId, resourceId } },
       });
@@ -861,52 +863,32 @@ export class ResourceService {
         };
       }
 
-      // Fetch user to check existing badges
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        include: { badges: { select: { id: true } } },
+      // Record the completion first (the ResourceCompletion table is separate from Achievement)
+      await this.prisma.resourceCompletion.create({
+        data: { userId, resourceId, pointsEarned: resource.points },
       });
-      if (!user) {
-        return {
-          status: false,
-          statusCode: HttpStatus.NOT_FOUND,
-          message: 'User not found.',
-        };
-      }
+
+      // Award points + specific badge + Achievement record via RewardsService.
+      // The badge and points to award are configured on the resource itself (spec).
+      const rewardResult = await this.rewards.award({
+        userId,
+        points: resource.points,
+        title: `Resource Completed: ${resource.title}`,
+        description: `Awarded for completing the resource "${resource.title}".`,
+        badgeId: resource.badge?.id,
+      });
 
       const newBadges: string[] = [];
-      const updateData: any = {};
-
-      if (resource.points > 0) {
-        updateData.pointsCount = { increment: resource.points };
+      if (rewardResult?.badgeAwarded && resource.badge) {
+        newBadges.push(resource.badge.name);
       }
-
-      if (resource.badge) {
-        const alreadyHas = user.badges.some((b) => b.id === resource.badge!.id);
-        if (!alreadyHas) {
-          updateData.badges = { connect: { id: resource.badge.id } };
-          newBadges.push(resource.badge.name);
-        }
-      }
-
-      // Create completion record + update user in a transaction
-      const [completion, updatedUser] = await this.prisma.$transaction([
-        this.prisma.resourceCompletion.create({
-          data: { userId, resourceId, pointsEarned: resource.points },
-        }),
-        this.prisma.user.update({
-          where: { id: userId },
-          data: Object.keys(updateData).length > 0 ? updateData : {},
-          select: { pointsCount: true },
-        }),
-      ]);
 
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Resource marked as complete.',
         pointsEarned: resource.points,
-        totalPoints: updatedUser.pointsCount,
+        totalPoints: rewardResult?.totalPoints ?? 0,
         newBadges,
       };
     } catch (error) {

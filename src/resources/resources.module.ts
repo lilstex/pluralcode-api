@@ -5,9 +5,10 @@ import { BadgeService } from './service/badge.service';
 import { OcrService } from './service/ocr.service';
 import { ResourceController } from './controller/resources.controller';
 import { ResourceService } from './service/resources.service';
+import { RewardsModule } from 'src/reward/reward.module';
 
 @Module({
-  imports: [AzureModule],
+  imports: [AzureModule, RewardsModule],
   controllers: [ResourceController],
   providers: [ResourceService, PrismaService, BadgeService, OcrService],
   exports: [ResourceService, BadgeService, OcrService],

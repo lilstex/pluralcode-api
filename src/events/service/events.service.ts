@@ -172,7 +172,7 @@ export class EventService {
   // LIST & GET
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async listEvents(query: EventQueryDto) {
+  async listEvents(query: EventQueryDto, userId?: string) {
     try {
       const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
       const limit = Math.min(
@@ -227,12 +227,41 @@ export class EventService {
         this.prisma.event.count({ where }),
       ]);
 
+      // For authenticated users — resolve which events they've registered for
+      // and which ones they own, in a single batch query each
+      let registeredSet = new Set<string>();
+      let ownedSet = new Set<string>();
+
+      if (userId && events.length > 0) {
+        const eventIds = events.map((e) => e.id);
+
+        const [registrations] = await Promise.all([
+          this.prisma.eventRegistration.findMany({
+            where: { userId, eventId: { in: eventIds } },
+            select: { eventId: true },
+          }),
+        ]);
+
+        registeredSet = new Set(registrations.map((r) => r.eventId));
+        ownedSet = new Set(
+          events.filter((e) => e.createdById === userId).map((e) => e.id),
+        );
+      }
+
+      const formatted = events.map((e) => ({
+        ...this.buildEventResponse(e, this.jitsi),
+        ...(userId !== undefined && {
+          isRegistered: registeredSet.has(e.id),
+          isOwned: ownedSet.has(e.id),
+        }),
+      }));
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Events retrieved.',
         data: {
-          events: events.map((e) => this.buildEventResponse(e, this.jitsi)),
+          events: formatted,
           total,
           page,
           limit,

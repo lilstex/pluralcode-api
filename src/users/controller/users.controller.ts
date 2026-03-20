@@ -222,7 +222,7 @@ export class UserController {
     summary: 'Create or update your expert profile (EXPERT role only)',
     description:
       'All fields are optional — only provided fields are updated. ' +
-      'Call this after registration to fill in the full expert profile.',
+      'Returns profileCompletion % and a reward object when the profile first reaches ≥80% completion.',
   })
   async upsertExpertProfile(
     @CurrentUser() user: any,
@@ -233,6 +233,7 @@ export class UserController {
 
   // ─────────────────────────────────────────────────────────────────────────────
   // PUBLIC — EXPERTS DIRECTORY
+  // Static routes must come before /:userId wildcard
   // ─────────────────────────────────────────────────────────────────────────────
 
   @Get('experts')
@@ -258,10 +259,23 @@ export class UserController {
     return this.userService.listExperts({ search, expertise, page, limit });
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.EXPERT)
+  @ApiBearerAuth()
+  @Get('experts/dashboard')
+  @ApiOperation({
+    summary: 'Expert dashboard analytics (EXPERT only)',
+    description:
+      'Returns profile completion %, total mentorship requests, pending requests, and completed sessions.',
+  })
+  async getExpertDashboard(@CurrentUser() user: any) {
+    return this.userService.getExpertDashboard(user.id);
+  }
+
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('experts/drop-down')
-  @ApiOperation({ summary: 'Lists experts in a dropdown' })
+  @ApiOperation({ summary: 'List approved experts for a dropdown' })
   async dropDownListExperts() {
     return this.userService.dropDownListExperts();
   }
@@ -339,7 +353,7 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('guests')
-  @ApiOperation({ summary: 'Drop down list of all guest users' })
+  @ApiOperation({ summary: 'Dropdown list of all approved guest users' })
   async guestUsersList() {
     return this.userService.guestUsersList();
   }
@@ -460,7 +474,7 @@ export class UserController {
         permissions: {
           type: 'array',
           items: { type: 'string' },
-          example: ['event:read', 'event:write', 'user:read'],
+          example: ['event:read', 'event:write'],
         },
       },
     },

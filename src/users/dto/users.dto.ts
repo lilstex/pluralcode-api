@@ -306,7 +306,6 @@ export class UpsertExpertProfileDto {
   @IsOptional()
   otherLinks?: any[];
 }
-
 // ─────────────────────────────────────────────
 // ORGANIZATION DTOs
 // ─────────────────────────────────────────────

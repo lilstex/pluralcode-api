@@ -22,13 +22,49 @@ import {
   generateSecureToken,
   otpExpiresAt,
 } from 'src/util/helper';
+import { RewardsService } from 'src/reward/service/reward.service';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROFILE COMPLETION HELPER
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ORG_SCALAR_FIELDS = [
+  'name',
+  'acronym',
+  'phoneNumber',
+  'publicEmail',
+  'state',
+  'lga',
+  'address',
+  'description',
+  'logoUrl',
+  'mission',
+  'vision',
+  'numberOfStaff',
+  'numberOfVolunteers',
+  'annualBudget',
+] as const;
+
+function calcOrgCompletion(org: any): number {
+  const totalFields = ORG_SCALAR_FIELDS.length + 2; // +sectors +socials
+  const filled =
+    ORG_SCALAR_FIELDS.filter((k) => {
+      const v = org[k];
+      return v !== null && v !== undefined && v !== '';
+    }).length +
+    (Array.isArray(org.sectors) && org.sectors.length > 0 ? 1 : 0) +
+    (Array.isArray(org.socials) && (org.socials as any[]).length > 0 ? 1 : 0);
+  return Math.round((filled / totalFields) * 100);
+}
+
+const ORG_COMPLETE_THRESHOLD = 80;
+const ORG_COMPLETE_TITLE = 'Organization Profile Completed';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED INCLUDE / SELECT CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Full include used for single-org responses.
-// Avoid top-level "as const" — Prisma orderBy expects mutable arrays.
 const ORG_FULL_INCLUDE = {
   activities: { orderBy: { when: 'desc' as const } },
   donors: { orderBy: { createdAt: 'desc' as const } },
@@ -100,6 +136,7 @@ export class OrganizationService {
     private readonly azureBlob: AzureBlobService,
     private readonly emailService: EmailService,
     private readonly config: ConfigService,
+    private readonly rewards: RewardsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -128,7 +165,7 @@ export class OrganizationService {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Organization retrieved.',
-        data: org,
+        data: { ...org, profileCompletion: calcOrgCompletion(org) },
       };
     } catch (error) {
       this.logger.error('getMyOrganization error', error);
@@ -162,7 +199,7 @@ export class OrganizationService {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Organization retrieved.',
-        data: org,
+        data: { ...org, profileCompletion: calcOrgCompletion(org) },
       };
     } catch (error) {
       this.logger.error('getOrganizationById error', error);
@@ -285,11 +322,37 @@ export class OrganizationService {
         include: ORG_FULL_INCLUDE,
       });
 
+      const completion = calcOrgCompletion(updated);
+      let rewardResult: any = undefined;
+
+      if (completion >= ORG_COMPLETE_THRESHOLD) {
+        const alreadyAwarded = await this.rewards.hasAchievement(
+          userId,
+          ORG_COMPLETE_TITLE,
+        );
+        if (!alreadyAwarded) {
+          rewardResult = await this.rewards.award({
+            userId,
+            points: 10,
+            title: ORG_COMPLETE_TITLE,
+            description: 'Awarded for completing your organization profile.',
+            useFirstBadge: true,
+          });
+        }
+      }
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Organization updated.',
-        data: updated,
+        data: { ...updated, profileCompletion: completion },
+        ...(rewardResult && {
+          reward: {
+            pointsEarned: rewardResult.pointsEarned,
+            totalPoints: rewardResult.totalPoints,
+            badgeAwarded: rewardResult.badgeAwarded,
+          },
+        }),
       };
     } catch (error) {
       this.logger.error('updateMyOrganization error', error);
@@ -300,10 +363,6 @@ export class OrganizationService {
       };
     }
   }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // CORE — UPDATE (admin)
-  // ─────────────────────────────────────────────────────────────────────────────
 
   async updateOrganizationByAdmin(
     adminId: string,

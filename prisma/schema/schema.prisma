@@ -103,6 +103,7 @@ model User {
 
   newsPosts NewsPost[] @relation("NewsAuthor")
   eventsCreated Event[] @relation("EventCreator")
+  achievements Achievement[] @relation("UserAchievements")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -365,6 +366,7 @@ model Badge {
 
   users     User[]
   resources Resource[]
+  achievements Achievement[] @relation("AchievementBadge")
 
   createdAt DateTime @default(now())
 }
@@ -788,4 +790,24 @@ model SpotlightHistory {
 
   @@index([orgId])
   @@index([startAt])
+}
+
+// ACHIEVEMENTS
+
+model Achievement {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation("UserAchievements", fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String   @db.Text
+  points      Int      @default(0)
+
+  badgeId     String?
+  badge       Badge?   @relation("AchievementBadge", fields: [badgeId], references: [id], onDelete: SetNull)
+
+  earnedAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([earnedAt])
 }

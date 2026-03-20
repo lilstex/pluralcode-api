@@ -11,6 +11,7 @@ import { EventController } from 'src/events/controller/events.controller';
 import { EventService } from 'src/events/service/events.service';
 import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { OptionalJwtGuard } from 'src/common/guards/optional-jwt.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { PrismaService } from 'src/prisma.service';
@@ -236,6 +237,7 @@ describe('Events Module — E2E', () => {
         JwtAuthGuard,
         RolesGuard,
         PermissionsGuard,
+        OptionalJwtGuard,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EmailService, useValue: mockEmail },
         { provide: AzureBlobService, useValue: mockAzure },
@@ -274,6 +276,9 @@ describe('Events Module — E2E', () => {
     mockJitsi.getMeetingUrl.mockReturnValue(
       'https://meet.jit.si/plrcap-abc123-def456',
     );
+    mockEmail.sendEventRegistrationConfirmation.mockResolvedValue(undefined);
+    mockEmail.sendEventUpdateNotification.mockResolvedValue(undefined);
+    mockEmail.sendEventCancellationNotification.mockResolvedValue(undefined);
 
     mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
       if (where?.id === ADMIN_UUID) return Promise.resolve(makeAdminUser());
@@ -394,6 +399,62 @@ describe('Events Module — E2E', () => {
         limit: 10,
         pages: 5,
       });
+    });
+
+    it('200 — unauthenticated: isRegistered and isOwned flags absent', async () => {
+      const { body } = await request(app.getHttpServer())
+        .get('/events')
+        .expect(200);
+      expect(body.data.events[0].isRegistered).toBeUndefined();
+      expect(body.data.events[0].isOwned).toBeUndefined();
+    });
+
+    it('200 — authenticated, registered for event: isRegistered=true', async () => {
+      mockPrisma.eventRegistration.findMany.mockResolvedValue([
+        { eventId: EVENT_UUID },
+      ]);
+      const { body } = await request(app.getHttpServer())
+        .get('/events')
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(body.data.events[0].isRegistered).toBe(true);
+      expect(body.data.events[0].isOwned).toBe(false);
+    });
+
+    it('200 — authenticated, not registered: isRegistered=false', async () => {
+      mockPrisma.eventRegistration.findMany.mockResolvedValue([]);
+      const { body } = await request(app.getHttpServer())
+        .get('/events')
+        .set('Authorization', `Bearer ${userToken()}`)
+        .expect(200);
+      expect(body.data.events[0].isRegistered).toBe(false);
+    });
+
+    it('200 — authenticated, event creator: isOwned=true', async () => {
+      mockPrisma.event.findMany.mockResolvedValue([
+        makeEvent({ createdById: NGO_UUID }),
+      ]);
+      mockPrisma.eventRegistration.findMany.mockResolvedValue([]);
+      const { body } = await request(app.getHttpServer())
+        .get('/events')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+      expect(body.data.events[0].isOwned).toBe(true);
+    });
+
+    it('200 — authenticated, registered AND owns event: both flags true', async () => {
+      mockPrisma.event.findMany.mockResolvedValue([
+        makeEvent({ createdById: NGO_UUID }),
+      ]);
+      mockPrisma.eventRegistration.findMany.mockResolvedValue([
+        { eventId: EVENT_UUID },
+      ]);
+      const { body } = await request(app.getHttpServer())
+        .get('/events')
+        .set('Authorization', `Bearer ${ngoToken()}`)
+        .expect(200);
+      expect(body.data.events[0].isRegistered).toBe(true);
+      expect(body.data.events[0].isOwned).toBe(true);
     });
   });
 

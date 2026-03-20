@@ -10,6 +10,7 @@ import { OdaModule } from './oda/oda.module';
 import { DevPlanModule } from './dev-plan/dev-plan.module';
 import { CommunityModule } from './community/community.module';
 import { SpotlightModule } from './spotlight/spotlight.module';
+import { AchievementsModule } from './achievements/achievements.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { SpotlightModule } from './spotlight/spotlight.module';
     DevPlanModule,
     CommunityModule,
     SpotlightModule,
+    AchievementsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

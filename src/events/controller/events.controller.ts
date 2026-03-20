@@ -15,10 +15,11 @@ import {
   FileTypeValidator,
   ParseUUIDPipe,
   Res,
+  Req,
   HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -43,6 +44,7 @@ import {
 import { EventService } from '../service/events.service';
 
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { OptionalJwtGuard } from 'src/common/guards/optional-jwt.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -103,8 +105,15 @@ export class EventController {
   // PUBLIC READ
   // ─────────────────────────────────────────────────────────────────────────────
 
+  @UseGuards(OptionalJwtGuard)
   @Get()
-  @ApiOperation({ summary: 'List all events with optional filters (public)' })
+  @ApiOperation({
+    summary: 'List all events with optional filters',
+    description:
+      'Public endpoint. When an auth token is provided, each event includes ' +
+      '`isRegistered` (whether the user has registered) and `isOwned` ' +
+      '(whether the user created it). These flags are absent for unauthenticated requests.',
+  })
   @ApiQuery({ name: 'status', enum: EventStatus, required: false })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'tag', required: false })
@@ -113,8 +122,9 @@ export class EventController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiResponse({ status: 200, type: EventResponseDto, isArray: true })
-  async listEvents(@Query() query: EventQueryDto) {
-    return this.eventService.listEvents(query);
+  async listEvents(@Query() query: EventQueryDto, @Req() req: Request) {
+    const userId = (req as any).user?.id;
+    return this.eventService.listEvents(query, userId);
   }
 
   @Get(':id')
