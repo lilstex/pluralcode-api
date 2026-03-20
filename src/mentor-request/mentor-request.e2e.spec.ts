@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtService, JwtModule } from '@nestjs/jwt';
+import { Reflector } from '@nestjs/core';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule } from '@nestjs/config';
 import request from 'supertest';
@@ -15,6 +15,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { PrismaService } from 'src/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
+import { RewardsService } from 'src/reward/service/reward.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -164,6 +165,16 @@ const mockEmail = {
   sendMentorRequestDecision: jest.fn(),
 };
 
+const mockRewards = {
+  award: jest.fn().mockResolvedValue({
+    pointsEarned: 10,
+    totalPoints: 10,
+    badgeAwarded: null,
+    achievementId: 'ach-1',
+  }),
+  hasAchievement: jest.fn().mockResolvedValue(false),
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // JWT HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -221,6 +232,9 @@ describe('Mentor Requests Module — E2E', () => {
         JwtStrategy,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EmailService, useValue: mockEmail },
+        { provide: RewardsService, useValue: mockRewards },
+        RolesGuard,
+        Reflector,
       ],
     }).compile();
 
@@ -245,6 +259,28 @@ describe('Mentor Requests Module — E2E', () => {
    */
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Restore fire-and-forget mocks wiped by clearAllMocks
+    mockRewards.award.mockResolvedValue({
+      pointsEarned: 10,
+      totalPoints: 10,
+      badgeAwarded: null,
+      achievementId: 'ach-1',
+    });
+    mockRewards.hasAchievement.mockResolvedValue(false);
+    mockEmail.sendMentorRequestNotification.mockResolvedValue(undefined);
+    mockEmail.sendMentorRequestDecision.mockResolvedValue(undefined);
+
+    // Restore mock defaults wiped by clearAllMocks
+    mockRewards.award.mockResolvedValue({
+      pointsEarned: 10,
+      totalPoints: 10,
+      badgeAwarded: null,
+      achievementId: 'ach-1',
+    });
+    mockRewards.hasAchievement.mockResolvedValue(false);
+    mockEmail.sendMentorRequestNotification.mockResolvedValue(undefined);
+    mockEmail.sendMentorRequestDecision.mockResolvedValue(undefined);
 
     // Route findUnique by where.id so JwtStrategy always gets the right user
     // back, regardless of which token is on the request or how many other

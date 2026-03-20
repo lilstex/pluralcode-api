@@ -18,6 +18,7 @@ import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { PrismaService } from 'src/prisma.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
 import { OcrService } from './service/ocr.service';
+import { RewardsService } from 'src/reward/service/reward.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -202,6 +203,15 @@ const mockOcr = {
     .fn()
     .mockResolvedValue('Extracted plain text from document.'),
 };
+const mockRewards = {
+  award: jest.fn().mockResolvedValue({
+    pointsEarned: 10,
+    totalPoints: 10,
+    badgeAwarded: null,
+    achievementId: 'ach-1',
+  }),
+  hasAchievement: jest.fn().mockResolvedValue(false),
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BOOTSTRAP
@@ -240,6 +250,7 @@ describe('Resources Module — E2E', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AzureBlobService, useValue: mockAzure },
         { provide: OcrService, useValue: mockOcr },
+        { provide: RewardsService, useValue: mockRewards },
         {
           provide: ConfigService,
           useValue: {
@@ -266,7 +277,7 @@ describe('Resources Module — E2E', () => {
   beforeEach(() => {
     jest.resetAllMocks();
 
-    // Restore Azure and OCR defaults wiped by resetAllMocks
+    // Restore Azure, OCR, and Rewards defaults wiped by resetAllMocks
     mockAzure.upload.mockResolvedValue(
       'https://blob.example.com/resources/file.pdf',
     );
@@ -274,6 +285,13 @@ describe('Resources Module — E2E', () => {
     mockOcr.extractText.mockResolvedValue(
       'Extracted plain text from document.',
     );
+    mockRewards.award.mockResolvedValue({
+      pointsEarned: 10,
+      totalPoints: 10,
+      badgeAwarded: null,
+      achievementId: 'ach-1',
+    });
+    mockRewards.hasAchievement.mockResolvedValue(false);
 
     // Default view/completion findMany — empty (no views/completions)
     mockPrisma.resourceView.findMany.mockResolvedValue([]);
@@ -1669,6 +1687,10 @@ describe('Resources Module — E2E', () => {
         resourceId: RESOURCE_UUID,
       });
       mockPrisma.resourceCompletion.findUnique.mockResolvedValue(null);
+      mockPrisma.resourceCompletion.create.mockResolvedValue({
+        id: 'comp-001',
+        pointsEarned: 10,
+      });
       mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
         if (where?.id === USER_UUID)
           return Promise.resolve(makeDbUser({ badges: [] }));
@@ -1678,10 +1700,13 @@ describe('Resources Module — E2E', () => {
           return Promise.resolve(makeResourceAdmin());
         return Promise.resolve(null);
       });
-      mockPrisma.$transaction.mockResolvedValue([
-        { id: 'comp-001', pointsEarned: 10 },
-        { pointsCount: 60 },
-      ]);
+      // rewards.award handles points/badge/achievement — mock it to return 60 total points
+      mockRewards.award.mockResolvedValue({
+        pointsEarned: 10,
+        totalPoints: 60,
+        badgeAwarded: BADGE_UUID,
+        achievementId: 'ach-001',
+      });
     });
 
     it('401 — no token', () =>
@@ -1737,12 +1762,12 @@ describe('Resources Module — E2E', () => {
     });
 
     it('200 — does not re-award badge user already has', async () => {
-      mockPrisma.user.findUnique.mockImplementation(({ where }: any) => {
-        if (where?.id === USER_UUID)
-          return Promise.resolve(makeDbUser({ badges: [{ id: BADGE_UUID }] }));
-        if (where?.id === SUPER_ADMIN_UUID)
-          return Promise.resolve(makeSuperAdmin());
-        return Promise.resolve(null);
+      // RewardsService handles dedup internally — returns badgeAwarded: null when user already has the badge
+      mockRewards.award.mockResolvedValue({
+        pointsEarned: 10,
+        totalPoints: 60,
+        badgeAwarded: null, // null = badge was not connected (user already has it)
+        achievementId: 'ach-002',
       });
       const { body } = await request(app.getHttpServer())
         .post(`/resources/${RESOURCE_UUID}/complete`)
@@ -1751,14 +1776,16 @@ describe('Resources Module — E2E', () => {
       expect(body.newBadges).not.toContain('Resource Champion');
     });
 
-    it('200 — no user.update called when 0 points and no badge', async () => {
+    it('200 — no points or badge when resource has 0 points and no badge', async () => {
       mockPrisma.resource.findUnique.mockResolvedValue(
         makeResource({ points: 0, badge: null, badgeId: null }),
       );
-      mockPrisma.$transaction.mockResolvedValue([
-        { id: 'comp-001' },
-        { pointsCount: 50 },
-      ]);
+      mockRewards.award.mockResolvedValue({
+        pointsEarned: 0,
+        totalPoints: 50,
+        badgeAwarded: null,
+        achievementId: 'ach-003',
+      });
       const { body } = await request(app.getHttpServer())
         .post(`/resources/${RESOURCE_UUID}/complete`)
         .set('Authorization', `Bearer ${userToken()}`)
@@ -1768,12 +1795,24 @@ describe('Resources Module — E2E', () => {
       expect(body.newBadges).toEqual([]);
     });
 
-    it('200 — completion record created atomically in transaction', async () => {
+    it('200 — completion recorded and rewards awarded on success', async () => {
       await request(app.getHttpServer())
         .post(`/resources/${RESOURCE_UUID}/complete`)
         .set('Authorization', `Bearer ${userToken()}`)
         .expect(200);
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      // Completion record written directly
+      expect(mockPrisma.resourceCompletion.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: USER_UUID,
+            resourceId: RESOURCE_UUID,
+          }),
+        }),
+      );
+      // RewardsService.award called with the resource's badge and points
+      expect(mockRewards.award).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: USER_UUID, points: 10 }),
+      );
     });
   });
 

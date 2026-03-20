@@ -262,8 +262,9 @@ export class CommunityController {
   listTopics(
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @Query() query: TopicQueryDto,
+    @CurrentUser() user: any,
   ) {
-    return this.communityService.listTopics(communityId, query);
+    return this.communityService.listTopics(communityId, query, user.id);
   }
 
   @UseGuards(JwtAuthGuard)

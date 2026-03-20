@@ -605,7 +605,7 @@ export class CommunityService {
     }
   }
 
-  async listTopics(communityId: string, query: TopicQueryDto) {
+  async listTopics(communityId: string, query: TopicQueryDto, userId: string) {
     try {
       const community = await this.prisma.community.findUnique({
         where: { id: communityId },
@@ -637,12 +637,25 @@ export class CommunityService {
         this.prisma.communityTopic.count({ where }),
       ]);
 
+      // Batch-fetch which of these topics the user has liked — one query, not N
+      const topicIds = topics.map((t) => t.id);
+      const userLikes = topicIds.length
+        ? await this.prisma.communityLike.findMany({
+            where: { userId, topicId: { in: topicIds } },
+            select: { topicId: true },
+          })
+        : [];
+      const likedSet = new Set(userLikes.map((l) => l.topicId));
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Topics retrieved.',
         data: {
-          topics: topics.map((t) => this.formatTopic(t)),
+          topics: topics.map((t) => ({
+            ...this.formatTopic(t),
+            hasLiked: likedSet.has(t.id),
+          })),
           total,
           page,
           limit,

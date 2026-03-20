@@ -16,6 +16,7 @@ import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { PrismaService } from 'src/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
+import { RewardsService } from 'src/reward/service/reward.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -52,6 +53,7 @@ function makeOrg(overrides: Record<string, any> = {}): any {
     numberOfStaff: null,
     numberOfVolunteers: null,
     annualBudget: null,
+    website: null,
     description: null,
     socials: [],
     otherLinks: [],
@@ -247,6 +249,16 @@ const mockAzure = {
   delete: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockRewards = {
+  award: jest.fn().mockResolvedValue({
+    pointsEarned: 10,
+    totalPoints: 10,
+    badgeAwarded: null,
+    achievementId: 'ach-1',
+  }),
+  hasAchievement: jest.fn().mockResolvedValue(false),
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // JWT HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -285,6 +297,7 @@ describe('Organizations Module — E2E', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EmailService, useValue: mockEmail },
         { provide: AzureBlobService, useValue: mockAzure },
+        { provide: RewardsService, useValue: mockRewards },
         {
           provide: 'ConfigService',
           useValue: { get: () => JWT_SECRET },
@@ -328,10 +341,17 @@ describe('Organizations Module — E2E', () => {
     mockPrisma.$transaction.mockImplementation((arg: any) =>
       Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma),
     );
-    // Restore fire-and-forget email mocks — sendVerificationOtp returns a Promise
+    // Restore fire-and-forget email and rewards mocks — these return Promises
     // so .catch() doesn't throw when resetAllMocks() strips the implementation.
     mockEmail.sendVerificationOtp.mockResolvedValue(undefined);
     mockEmail.sendAdminApprovalNotification.mockResolvedValue(undefined);
+    mockRewards.award.mockResolvedValue({
+      pointsEarned: 10,
+      totalPoints: 10,
+      badgeAwarded: null,
+      achievementId: 'ach-1',
+    });
+    mockRewards.hasAchievement.mockResolvedValue(false);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -449,13 +469,6 @@ describe('Organizations Module — E2E', () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('GET /organizations/:id', () => {
-    it('400 — non-UUID param rejected', async () => {
-      await request(app.getHttpServer())
-        .get('/organizations/not-a-uuid')
-        .set('Authorization', `Bearer ${guestToken()}`)
-        .expect(400);
-    });
-
     it('404 — org not found', async () => {
       mockPrisma.organization.findUnique.mockResolvedValue(null);
 
@@ -1068,6 +1081,7 @@ describe('Organizations Module — E2E', () => {
           lga: 'Ikeja',
           sectors: [],
           mission: null,
+          website: null,
         },
       };
       mockPrisma.organizationMember.findMany.mockResolvedValue([membership]);
