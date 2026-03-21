@@ -120,14 +120,6 @@ export class OrganizationController {
     return this.orgService.leaveOrganization(user.id, organizationId);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get full organization profile by ID' })
-  @ApiParam({ name: 'id', description: 'Organization UUID' })
-  @ApiResponse({ status: 200, type: OrganizationResponseDto })
-  getOrganization(@Param('id', ParseUUIDPipe) id: string) {
-    return this.orgService.getOrganizationById(id);
-  }
-
   // ─────────────────────────────────────────────────────────────────────────────
   // NGO_MEMBER — OWN ORGANIZATION PROFILE
   // ─────────────────────────────────────────────────────────────────────────────
@@ -296,6 +288,86 @@ export class OrganizationController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.NGO_MEMBER)
   @ApiBearerAuth()
+  @Get('me/activities')
+  @ApiOperation({
+    summary: 'Get all activities for my organization (NGO_MEMBER)',
+  })
+  @ApiQuery({
+    name: 'sector',
+    required: false,
+    description: 'Filter by sector',
+  })
+  @ApiQuery({
+    name: 'when',
+    required: false,
+    description: 'Filter by year e.g. 2024',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search across activity, who, and where',
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  getMyActivities(
+    @CurrentUser() user: any,
+    @Query('sector') sector?: string,
+    @Query('when') when?: number,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.orgService.getMyActivities(user.id, {
+      sector,
+      when,
+      search,
+      page,
+      limit,
+    });
+  }
+
+  @Get('activities')
+  @ApiOperation({
+    summary: 'List all activities across the platform (public)',
+    description:
+      'Returns activities from all organizations with org details included.',
+  })
+  @ApiQuery({
+    name: 'sector',
+    required: false,
+    description: 'Filter by sector',
+  })
+  @ApiQuery({
+    name: 'when',
+    required: false,
+    description: 'Filter by year e.g. 2024',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search across activity, who, and where',
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  listAllActivities(
+    @Query('sector') sector?: string,
+    @Query('when') when?: number,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.orgService.listAllActivities({
+      sector,
+      when,
+      search,
+      page,
+      limit,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER)
+  @ApiBearerAuth()
   @Delete('me/activities/:id')
   @ApiOperation({ summary: 'Delete an activity record' })
   @ApiParam({ name: 'id', description: 'Activity UUID' })
@@ -444,6 +516,14 @@ export class OrganizationController {
     @UploadedFile(LOGO_PIPE) file: Express.Multer.File,
   ) {
     return this.orgService.uploadLogoByAdmin(admin.id, id, file);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get full organization profile by ID' })
+  @ApiParam({ name: 'id', description: 'Organization UUID' })
+  @ApiResponse({ status: 200, type: OrganizationResponseDto })
+  getOrganization(@Param('id', ParseUUIDPipe) id: string) {
+    return this.orgService.getOrganizationById(id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)

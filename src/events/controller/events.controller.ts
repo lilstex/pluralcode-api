@@ -106,6 +106,7 @@ export class EventController {
   // ─────────────────────────────────────────────────────────────────────────────
 
   @UseGuards(OptionalJwtGuard)
+  @ApiBearerAuth()
   @Get()
   @ApiOperation({
     summary: 'List all events with optional filters',

@@ -1062,6 +1062,149 @@ export class OrganizationService {
     }
   }
 
+  async getMyActivities(
+    userId: string,
+    query: {
+      sector?: string;
+      when?: number;
+      search?: string;
+      page?: number;
+      limit?: number;
+    },
+  ) {
+    try {
+      const org = await this.prisma.organization.findUnique({
+        where: { userId },
+      });
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization not found.',
+        };
+      }
+
+      const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(query.limit ?? '20'), 10) || 20),
+      );
+      const skip = (page - 1) * limit;
+
+      const where: any = { organizationId: org.id };
+      if (query.sector)
+        where.sector = { contains: query.sector, mode: 'insensitive' };
+      if (query.when) where.when = Number(query.when);
+      if (query.search) {
+        where.OR = [
+          { activity: { contains: query.search, mode: 'insensitive' } },
+          { who: { contains: query.search, mode: 'insensitive' } },
+          { where: { contains: query.search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [activities, total] = await this.prisma.$transaction([
+        this.prisma.organizationActivity.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { when: 'desc' },
+        }),
+        this.prisma.organizationActivity.count({ where }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Activities retrieved.',
+        data: {
+          activities,
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      this.logger.error('getMyActivities error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async listAllActivities(query: {
+    sector?: string;
+    when?: number;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    try {
+      const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(query.limit ?? '20'), 10) || 20),
+      );
+      const skip = (page - 1) * limit;
+
+      const where: any = {};
+      if (query.sector)
+        where.sector = { contains: query.sector, mode: 'insensitive' };
+      if (query.when) where.when = Number(query.when);
+      if (query.search) {
+        where.OR = [
+          { activity: { contains: query.search, mode: 'insensitive' } },
+          { who: { contains: query.search, mode: 'insensitive' } },
+          { where: { contains: query.search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [activities, total] = await this.prisma.$transaction([
+        this.prisma.organizationActivity.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { when: 'desc' },
+          include: {
+            organization: {
+              select: {
+                id: true,
+                name: true,
+                acronym: true,
+                logoUrl: true,
+                state: true,
+              },
+            },
+          },
+        }),
+        this.prisma.organizationActivity.count({ where }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Activities retrieved.',
+        data: {
+          activities,
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      this.logger.error('listAllActivities error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
   async deleteActivity(userId: string, activityId: string) {
     try {
       const activity = await this.prisma.organizationActivity.findUnique({
