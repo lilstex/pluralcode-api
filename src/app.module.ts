@@ -11,6 +11,7 @@ import { DevPlanModule } from './dev-plan/dev-plan.module';
 import { CommunityModule } from './community/community.module';
 import { SpotlightModule } from './spotlight/spotlight.module';
 import { AchievementsModule } from './achievements/achievements.module';
+import { NewsModule } from './news/news.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AchievementsModule } from './achievements/achievements.module';
     CommunityModule,
     SpotlightModule,
     AchievementsModule,
+    NewsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
