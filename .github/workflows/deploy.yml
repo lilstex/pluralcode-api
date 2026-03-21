@@ -1,22 +1,18 @@
 name: PLRCAP Backend CI/CD
-
 on:
   push:
     branches:
       - ci
   workflow_dispatch:
-
 env:
   ACR_NAME: plrcapregistry
   IMAGE_NAME: plrcap-backend
   CONTAINER_APP_NAME: plrcap-backend
   RESOURCE_GROUP: plrcap-rg
-
 jobs:
   build-and-deploy:
     name: Build, Push & Deploy
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -63,3 +59,4 @@ jobs:
         run: |
           echo "✅ Image pushed to ACR successfully!"
           echo "Image: plrcapregistry.azurecr.io/plrcap-backend:${{ github.sha }}"
+          echo "Container App will auto-pull :latest within a few minutes"
