@@ -125,7 +125,6 @@ export class EventService {
       }
 
       const jitsiRoomId = this.jitsi.generateRoomId();
-      const meetingUrl = this.jitsi.getMeetingUrl(jitsiRoomId);
 
       const event = await this.prisma.event.create({
         data: {
@@ -134,7 +133,7 @@ export class EventService {
           startTime: start,
           endTime: end,
           jitsiRoomId,
-          externalMeetingUrl: meetingUrl, // Jitsi URL stored as meeting URL
+          externalMeetingUrl: null,
           capacity: dto.capacity ?? null,
           tags: dto.tags ?? [],
           createdById: creatorId,
@@ -771,16 +770,33 @@ export class EventService {
         include: { user: { select: { fullName: true, email: true } } },
       });
 
-      const meetingUrl =
+      // ICS attachment: embed the raw meeting URL so calendar apps (Outlook,
+      // Google Calendar) display a proper LOCATION / clickable link.
+      // For Jitsi events the raw URL has no JWT — that is intentional, the ICS
+      // is informational only and the user must join through the frontend.
+      const rawMeetingUrl =
         event.externalMeetingUrl ?? this.jitsi.getMeetingUrl(event.jitsiRoomId);
+
       const icsContent = this.generateIcs({
         id: event.id,
         title: event.title,
         description: event.description,
         startTime: event.startTime,
         endTime: event.endTime,
-        meetingUrl,
+        meetingUrl: rawMeetingUrl,
       });
+
+      // Confirmation email "Join Meeting" button:
+      //   • External meeting (Zoom, Meet etc.) → link directly, no JWT needed.
+      //   • Platform Jitsi event → frontend event page. The frontend calls
+      //     GET /events/:id/jitsi-token on the day to get a fresh JWT and
+      //     opens the tokenized URL. We never pre-mint tokens into emails because:
+      //       - Token lives in the inbox for potentially weeks before the event
+      //       - Token expiry breaks if the event is rescheduled
+      //       - Issued tokens cannot be revoked
+      const emailJoinUrl =
+        event.externalMeetingUrl ??
+        `${process.env.FRONTEND_URL}/events/${event.id}`;
 
       this.emailService
         .sendEventRegistrationConfirmation({
@@ -789,7 +805,7 @@ export class EventService {
           eventTitle: event.title,
           startTime: event.startTime,
           endTime: event.endTime,
-          meetingUrl,
+          meetingUrl: emailJoinUrl,
           icsContent,
         })
         .catch((err) =>
@@ -1087,9 +1103,11 @@ export class EventService {
         event.endTime,
       );
 
-      const baseUrl =
-        event.externalMeetingUrl ?? this.jitsi.getMeetingUrl(event.jitsiRoomId);
-      const tokenizedUrl = `${baseUrl}?jwt=${token}`;
+      // For external meetings the URL is a third-party link (Zoom etc.) — no JWT appended.
+      // For Jitsi rooms we append the JWT so the user enters directly without a lobby prompt.
+      const meetingUrl =
+        event.externalMeetingUrl ??
+        `${this.jitsi.getMeetingUrl(event.jitsiRoomId)}?jwt=${token}`;
 
       return {
         status: true,
@@ -1098,8 +1116,7 @@ export class EventService {
         data: {
           token,
           roomId: event.jitsiRoomId,
-          meetingUrl: baseUrl,
-          tokenizedUrl, // ← frontend should open this URL — no login prompt
+          meetingUrl, // open this URL directly — JWT already embedded for Jitsi events
           isModerator,
           expiresAt: event.endTime.toISOString(),
         },
@@ -1175,8 +1192,11 @@ export class EventService {
       where: { eventId: event.id },
       include: { user: { select: { fullName: true, email: true } } },
     });
+    // Same rule as the registration confirmation: point to the frontend event
+    // page for Jitsi events so users get a fresh JWT when they join on the day.
     const meetingUrl =
-      event.externalMeetingUrl ?? this.jitsi.getMeetingUrl(event.jitsiRoomId);
+      event.externalMeetingUrl ??
+      `${process.env.FRONTEND_URL}/events/${event.id}`;
     await Promise.allSettled(
       registrations.map((r) =>
         this.emailService.sendEventUpdateNotification({

@@ -18,6 +18,7 @@ export type AzureContainer =
   | 'oda-evidence'
   | 'communities'
   | 'news-attachments'
+  | 'org-logos'
   | 'news';
 
 @Injectable()

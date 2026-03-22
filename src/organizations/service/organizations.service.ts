@@ -504,8 +504,8 @@ export class OrganizationService {
         };
       }
 
-      if (org.logoUrl) await this.azureBlob.delete(org.logoUrl, 'avatars');
-      const logoUrl = await this.azureBlob.upload(file, 'avatars');
+      if (org.logoUrl) await this.azureBlob.delete(org.logoUrl, 'org-logos');
+      const logoUrl = await this.azureBlob.upload(file, 'org-logos');
       await this.prisma.organization.update({
         where: { userId },
         data: { logoUrl },
@@ -544,8 +544,8 @@ export class OrganizationService {
         };
       }
 
-      if (org.logoUrl) await this.azureBlob.delete(org.logoUrl, 'avatars');
-      const logoUrl = await this.azureBlob.upload(file, 'avatars');
+      if (org.logoUrl) await this.azureBlob.delete(org.logoUrl, 'org-logos');
+      const logoUrl = await this.azureBlob.upload(file, 'org-logos');
       await this.prisma.organization.update({
         where: { id: orgId },
         data: { logoUrl },
