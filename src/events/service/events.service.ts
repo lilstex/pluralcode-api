@@ -10,6 +10,7 @@ import {
   CancelEventDto,
   EventStatus,
 } from '../dto/events.dto';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class EventService {
@@ -1226,5 +1227,30 @@ export class EventService {
         }),
       ),
     );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // SCHEDULED: Mark past events
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Runs every day at 01:00 AM server time.
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  async markExpiredEventsAsPast(): Promise<void> {
+    try {
+      const now = new Date();
+
+      await this.prisma.event.updateMany({
+        where: {
+          isPast: false,
+          isCancelled: false,
+          endTime: { lt: now },
+        },
+        data: { isPast: true },
+      });
+    } catch (error) {
+      this.logger.error('markExpiredEventsAsPast failed', error);
+    }
   }
 }

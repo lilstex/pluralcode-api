@@ -12,9 +12,11 @@ import { CommunityModule } from './community/community.module';
 import { SpotlightModule } from './spotlight/spotlight.module';
 import { AchievementsModule } from './achievements/achievements.module';
 import { NewsModule } from './news/news.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     UsersModule,
     OrganizationModule,
     ResourcesModule,
