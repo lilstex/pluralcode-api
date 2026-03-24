@@ -51,11 +51,15 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions';
+import { UserService } from 'src/users/service/users.service';
 
 @ApiTags('Events & Webinars')
 @Controller('events')
 export class EventController {
-  constructor(private readonly eventService: EventService) {}
+  constructor(
+    private readonly eventService: EventService,
+    private readonly userService: UserService,
+  ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
   // STATIC ROUTES — must precede :id wildcard
@@ -99,6 +103,25 @@ export class EventController {
       page,
       limit,
     });
+  }
+
+  @Post('join')
+  @ApiOperation({
+    summary: 'Get a Jitsi JWT token to join the event meeting room',
+    description:
+      'Must be registered for the event (admins and event creators are exempt). ' +
+      'Returns token, meetingUrl, and tokenizedUrl (meetingUrl + ?jwt=token). ',
+  })
+  @ApiQuery({ name: 'eventId', required: true })
+  @ApiQuery({ name: 'email', required: true })
+  @ApiResponse({ status: 200, type: JitsiTokenResponseDto })
+  async joinEventViaEmail(
+    @Query('email') email: string,
+    @Query('eventId') eventId: string,
+  ) {
+    // Get user by email
+    const user = await this.userService.getUserByEmail(email);
+    return this.eventService.getJitsiToken(user.id, eventId, user.role);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

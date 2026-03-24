@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Injectable, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger, HttpException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -25,6 +25,7 @@ import {
   otpExpiresAt,
 } from 'src/util/helper';
 import { RewardsService } from 'src/reward/service/reward.service';
+import { throwError } from 'rxjs';
 
 const ADMIN_ROLES: Role[] = [
   Role.SUPER_ADMIN,
@@ -270,6 +271,23 @@ export class UserService {
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Server error.',
       };
+    }
+  }
+
+  async getUserByEmail(email: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { email: email },
+      });
+
+      if (!user) {
+        throw new HttpException('User not found.', HttpStatus.NOT_FOUND);
+      }
+
+      return user;
+    } catch (error) {
+      this.logger.error('verifyEmail error', error);
+      throw error;
     }
   }
 
