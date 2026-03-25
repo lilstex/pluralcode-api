@@ -6,9 +6,10 @@ import { OcrService } from './service/ocr.service';
 import { ResourceController } from './controller/resources.controller';
 import { ResourceService } from './service/resources.service';
 import { RewardsModule } from 'src/reward/reward.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
-  imports: [AzureModule, RewardsModule],
+  imports: [AzureModule, RewardsModule, NotificationsModule],
   controllers: [ResourceController],
   providers: [ResourceService, PrismaService, BadgeService, OcrService],
   exports: [ResourceService, BadgeService, OcrService],

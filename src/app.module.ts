@@ -13,6 +13,7 @@ import { SpotlightModule } from './spotlight/spotlight.module';
 import { AchievementsModule } from './achievements/achievements.module';
 import { NewsModule } from './news/news.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     SpotlightModule,
     AchievementsModule,
     NewsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

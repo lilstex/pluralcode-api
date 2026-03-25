@@ -3,7 +3,7 @@ import { Injectable, HttpStatus, Logger, HttpException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { Role } from '@prisma/client';
+import { NotificationType, Role } from '@prisma/client';
 
 import {
   CreateUserDto,
@@ -25,7 +25,7 @@ import {
   otpExpiresAt,
 } from 'src/util/helper';
 import { RewardsService } from 'src/reward/service/reward.service';
-import { throwError } from 'rxjs';
+import { NotificationsService } from 'src/notifications/service/notifications.service';
 
 const ADMIN_ROLES: Role[] = [
   Role.SUPER_ADMIN,
@@ -81,6 +81,7 @@ export class UserService {
     private readonly azureBlob: AzureBlobService,
     private readonly config: ConfigService,
     private readonly rewards: RewardsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1179,11 +1180,46 @@ export class UserService {
       };
     }
 
-    return this._updateUserStatus(adminId, userId, 'APPROVED');
+    const result = await this._updateUserStatus(adminId, userId, 'APPROVED');
+    if (result.status) {
+      this.notifications
+        .create({
+          userId,
+          type: NotificationType.ACCOUNT_APPROVED,
+          title: 'Account Approved',
+          body: 'Your account has been approved. You can now access all platform features.',
+          link: '/dashboard',
+        })
+        .catch((err) => this.logger.error('notification failed', err));
+    }
+    return result;
   }
 
   async rejectUser(adminId: string, userId: string, reason?: string) {
-    return this._updateUserStatus(adminId, userId, 'REJECTED', reason);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    const result = await this._updateUserStatus(
+      adminId,
+      userId,
+      'REJECTED',
+      reason,
+    );
+    if (result.status && user) {
+      this.notifications
+        .create({
+          userId: user.id,
+          type: NotificationType.ACCOUNT_REJECTED,
+          title: 'Account Application Rejected',
+          body: reason
+            ? `Your account application was not approved: ${reason}`
+            : 'Your account application was not approved. Please contact support.',
+          link: '/support',
+        })
+        .catch((err) => this.logger.error('notification failed', err));
+    }
+    return result;
   }
 
   async suspendUser(adminId: string, userId: string) {

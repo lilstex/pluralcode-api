@@ -11,6 +11,8 @@ import {
   EventStatus,
 } from '../dto/events.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { NotificationsService } from 'src/notifications/service/notifications.service';
+import { NotificationType } from '@prisma/client';
 
 @Injectable()
 export class EventService {
@@ -21,6 +23,7 @@ export class EventService {
     private readonly azureBlob: AzureBlobService,
     private readonly jitsi: JitsiService,
     private readonly emailService: EmailService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -134,7 +137,7 @@ export class EventService {
           startTime: start,
           endTime: end,
           jitsiRoomId,
-          externalMeetingUrl: null,
+          externalMeetingUrl: dto.externalMeetingUrl ?? null,
           capacity: dto.capacity ?? null,
           tags: dto.tags ?? [],
           createdById: creatorId,
@@ -776,7 +779,8 @@ export class EventService {
       // For Jitsi events the raw URL has no JWT — that is intentional, the ICS
       // is informational only and the user must join through the frontend.
       const rawMeetingUrl =
-        event.externalMeetingUrl ?? this.jitsi.getMeetingUrl(event.jitsiRoomId);
+        event.externalMeetingUrl ??
+        `${process.env.FRONTEND_URL}/events?eventId=${event.id}&email=${registration.user.email}`;
 
       const icsContent = this.generateIcs({
         id: event.id,
@@ -812,6 +816,18 @@ export class EventService {
         .catch((err) =>
           this.logger.error('sendEventRegistrationConfirmation failed', err),
         );
+
+      // After successful registration:
+      this.notifications
+        .create({
+          userId,
+          type: NotificationType.EVENT_REGISTRATION_CONFIRMED,
+          title: 'Registration Confirmed',
+          body: `You have successfully registered for "${event.title}".`,
+          link: `/events/${event.id}`,
+          meta: { eventTitle: event.title, startTime: event.startTime },
+        })
+        .catch((err) => this.logger.error('notification failed', err));
 
       return {
         status: true,
@@ -1191,13 +1207,9 @@ export class EventService {
   private async notifyAttendeesOfUpdate(event: any) {
     const registrations = await this.prisma.eventRegistration.findMany({
       where: { eventId: event.id },
-      include: { user: { select: { fullName: true, email: true } } },
+      include: { user: { select: { id: true, fullName: true, email: true } } },
     });
-    // Same rule as the registration confirmation: point to the frontend event
-    // page for Jitsi events so users get a fresh JWT when they join on the day.
-    const meetingUrl =
-      event.externalMeetingUrl ??
-      `${process.env.FRONTEND_URL}/events/${event.id}`;
+
     await Promise.allSettled(
       registrations.map((r) =>
         this.emailService.sendEventUpdateNotification({
@@ -1206,10 +1218,28 @@ export class EventService {
           eventTitle: event.title,
           startTime: event.startTime,
           endTime: event.endTime,
-          meetingUrl,
+          meetingUrl:
+            event.externalMeetingUrl ??
+            `${process.env.FRONTEND_URL}/events?eventId=${event.id}&email=${r.user.email}`,
         }),
       ),
     );
+    this.notifications
+      .createMany(
+        registrations.map((r) => ({
+          userId: r.user.id,
+          type: NotificationType.EVENT_UPDATED,
+          title: 'Event Updated',
+          body: `"${event.title}" has been updated. Check the new details.`,
+          link: `/events/${event.id}`,
+          meta: {
+            eventTitle: event.title,
+            startTime: event.startTime,
+            endTime: event.endTime,
+          },
+        })),
+      )
+      .catch((err) => this.logger.error('notification fan-out failed', err));
   }
 
   private async notifyAttendeesCancellation(event: any, reason?: string) {
@@ -1227,6 +1257,21 @@ export class EventService {
         }),
       ),
     );
+
+    // Fan-out to all attendees after cancellation:
+    const attendeeIds = registrations.map((r) => r.userId);
+    this.notifications
+      .createMany(
+        attendeeIds.map((uid) => ({
+          userId: uid,
+          type: NotificationType.EVENT_CANCELLED,
+          title: 'Event Cancelled',
+          body: `"${event.title}" has been cancelled. ${reason ?? ''}`.trim(),
+          link: `/events`,
+          meta: { eventTitle: event.title, reason: reason },
+        })),
+      )
+      .catch((err) => this.logger.error('notification fan-out failed', err));
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

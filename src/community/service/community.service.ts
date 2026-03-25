@@ -14,6 +14,8 @@ import {
   TopicFilter,
 } from '../dto/community.dto';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
+import { NotificationsService } from 'src/notifications/service/notifications.service';
+import { NotificationType } from '@prisma/client';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED SELECTS
@@ -56,11 +58,27 @@ export class CommunityService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly azureBlob: AzureBlobService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
   // HELPERS
   // ─────────────────────────────────────────────────────────────────────────────
+
+  private async saveMentions(
+    userIds: string[],
+    ref: { topicId?: string; commentId?: string },
+  ) {
+    if (!userIds.length) return;
+    await this.prisma.communityMention.createMany({
+      data: userIds.map((mentionedUserId) => ({
+        mentionedUserId,
+        topicId: ref.topicId ?? null,
+        commentId: ref.commentId ?? null,
+      })),
+      skipDuplicates: true,
+    });
+  }
 
   private async isMember(
     userId: string,
@@ -1044,6 +1062,20 @@ export class CommunityService {
         });
         liked = true;
         likeCount = updated.likeCount;
+
+        // Notify topic author — but not if they liked their own topic
+        if (topic.authorId !== userId) {
+          this.notifications
+            .create({
+              userId: topic.authorId,
+              type: NotificationType.COMMUNITY_TOPIC_LIKED,
+              title: 'Someone liked your topic',
+              body: `Your topic "${topic.title}" received a new like.`,
+              link: `/communities/${topic.communityId}/topics/${topic.id}`,
+              meta: { topicId: topic.id, topicTitle: topic.title },
+            })
+            .catch((err) => this.logger.error('notification failed', err));
+        }
       }
 
       return {
@@ -1178,17 +1210,55 @@ export class CommunityService {
       });
 
       // Create mention records from explicit IDs — skip the author themselves
-      const toMention = (dto.mentionedUserIds ?? []).filter(
+      // const toMention = (dto.mentionedUserIds ?? []).filter(
+      //   (id) => id !== userId,
+      // );
+      // if (toMention.length > 0) {
+      //   await this.prisma.communityMention.createMany({
+      //     data: toMention.map((mentionedUserId) => ({
+      //       mentionedUserId,
+      //       commentId: comment.id,
+      //     })),
+      //     skipDuplicates: true,
+      //   });
+      // }
+
+      // Parse @mentions
+      const filteredMentions = dto.mentionedUserIds.filter(
         (id) => id !== userId,
       );
-      if (toMention.length > 0) {
-        await this.prisma.communityMention.createMany({
-          data: toMention.map((mentionedUserId) => ({
-            mentionedUserId,
-            commentId: comment.id,
-          })),
-          skipDuplicates: true,
-        });
+      await this.saveMentions(filteredMentions, { commentId: comment.id });
+
+      // Notify topic author of the new comment (unless they wrote it themselves)
+      if (topic.authorId !== userId) {
+        this.notifications
+          .create({
+            userId: topic.authorId,
+            type: NotificationType.COMMUNITY_TOPIC_COMMENT,
+            title: 'New comment on your topic',
+            body: `Someone commented on your topic "${topic.title}".`,
+            link: `/communities/${communityId}/topics/${topicId}`,
+            meta: { topicId, topicTitle: topic.title, commentId: comment.id },
+          })
+          .catch((err) => this.logger.error('notification failed', err));
+      }
+
+      // Notify each @mentioned user
+      if (filteredMentions.length > 0) {
+        this.notifications
+          .createMany(
+            filteredMentions.map((mentionedUserId) => ({
+              userId: mentionedUserId,
+              type: NotificationType.COMMUNITY_MENTION,
+              title: 'You were mentioned in a comment',
+              body: `You were mentioned in a comment on "${topic.title}".`,
+              link: `/communities/${communityId}/topics/${topicId}`,
+              meta: { topicId, topicTitle: topic.title, commentId: comment.id },
+            })),
+          )
+          .catch((err) =>
+            this.logger.error('notification fan-out failed', err),
+          );
       }
 
       return {

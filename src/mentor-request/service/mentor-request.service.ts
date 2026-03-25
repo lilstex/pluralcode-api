@@ -1,5 +1,5 @@
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
-import { MentorRequestStatus } from '@prisma/client';
+import { MentorRequestStatus, NotificationType } from '@prisma/client';
 
 import {
   CreateMentorRequestDto,
@@ -11,6 +11,7 @@ import {
 import { PrismaService } from 'src/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 import { RewardsService } from 'src/reward/service/reward.service';
+import { NotificationsService } from 'src/notifications/service/notifications.service';
 
 // ─── Prisma include shape reused across queries ───────────────────────────────
 const MENTOR_REQUEST_INCLUDE = {
@@ -52,6 +53,7 @@ export class MentorRequestService {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly rewards: RewardsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -196,6 +198,17 @@ export class MentorRequestService {
       .catch((err) =>
         this.logger.error('Failed to send mentor request email', err),
       );
+
+    this.notifications
+      .create({
+        userId: dto.mentorId,
+        type: NotificationType.MENTOR_REQUEST_RECEIVED,
+        title: 'New Mentorship Request',
+        body: `${ngoUser.organization.name} has sent you a mentorship request.`,
+        link: `/dashboard/mentor-requests`,
+        meta: { orgName: ngoUser.organization.name, requestId: request.id },
+      })
+      .catch((err) => this.logger.error('notification failed', err));
 
     return {
       status: true,
@@ -456,6 +469,24 @@ export class MentorRequestService {
         this.logger.error('Failed to send mentor decision email', err),
       );
 
+    const isApproved = dto.action === 'APPROVED';
+    this.notifications
+      .create({
+        userId: request.ngoUserId,
+        type: isApproved
+          ? NotificationType.MENTOR_REQUEST_APPROVED
+          : NotificationType.MENTOR_REQUEST_DECLINED,
+        title: isApproved
+          ? 'Mentorship Request Approved'
+          : 'Mentorship Request Declined',
+        body: isApproved
+          ? `${request.mentor.fullName} has accepted your mentorship request.`
+          : `${request.mentor.fullName} has declined your mentorship request.`,
+        link: `/dashboard/mentorship`,
+        meta: { mentorName: request.mentor.fullName, requestId: request.id },
+      })
+      .catch((err) => this.logger.error('notification failed', err));
+
     return {
       status: true,
       statusCode: HttpStatus.OK,
@@ -508,6 +539,28 @@ export class MentorRequestService {
       .catch((err) =>
         this.logger.error('completeRequest rewards.award failed', err),
       );
+
+    // Notify both parties
+    this.notifications
+      .createMany([
+        {
+          userId: request.ngoUserId,
+          type: NotificationType.MENTOR_SESSION_COMPLETED,
+          title: 'Mentorship Session Completed',
+          body: 'Your mentorship session has been marked as completed. +10 points awarded!',
+          link: `/dashboard/mentorship`,
+          meta: { requestId: request.id },
+        },
+        {
+          userId: mentorId,
+          type: NotificationType.MENTOR_SESSION_COMPLETED,
+          title: 'Mentorship Session Completed',
+          body: 'You have marked a mentorship session as completed.',
+          link: `/dashboard/mentor-requests`,
+          meta: { requestId: request.id },
+        },
+      ])
+      .catch((err) => this.logger.error('notification fan-out failed', err));
 
     return {
       status: true,

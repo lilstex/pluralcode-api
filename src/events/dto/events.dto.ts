@@ -64,6 +64,15 @@ export class CreateEventDto {
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
+
+  @ApiPropertyOptional({
+    example: 'https://google-meet/ngo-governance-masterclass',
+    description: 'External meeting link (e.g., Zoom, Jitsi, Google Meet)',
+  })
+  @IsOptional()
+  @IsString()
+  @IsUrl()
+  externalMeetingUrl?: string;
 }
 
 export class UpdateEventDto {

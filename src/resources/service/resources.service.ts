@@ -13,6 +13,8 @@ import {
 } from '../dto/resources.dto';
 import { OcrService } from './ocr.service';
 import { RewardsService } from 'src/reward/service/reward.service';
+import { NotificationsService } from 'src/notifications/service/notifications.service';
+import { NotificationType } from '@prisma/client';
 
 const EXTRACTABLE_MIMETYPES = new Set([
   'application/pdf',
@@ -30,6 +32,7 @@ export class ResourceService {
     private readonly azureBlob: AzureBlobService,
     private readonly ocr: OcrService,
     private readonly rewards: RewardsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -868,8 +871,6 @@ export class ResourceService {
         data: { userId, resourceId, pointsEarned: resource.points },
       });
 
-      // Award points + specific badge + Achievement record via RewardsService.
-      // The badge and points to award are configured on the resource itself (spec).
       const rewardResult = await this.rewards.award({
         userId,
         points: resource.points,
@@ -882,6 +883,24 @@ export class ResourceService {
       if (rewardResult?.badgeAwarded && resource.badge) {
         newBadges.push(resource.badge.name);
       }
+
+      this.notifications
+        .create({
+          userId,
+          type: NotificationType.RESOURCE_COMPLETED,
+          title: 'Resource Completed',
+          body:
+            newBadges.length > 0
+              ? `You completed "${resource.title}" and earned ${resource.points} points + the "${newBadges[0]}" badge!`
+              : `You completed "${resource.title}" and earned ${resource.points} points!`,
+          link: `/resources/${resource.id}`,
+          meta: {
+            resourceTitle: resource.title,
+            pointsEarned: resource.points,
+            badges: newBadges,
+          },
+        })
+        .catch((err) => this.logger.error('notification failed', err));
 
       return {
         status: true,

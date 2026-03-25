@@ -6,9 +6,14 @@ import { PrismaService } from 'src/prisma.service';
 import { AzureModule } from 'src/providers/azure/azure.module';
 import { CommunityService } from './service/community.service';
 import { CommunityController } from './controller/community.controller';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
-  imports: [AzureModule, MulterModule.register({ storage: memoryStorage() })],
+  imports: [
+    AzureModule,
+    NotificationsModule,
+    MulterModule.register({ storage: memoryStorage() }),
+  ],
   controllers: [CommunityController],
   providers: [CommunityService, PrismaService],
   exports: [CommunityService],

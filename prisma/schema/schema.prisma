@@ -61,6 +61,31 @@ enum SpotlightMode {
   MANUAL
 }
 
+enum NotificationType {
+  ACCOUNT_APPROVED
+  ACCOUNT_REJECTED
+
+  EVENT_REGISTRATION_CONFIRMED
+  EVENT_UPDATED
+  EVENT_CANCELLED
+  EVENT_REMINDER
+
+  MENTOR_REQUEST_RECEIVED
+  MENTOR_REQUEST_APPROVED
+  MENTOR_REQUEST_DECLINED
+  MENTOR_SESSION_COMPLETED
+
+  COMMUNITY_TOPIC_COMMENT
+  COMMUNITY_MENTION
+  COMMUNITY_TOPIC_LIKED
+
+  RESOURCE_COMPLETED
+  ACHIEVEMENT_EARNED
+  ODA_ASSESSMENT_COMPLETED
+
+  SYSTEM_ANNOUNCEMENT
+}
+
 // MODELS
 
 model User {
@@ -104,6 +129,7 @@ model User {
   newsPosts NewsPost[] @relation("NewsAuthor")
   eventsCreated Event[] @relation("EventCreator")
   achievements Achievement[] @relation("UserAchievements")
+  notifications Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -810,4 +836,26 @@ model Achievement {
 
   @@index([userId])
   @@index([earnedAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  link      String?
+  meta      Json?
+
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
 }
