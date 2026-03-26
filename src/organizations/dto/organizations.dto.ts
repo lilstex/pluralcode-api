@@ -8,6 +8,7 @@ import {
   IsArray,
   Min,
   Max,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -120,6 +121,36 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Is your organization a local/national organization in Nigeria?',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isLocalOrNational?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Does your organization have experience working in humanitarian contexts?',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  hasHumanitarianExperience?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Is your organization interested in registering for training and mentorship programs?',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isInterestedInTraining?: boolean;
 }
 
 // ─────────────────────────────────────────────
@@ -401,6 +432,16 @@ export class OrganizationResponseDto {
   @ApiPropertyOptional() numberOfStaff?: number;
   @ApiPropertyOptional() numberOfVolunteers?: number;
   @ApiPropertyOptional() annualBudget?: string;
+  @ApiProperty({ description: 'Is a local/national organization in Nigeria' })
+  isLocalOrNational: boolean;
+  @ApiProperty({
+    description: 'Has experience working in humanitarian contexts',
+  })
+  hasHumanitarianExperience: boolean;
+  @ApiProperty({
+    description: 'Interested in training and mentorship programs',
+  })
+  isInterestedInTraining: boolean;
   @ApiProperty() socials: any[];
   @ApiProperty() otherLinks: any[];
   @ApiProperty({ type: [ActivityResponseDto] })
@@ -425,6 +466,16 @@ export class OrganizationSummaryResponseDto {
   @ApiPropertyOptional() mission?: string;
   @ApiPropertyOptional() numberOfStaff?: number;
   @ApiPropertyOptional() numberOfVolunteers?: number;
+  @ApiProperty({ description: 'Is a local/national organization in Nigeria' })
+  isLocalOrNational: boolean;
+  @ApiProperty({
+    description: 'Has experience working in humanitarian contexts',
+  })
+  hasHumanitarianExperience: boolean;
+  @ApiProperty({
+    description: 'Interested in training and mentorship programs',
+  })
+  isInterestedInTraining: boolean;
   @ApiProperty() createdAt: Date;
 }
 

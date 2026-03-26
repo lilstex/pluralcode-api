@@ -355,59 +355,6 @@ export class CommunityController {
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @Get(':communityId/topics/:topicId')
-  @ApiParam({ name: 'communityId', description: 'Community UUID' })
-  @ApiParam({ name: 'topicId', description: 'Topic UUID' })
-  @ApiOperation({ summary: 'Get a single topic with all comments and replies' })
-  @ApiResponse({ status: 200, type: TopicResponseDto })
-  getTopic(
-    @Param('communityId', ParseUUIDPipe) communityId: string,
-    @Param('topicId', ParseUUIDPipe) topicId: string,
-  ) {
-    return this.communityService.getTopic(communityId, topicId);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @Patch(':communityId/topics/:topicId')
-  @ApiParam({ name: 'communityId', description: 'Community UUID' })
-  @ApiParam({ name: 'topicId', description: 'Topic UUID' })
-  @ApiOperation({ summary: 'Edit own topic (author only)' })
-  updateTopic(
-    @CurrentUser() user: any,
-    @Param('communityId', ParseUUIDPipe) communityId: string,
-    @Param('topicId', ParseUUIDPipe) topicId: string,
-    @Body() dto: UpdateTopicDto,
-  ) {
-    return this.communityService.updateTopic(
-      user.id,
-      communityId,
-      topicId,
-      dto,
-    );
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @Delete(':communityId/topics/:topicId')
-  @ApiParam({ name: 'communityId', description: 'Community UUID' })
-  @ApiParam({ name: 'topicId', description: 'Topic UUID' })
-  @ApiOperation({ summary: 'Delete a topic (author or admin)' })
-  deleteTopic(
-    @CurrentUser() user: any,
-    @Param('communityId', ParseUUIDPipe) communityId: string,
-    @Param('topicId', ParseUUIDPipe) topicId: string,
-  ) {
-    return this.communityService.deleteTopic(
-      user.id,
-      user.role,
-      communityId,
-      topicId,
-    );
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @Post(':communityId/topics/:topicId/report')
   @ApiParam({ name: 'communityId', description: 'Community UUID' })
   @ApiParam({ name: 'topicId', description: 'Topic UUID' })
@@ -569,6 +516,59 @@ export class CommunityController {
       communityId,
       topicId,
       commentId,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get(':communityId/topics/:topicId')
+  @ApiParam({ name: 'communityId', description: 'Community UUID' })
+  @ApiParam({ name: 'topicId', description: 'Topic UUID' })
+  @ApiOperation({ summary: 'Get a single topic with all comments and replies' })
+  @ApiResponse({ status: 200, type: TopicResponseDto })
+  getTopic(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('topicId', ParseUUIDPipe) topicId: string,
+  ) {
+    return this.communityService.getTopic(communityId, topicId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Patch(':communityId/topics/:topicId')
+  @ApiParam({ name: 'communityId', description: 'Community UUID' })
+  @ApiParam({ name: 'topicId', description: 'Topic UUID' })
+  @ApiOperation({ summary: 'Edit own topic (author only)' })
+  updateTopic(
+    @CurrentUser() user: any,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('topicId', ParseUUIDPipe) topicId: string,
+    @Body() dto: UpdateTopicDto,
+  ) {
+    return this.communityService.updateTopic(
+      user.id,
+      communityId,
+      topicId,
+      dto,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Delete(':communityId/topics/:topicId')
+  @ApiParam({ name: 'communityId', description: 'Community UUID' })
+  @ApiParam({ name: 'topicId', description: 'Topic UUID' })
+  @ApiOperation({ summary: 'Delete a topic (author or admin)' })
+  deleteTopic(
+    @CurrentUser() user: any,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('topicId', ParseUUIDPipe) topicId: string,
+  ) {
+    return this.communityService.deleteTopic(
+      user.id,
+      user.role,
+      communityId,
+      topicId,
     );
   }
 }

@@ -186,6 +186,13 @@ model Organization {
   numberOfVolunteers Int?
   annualBudget       String?
 
+  // "Your organization is a local/national organization in Nigeria"
+  isLocalOrNational         Boolean @default(true)
+  // "Your organization has experience working in humanitarian contexts"
+  hasHumanitarianExperience Boolean @default(true)
+  // "Are you interested in registering for our training and mentorship programs?"
+  isInterestedInTraining    Boolean @default(true)
+
   socials    Json @default("[]")
   otherLinks Json @default("[]")
 
@@ -636,6 +643,7 @@ model Community {
 
   memberships CommunityMembership[]
   topics      CommunityTopic[]
+  mentions    CommunityMention[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -742,6 +750,8 @@ model CommunityMention {
   id              String   @id @default(uuid())
   mentionedUserId String
   mentionedUser   User     @relation("CommunityMentions", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+  communityId     String?
+  community       Community?        @relation(fields: [communityId], references: [id], onDelete: SetNull)
   topicId         String?
   topic           CommunityTopic?   @relation(fields: [topicId], references: [id], onDelete: Cascade)
   commentId       String?

@@ -67,12 +67,13 @@ export class CommunityService {
 
   private async saveMentions(
     userIds: string[],
-    ref: { topicId?: string; commentId?: string },
+    ref: { communityId: string; topicId?: string; commentId?: string },
   ) {
     if (!userIds.length) return;
     await this.prisma.communityMention.createMany({
       data: userIds.map((mentionedUserId) => ({
         mentionedUserId,
+        communityId: ref.communityId,
         topicId: ref.topicId ?? null,
         commentId: ref.commentId ?? null,
       })),
@@ -1209,25 +1210,17 @@ export class CommunityService {
         },
       });
 
-      // Create mention records from explicit IDs — skip the author themselves
-      // const toMention = (dto.mentionedUserIds ?? []).filter(
+      // Parse @mentions
+      // const filteredMentions = dto.mentionedUserIds.filter(
       //   (id) => id !== userId,
       // );
-      // if (toMention.length > 0) {
-      //   await this.prisma.communityMention.createMany({
-      //     data: toMention.map((mentionedUserId) => ({
-      //       mentionedUserId,
-      //       commentId: comment.id,
-      //     })),
-      //     skipDuplicates: true,
-      //   });
-      // }
-
-      // Parse @mentions
-      const filteredMentions = dto.mentionedUserIds.filter(
+      const filteredMentions = (dto.mentionedUserIds ?? []).filter(
         (id) => id !== userId,
       );
-      await this.saveMentions(filteredMentions, { commentId: comment.id });
+      await this.saveMentions(filteredMentions, {
+        communityId: communityId,
+        commentId: comment.id,
+      });
 
       // Notify topic author of the new comment (unless they wrote it themselves)
       if (topic.authorId !== userId) {
@@ -1325,6 +1318,7 @@ export class CommunityService {
         await this.prisma.communityMention.createMany({
           data: toMention.map((mentionedUserId) => ({
             mentionedUserId,
+            communityId,
             commentId,
           })),
           skipDuplicates: true,
@@ -1402,6 +1396,9 @@ export class CommunityService {
         where: { mentionedUserId: userId },
         orderBy: { createdAt: 'desc' },
         include: {
+          community: {
+            select: { id: true, name: true },
+          },
           topic: {
             select: {
               id: true,

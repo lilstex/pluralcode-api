@@ -318,6 +318,15 @@ export class OrganizationService {
           ...(dto.description !== undefined && {
             description: dto.description,
           }),
+          ...(dto.isLocalOrNational !== undefined && {
+            isLocalOrNational: dto.isLocalOrNational,
+          }),
+          ...(dto.hasHumanitarianExperience !== undefined && {
+            hasHumanitarianExperience: dto.hasHumanitarianExperience,
+          }),
+          ...(dto.isInterestedInTraining !== undefined && {
+            isInterestedInTraining: dto.isInterestedInTraining,
+          }),
         },
         include: ORG_FULL_INCLUDE,
       });
@@ -409,6 +418,15 @@ export class OrganizationService {
           ...(dto.otherLinks !== undefined && { otherLinks: dto.otherLinks }),
           ...(dto.description !== undefined && {
             description: dto.description,
+          }),
+          ...(dto.isLocalOrNational !== undefined && {
+            isLocalOrNational: dto.isLocalOrNational,
+          }),
+          ...(dto.hasHumanitarianExperience !== undefined && {
+            hasHumanitarianExperience: dto.hasHumanitarianExperience,
+          }),
+          ...(dto.isInterestedInTraining !== undefined && {
+            isInterestedInTraining: dto.isInterestedInTraining,
           }),
         },
         include: ORG_FULL_INCLUDE,
