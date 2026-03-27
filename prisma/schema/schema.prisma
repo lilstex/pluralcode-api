@@ -126,9 +126,9 @@ model User {
   resourceViews       ResourceView[]       @relation("ResourceViews")
   resourceCompletions ResourceCompletion[] @relation("ResourceCompletions")
 
-  newsPosts NewsPost[] @relation("NewsAuthor")
-  eventsCreated Event[] @relation("EventCreator")
-  achievements Achievement[] @relation("UserAchievements")
+  newsPosts     NewsPost[]     @relation("NewsAuthor")
+  eventsCreated Event[]        @relation("EventCreator")
+  achievements  Achievement[]  @relation("UserAchievements")
   notifications Notification[]
 
   createdAt DateTime @default(now())
@@ -201,14 +201,14 @@ model Organization {
 
   members OrganizationMember[]
 
-  activities     OrganizationActivity[]
-  donors         OrganizationDonor[]
-  assessments    OrganizationAssessment[]
-  odaAssessments ODAAssessment[]
+  activities           OrganizationActivity[]
+  donors               OrganizationDonor[]
+  assessments          OrganizationAssessment[]
+  odaAssessments       ODAAssessment[]
   devPlanPriorityAreas DevPlanPriorityArea[]
 
-  spotlightEntries  SpotlightEntry[]
-  spotlightHistory  SpotlightHistory[]
+  spotlightEntries SpotlightEntry[]
+  spotlightHistory SpotlightHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -308,7 +308,7 @@ model ODAPillar {
   name  String @unique
   order Int
 
-  buildingBlocks ODABuildingBlock[]
+  buildingBlocks       ODABuildingBlock[]
   devPlanPriorityAreas DevPlanPriorityArea[]
 
   createdAt DateTime @default(now())
@@ -324,8 +324,8 @@ model ODABuildingBlock {
   pillarId String
   pillar   ODAPillar @relation(fields: [pillarId], references: [id], onDelete: Cascade)
 
-  questions      ODAQuestion[]
-  blockResponses ODABlockResponse[]
+  questions            ODAQuestion[]
+  blockResponses       ODABlockResponse[]
   devPlanPriorityAreas DevPlanPriorityArea[]
 
   createdAt DateTime @default(now())
@@ -397,8 +397,8 @@ model Badge {
   imageUrl       String
   externalSource Boolean @default(false)
 
-  users     User[]
-  resources Resource[]
+  users        User[]
+  resources    Resource[]
   achievements Achievement[] @relation("AchievementBadge")
 
   createdAt DateTime @default(now())
@@ -471,13 +471,13 @@ model ResourceView {
 }
 
 model ResourceCompletion {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation("ResourceCompletions", fields: [userId], references: [id], onDelete: Cascade)
-  resourceId  String
-  resource    Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-  pointsEarned Int     @default(0)
-  completedAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation("ResourceCompletions", fields: [userId], references: [id], onDelete: Cascade)
+  resourceId   String
+  resource     Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  pointsEarned Int      @default(0)
+  completedAt  DateTime @default(now())
 
   @@unique([userId, resourceId])
   @@index([userId])
@@ -562,7 +562,7 @@ model MentorRequest {
 }
 
 model DevPlanPriorityArea {
-  id    String @id @default(uuid())
+  id String @id @default(uuid())
 
   orgId        String
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
@@ -581,7 +581,7 @@ model DevPlanPriorityArea {
   weakness    String? @db.Text
   opportunity String? @db.Text
   threat      String? @db.Text
-  priority    Int     // 1 | 2 | 3 | 4
+  priority    Int // 1 | 2 | 3 | 4
   act         String? @db.Text
 
   actionPlan DevPlanActionPlan?
@@ -620,10 +620,10 @@ model DevPlanEvaluation {
   priorityAreaId String              @unique
   priorityArea   DevPlanPriorityArea @relation(fields: [priorityAreaId], references: [id], onDelete: Cascade)
 
-  whatWasDone        String? @db.Text
-  wereObjectivesMet  String? @db.Text
-  whatDidWeLearn     String? @db.Text
-  nextSteps          String? @db.Text
+  whatWasDone       String? @db.Text
+  wereObjectivesMet String? @db.Text
+  whatDidWeLearn    String? @db.Text
+  nextSteps         String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -665,11 +665,11 @@ model CommunityMembership {
 }
 
 model CommunityTopic {
-  id          String    @id @default(uuid())
-  title       String
-  body        String    @db.Text
-  isBlocked   Boolean   @default(false)
-  likeCount   Int       @default(0)
+  id        String  @id @default(uuid())
+  title     String
+  body      String  @db.Text
+  isBlocked Boolean @default(false)
+  likeCount Int     @default(0)
 
   communityId String
   community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
@@ -718,14 +718,14 @@ model CommunityComment {
 }
 
 model CommunityLike {
-  id        String   @id @default(uuid())
+  id        String            @id @default(uuid())
   userId    String
-  user      User     @relation("CommunityLikes", fields: [userId], references: [id], onDelete: Cascade)
+  user      User              @relation("CommunityLikes", fields: [userId], references: [id], onDelete: Cascade)
   topicId   String?
   topic     CommunityTopic?   @relation(fields: [topicId], references: [id], onDelete: Cascade)
   commentId String?
   comment   CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  createdAt DateTime          @default(now())
 
   @@unique([userId, topicId])
   @@unique([userId, commentId])
@@ -733,13 +733,13 @@ model CommunityLike {
 }
 
 model CommunityReport {
-  id           String @id @default(uuid())
-  reason       String? @db.Text
+  id           String         @id @default(uuid())
+  reason       String?        @db.Text
   reportedById String
-  reportedBy   User   @relation("CommunityReports", fields: [reportedById], references: [id], onDelete: Cascade)
+  reportedBy   User           @relation("CommunityReports", fields: [reportedById], references: [id], onDelete: Cascade)
   topicId      String
   topic        CommunityTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
+  createdAt    DateTime       @default(now())
 
   @@unique([topicId, reportedById])
   @@index([topicId])
@@ -747,16 +747,16 @@ model CommunityReport {
 }
 
 model CommunityMention {
-  id              String   @id @default(uuid())
+  id              String            @id @default(uuid())
   mentionedUserId String
-  mentionedUser   User     @relation("CommunityMentions", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+  mentionedUser   User              @relation("CommunityMentions", fields: [mentionedUserId], references: [id], onDelete: Cascade)
   communityId     String?
   community       Community?        @relation(fields: [communityId], references: [id], onDelete: SetNull)
   topicId         String?
   topic           CommunityTopic?   @relation(fields: [topicId], references: [id], onDelete: Cascade)
   commentId       String?
   comment         CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  createdAt       DateTime @default(now())
+  createdAt       DateTime          @default(now())
 
   @@index([mentionedUserId])
 }
@@ -764,18 +764,18 @@ model CommunityMention {
 // NEWS / BLOG
 
 model NewsPost {
-  id          String          @id @default(uuid())
-  title       String
-  slug        String          @unique
-  type        String
-  body        String          @db.Text
-  excerpt     String?         @db.Text
+  id           String         @id @default(uuid())
+  title        String
+  slug         String         @unique
+  type         String
+  body         String         @db.Text
+  excerpt      String?        @db.Text
   thumbnailUrl String?
-  attachments Json            @default("[]")  // [{ name, url, size }]
-  status      NewsPostStatus  @default(DRAFT)
-  publishedAt DateTime?
-  tags        String[]
-  viewCount   Int             @default(0)
+  attachments  Json           @default("[]") // [{ name, url, size }]
+  status       NewsPostStatus @default(DRAFT)
+  publishedAt  DateTime?
+  tags         String[]
+  viewCount    Int            @default(0)
 
   authorId String
   author   User   @relation("NewsAuthor", fields: [authorId], references: [id])
@@ -793,10 +793,10 @@ model NewsPost {
 // Spotlight
 
 model SpotlightSettings {
-  id               String        @id @default("singleton")
-  defaultPeriodDays Int          @default(2)
-  mode             SpotlightMode @default(AUTO)
-  updatedAt        DateTime      @updatedAt
+  id                String        @id @default("singleton")
+  defaultPeriodDays Int           @default(2)
+  mode              SpotlightMode @default(AUTO)
+  updatedAt         DateTime      @updatedAt
 }
 
 model SpotlightEntry {
@@ -831,39 +831,39 @@ model SpotlightHistory {
 // ACHIEVEMENTS
 
 model Achievement {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation("UserAchievements", fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation("UserAchievements", fields: [userId], references: [id], onDelete: Cascade)
 
   title       String
-  description String   @db.Text
-  points      Int      @default(0)
+  description String @db.Text
+  points      Int    @default(0)
 
-  badgeId     String?
-  badge       Badge?   @relation("AchievementBadge", fields: [badgeId], references: [id], onDelete: SetNull)
+  badgeId String?
+  badge   Badge?  @relation("AchievementBadge", fields: [badgeId], references: [id], onDelete: SetNull)
 
-  earnedAt    DateTime @default(now())
+  earnedAt DateTime @default(now())
 
   @@index([userId])
   @@index([earnedAt])
 }
 
 model Notification {
-  id        String           @id @default(uuid())
-  userId    String
-  type      NotificationType
-  title     String
-  body      String
-  link      String?
-  meta      Json?
+  id     String           @id @default(uuid())
+  userId String
+  type   NotificationType
+  title  String
+  body   String
+  link   String?
+  meta   Json?
 
-  isRead    Boolean          @default(false)
-  readAt    DateTime?
+  isRead Boolean   @default(false)
+  readAt DateTime?
 
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([type])
