@@ -11,6 +11,7 @@ import {
   Min,
   Matches,
   ValidateIf,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Role, ApprovalStatus } from '@prisma/client';
@@ -107,6 +108,39 @@ export class CreateUserDto {
   @IsArray()
   @IsString({ each: true })
   areasOfExpertise?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Is your organization a local/national organization in Nigeria?',
+    example: true,
+  })
+  @ValidateIf((o) => o.role === Role.NGO_MEMBER)
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isLocalOrNational?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Does your organization have experience working in humanitarian contexts?',
+    example: true,
+  })
+  @ValidateIf((o) => o.role === Role.NGO_MEMBER)
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  hasHumanitarianExperience?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Is your organization interested in registering for training and mentorship programs?',
+    example: true,
+  })
+  @ValidateIf((o) => o.role === Role.NGO_MEMBER)
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isInterestedInTraining?: boolean;
 }
 
 export class LoginDto {

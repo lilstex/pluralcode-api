@@ -113,14 +113,25 @@ export class UserService {
     const otpExpiry = otpExpiresAt(15);
 
     let createdUser: any;
+
     try {
       createdUser = await this.prisma.$transaction(async (tx) => {
+        // Check CAC uniqueness BEFORE creating anything
+        if (dto.role === Role.NGO_MEMBER) {
+          const existingOrg = await tx.organization.findUnique({
+            where: { cacNumber: dto.cacNumber! },
+          });
+
+          if (existingOrg) {
+            throw new Error('CAC_NUMBER_EXISTS');
+          }
+        }
+
+        // Create User
         const user = await tx.user.create({
           data: {
             email: dto.email,
             fullName: dto.fullName,
-            // Only store phoneNumber on User for non-expert roles.
-            // Expert phone lives in ExpertProfile.
             phoneNumber: dto.role !== Role.EXPERT ? dto.phoneNumber : null,
             passwordHash,
             role: dto.role,
@@ -130,7 +141,7 @@ export class UserService {
           },
         });
 
-        // ── NGO_MEMBER: create the Organization record ────────────────────────
+        // NGO_MEMBER: create Organization
         if (dto.role === Role.NGO_MEMBER) {
           await tx.organization.create({
             data: {
@@ -141,11 +152,14 @@ export class UserService {
               lga: dto.lga!,
               address: dto.address ?? null,
               userId: user.id,
+              isLocalOrNational: dto.isLocalOrNational,
+              hasHumanitarianExperience: dto.hasHumanitarianExperience,
+              isInterestedInTraining: dto.isInterestedInTraining,
             },
           });
         }
 
-        // ── EXPERT: create the ExpertProfile record with seed data ─────────────
+        // EXPERT: create ExpertProfile
         if (dto.role === Role.EXPERT) {
           await tx.expertProfile.create({
             data: {
@@ -153,8 +167,6 @@ export class UserService {
               title: dto.title ?? null,
               yearsOfExperience: dto.yearsOfExperience ?? null,
               areasOfExpertise: dto.areasOfExpertise ?? [],
-              // phoneNumber lives in ExpertProfile, not User
-              // Store via the profile update flow — seeded here from registration
             },
           });
         }
@@ -163,6 +175,16 @@ export class UserService {
       });
     } catch (error) {
       this.logger.error('createUser error', error);
+
+      // Handle CAC duplicate error cleanly
+      if (error.message === 'CAC_NUMBER_EXISTS') {
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'An organization with this CAC number already exists.',
+        };
+      }
+
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
