@@ -74,6 +74,69 @@ export class SpotlightService {
     return orgs[0] ?? null;
   }
 
+  /**
+   * Resolve everything needed for an auto spotlight (settings + random org).
+   * Call this BEFORE opening a transaction so no reads occur inside tx.
+   * Returns null if no eligible org exists.
+   */
+  private async prepareAutoSpotlight(excludeOrgId?: string): Promise<{
+    orgId: string;
+    endAt: Date;
+    now: Date;
+    defaultPeriodDays: number;
+  } | null> {
+    const settings = await this.getOrCreateSettings();
+    const randomOrg = await this.pickRandomOrg(excludeOrgId);
+
+    if (!randomOrg) {
+      this.logger.warn('No eligible organizations found for auto-spotlight.');
+      return null;
+    }
+
+    const now = new Date();
+    const endAt = new Date(
+      now.getTime() + settings.defaultPeriodDays * 24 * 60 * 60 * 1000,
+    );
+
+    return {
+      orgId: randomOrg.id,
+      endAt,
+      now,
+      defaultPeriodDays: settings.defaultPeriodDays,
+    };
+  }
+
+  /**
+   * Write-only: create the spotlight entry and set AUTO mode.
+   * Must be called with a pre-resolved plan from prepareAutoSpotlight().
+   * Safe to call inside a transaction — does NO reads of its own.
+   */
+  private async writeAutoSpotlight(
+    tx: any,
+    plan: { orgId: string; endAt: Date; now: Date; defaultPeriodDays: number },
+  ): Promise<void> {
+    await tx.spotlightEntry.create({
+      data: {
+        orgId: plan.orgId,
+        startAt: plan.now,
+        endAt: plan.endAt,
+        isActive: true,
+        wasAuto: true,
+        order: null,
+      },
+    });
+
+    await tx.spotlightSettings.upsert({
+      where: { id: 'singleton' },
+      create: { id: 'singleton', mode: 'AUTO' },
+      update: { mode: 'AUTO' },
+    });
+
+    this.logger.log(
+      `Auto-activated spotlight for org ${plan.orgId}. Duration: ${plan.defaultPeriodDays}d.`,
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // PUBLIC — CURRENT SPOTLIGHT
   // ─────────────────────────────────────────────────────────────────────────────
@@ -371,23 +434,67 @@ export class SpotlightService {
   }
 
   /**
-   * Clear all pending queue entries and return to AUTO mode immediately.
+   * Clear all pending queue entries and return to AUTO mode.
+   *
+   * If there is already an active spotlight running, it continues uninterrupted
+   * until it naturally expires — tick() will then auto-select the next org.
+   *
+   * If there is NO active spotlight (the queue WAS the only thing keeping the
+   * platform spotlighted), we immediately auto-select a random approved org so
+   * there is never a gap in coverage.
    */
   async clearQueue() {
     try {
+      let autoStarted = false;
+
+      // ── Reads happen BEFORE the transaction to avoid timeout ────────────────
+      // Check if there is a currently running spotlight
+      const currentActive = await this.prisma.spotlightEntry.findFirst({
+        where: { isActive: true },
+        select: { id: true },
+      });
+
+      // If nothing is running we will need to start one — resolve the org and
+      // duration now, outside the tx, so the transaction only does writes.
+      const autoPlan = !currentActive
+        ? await this.prepareAutoSpotlight()
+        : null;
+
+      // ── Transaction: writes only (fast, well within 5 s timeout) ────────────
       await this.prisma.$transaction(async (tx) => {
+        // Remove all pending (non-active) queue entries
         await tx.spotlightEntry.deleteMany({ where: { isActive: false } });
+
+        // Switch to AUTO mode
         await tx.spotlightSettings.upsert({
           where: { id: 'singleton' },
           create: { id: 'singleton', mode: 'AUTO' },
           update: { mode: 'AUTO' },
         });
+
+        // If nothing was running and we found an org to spotlight, write it now
+        if (!currentActive && autoPlan) {
+          await this.writeAutoSpotlight(tx, autoPlan);
+          autoStarted = true;
+        }
+        // If there IS an active entry: leave it running. When it expires,
+        // tick() will auto-select the next org because mode is now AUTO.
       });
+
+      const entry = autoStarted
+        ? await this.prisma.spotlightEntry.findFirst({
+            where: { isActive: true },
+            include: ENTRY_INCLUDE,
+          })
+        : null;
 
       return {
         status: true,
         statusCode: HttpStatus.OK,
-        message: 'Queue cleared. Returning to AUTO mode.',
+        message: autoStarted
+          ? 'Queue cleared. Auto mode enabled and a new spotlight has been started immediately.'
+          : 'Queue cleared. Auto mode enabled. The current spotlight will continue until it expires.',
+        data: entry,
       };
     } catch (error) {
       this.logger.error('clearQueue error', error);
@@ -426,13 +533,7 @@ export class SpotlightService {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'History retrieved.',
-        data: {
-          history,
-          total,
-          page,
-          limit,
-          pages: Math.ceil(total / limit),
-        },
+        data: { history, total, page, limit, pages: Math.ceil(total / limit) },
       };
     } catch (error) {
       this.logger.error('getHistory error', error);
@@ -492,48 +593,17 @@ export class SpotlightService {
           );
         } else {
           // ── 3. Fall back to AUTO ─────────────────────────────────────────────
-          const settings = await this.getOrCreateSettings();
-
-          // Check if there are any remaining pending entries
           const pendingCount = await this.prisma.spotlightEntry.count({
             where: { isActive: false },
           });
 
           if (pendingCount === 0) {
-            // Truly empty — go auto
-            const randomOrg = await this.pickRandomOrg(active.orgId);
-
-            if (randomOrg) {
-              const endAt = new Date(
-                now.getTime() +
-                  settings.defaultPeriodDays * 24 * 60 * 60 * 1000,
-              );
-
+            // Truly empty — resolve org outside tx, then write inside
+            const autoPlan = await this.prepareAutoSpotlight(active.orgId);
+            if (autoPlan) {
               await this.prisma.$transaction(async (tx) => {
-                await tx.spotlightEntry.create({
-                  data: {
-                    orgId: randomOrg.id,
-                    startAt: now,
-                    endAt,
-                    isActive: true,
-                    wasAuto: true,
-                    order: null,
-                  },
-                });
-                await tx.spotlightSettings.upsert({
-                  where: { id: 'singleton' },
-                  create: { id: 'singleton', mode: 'AUTO' },
-                  update: { mode: 'AUTO' },
-                });
+                await this.writeAutoSpotlight(tx, autoPlan);
               });
-
-              this.logger.log(
-                `Auto-selected org ${randomOrg.id} for spotlight. Duration: ${settings.defaultPeriodDays}d.`,
-              );
-            } else {
-              this.logger.warn(
-                'No eligible organizations found for auto-spotlight.',
-              );
             }
           } else {
             // There are future-dated pending entries — wait for them
@@ -558,33 +628,11 @@ export class SpotlightService {
             `No active spotlight. Activated queued org ${next.orgId}.`,
           );
         } else {
-          const settings = await this.getOrCreateSettings();
-          const randomOrg = await this.pickRandomOrg();
-
-          if (randomOrg) {
-            const endAt = new Date(
-              now.getTime() + settings.defaultPeriodDays * 24 * 60 * 60 * 1000,
-            );
+          const autoPlan = await this.prepareAutoSpotlight();
+          if (autoPlan) {
             await this.prisma.$transaction(async (tx) => {
-              await tx.spotlightEntry.create({
-                data: {
-                  orgId: randomOrg.id,
-                  startAt: now,
-                  endAt,
-                  isActive: true,
-                  wasAuto: true,
-                  order: null,
-                },
-              });
-              await tx.spotlightSettings.upsert({
-                where: { id: 'singleton' },
-                create: { id: 'singleton', mode: 'AUTO' },
-                update: { mode: 'AUTO' },
-              });
+              await this.writeAutoSpotlight(tx, autoPlan);
             });
-            this.logger.log(
-              `Bootstrapped auto-spotlight with org ${randomOrg.id}.`,
-            );
           }
         }
       }
