@@ -529,8 +529,9 @@ export class CommunityController {
   getTopic(
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @Param('topicId', ParseUUIDPipe) topicId: string,
+    @CurrentUser() user: any,
   ) {
-    return this.communityService.getTopic(communityId, topicId);
+    return this.communityService.getTopic(communityId, topicId, user?.id);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -122,6 +122,7 @@ model User {
   communityLikes       CommunityLike[]       @relation("CommunityLikes")
   communityReports     CommunityReport[]     @relation("CommunityReports")
   communityMentions    CommunityMention[]    @relation("CommunityMentions")
+  topicViews           TopicView[]           @relation("TopicViews")
 
   resourceViews       ResourceView[]       @relation("ResourceViews")
   resourceCompletions ResourceCompletion[] @relation("ResourceCompletions")
@@ -691,6 +692,7 @@ model CommunityTopic {
   reports  CommunityReport[]
   likes    CommunityLike[]
   mentions CommunityMention[]
+  views    TopicView[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -699,6 +701,21 @@ model CommunityTopic {
   @@index([authorId])
   @@index([isBlocked])
   @@index([viewCount])
+}
+
+model TopicView {
+  id      String         @id @default(uuid())
+  userId  String
+  user    User           @relation("TopicViews", fields: [userId], references: [id], onDelete: Cascade)
+  topicId String
+  topic   CommunityTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  // One row per user per topic — enforces unique view tracking
+  @@unique([userId, topicId])
+  @@index([userId])
+  @@index([topicId])
 }
 
 model CommunityComment {
