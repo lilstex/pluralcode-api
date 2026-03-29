@@ -339,6 +339,71 @@ export class UpsertExpertProfileDto {
   })
   @IsOptional()
   otherLinks?: any[];
+
+  @ApiPropertyOptional({
+    example: [
+      'Project development and implementation',
+      'Resource mobilization',
+    ],
+    description: 'Areas the expert wants to apply their expertise',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  areaToApply?: string[];
+
+  @ApiPropertyOptional({
+    example: 'Negotiable — approx. $100/hr for mentorship sessions.',
+    description: 'Fee / rate information',
+  })
+  @IsOptional()
+  @IsString()
+  fees?: string;
+
+  @ApiPropertyOptional({
+    example:
+      'An international development leader with 15+ years of experience...',
+    description: 'Short professional pitch or bio paragraph',
+  })
+  @IsOptional()
+  @IsString()
+  companyPitch?: string;
+
+  @ApiPropertyOptional({
+    example: '20 hours per month',
+    description: 'Hours available per week or month (free text)',
+  })
+  @IsOptional()
+  @IsString()
+  hoursPerWeek?: string;
+
+  @ApiPropertyOptional({ example: 'Nigeria' })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional({ example: 'FCT - Abuja' })
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional({
+    example:
+      'Leadership, Governance, and Accountability; Effective communication...',
+    description: 'Free-text description of other areas of expertise or topics',
+  })
+  @IsOptional()
+  @IsString()
+  otherAreasOfTopics?: string;
+
+  @ApiPropertyOptional({
+    example: 'University of Jos\nUniversity of Antwerp',
+    description: 'Institution(s) attended — may be multiline',
+  })
+  @IsOptional()
+  @IsString()
+  institutionAttended?: string;
 }
 // ─────────────────────────────────────────────
 // ORGANIZATION DTOs
@@ -472,11 +537,29 @@ export class ExpertProfileResponseDto {
   @ApiPropertyOptional() capacityOfMentees?: string;
   @ApiProperty() education: any[];
   @ApiProperty() areasOfExpertise: string[];
+  @ApiProperty({
+    type: [String],
+    description: 'Areas the expert wants to apply their expertise',
+  })
+  areaToApply: string[];
   @ApiProperty() servicesOffered: string[];
   @ApiProperty() referees: any[];
   @ApiProperty() preferredContactMethods: string[];
   @ApiProperty() socials: any[];
   @ApiProperty() otherLinks: any[];
+  @ApiPropertyOptional({ description: 'Fee / rate information' }) fees?: string;
+  @ApiPropertyOptional({ description: 'Short professional pitch or bio' })
+  companyPitch?: string;
+  @ApiPropertyOptional({ description: 'Hours available per week or month' })
+  hoursPerWeek?: string;
+  @ApiPropertyOptional() country?: string;
+  @ApiPropertyOptional() state?: string;
+  @ApiPropertyOptional({
+    description: 'Other areas of expertise or topics (free text)',
+  })
+  otherAreasOfTopics?: string;
+  @ApiPropertyOptional({ description: 'Institution(s) attended' })
+  institutionAttended?: string;
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }

@@ -8,7 +8,7 @@ import {
   IsString,
   IsUUID,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { NotificationType } from '@prisma/client';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,8 +58,12 @@ export class CreateNotificationDto {
 export class NotificationQueryDto {
   @ApiPropertyOptional({ description: 'Filter by read status', example: false })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return undefined;
+  })
   @IsBoolean()
-  @Type(() => Boolean)
   isRead?: boolean;
 
   @ApiPropertyOptional({

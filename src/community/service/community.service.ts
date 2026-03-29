@@ -114,12 +114,13 @@ export class CommunityService {
         return { updatedAt: 'desc' };
       case TopicFilter.TRENDING:
         return [{ likeCount: 'desc' }, { updatedAt: 'desc' }];
+      case TopicFilter.MOST_VIEWED:
+        return { viewCount: 'desc' };
       case TopicFilter.NEW:
       default:
         return { createdAt: 'desc' };
     }
   }
-
   // ─────────────────────────────────────────────────────────────────────────────
   // COMMUNITY CRUD
   // ─────────────────────────────────────────────────────────────────────────────
@@ -735,6 +736,14 @@ export class CommunityService {
           message: 'Topic not found.',
         };
       }
+
+      // Increment view count: fire-and-forget
+      this.prisma.communityTopic
+        .update({
+          where: { id: topicId },
+          data: { viewCount: { increment: 1 } },
+        })
+        .catch((err) => this.logger.error('viewCount increment failed', err));
 
       return {
         status: true,

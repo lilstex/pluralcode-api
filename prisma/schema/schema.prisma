@@ -155,11 +155,20 @@ model ExpertProfile {
 
   education               Json     @default("[]")
   areasOfExpertise        String[]
+  areaToApply             String[]
   servicesOffered         String[]
   referees                Json     @default("[]")
   preferredContactMethods String[]
   socials                 Json     @default("[]")
   otherLinks              Json     @default("[]")
+
+  fees                String?
+  companyPitch        String? @db.Text
+  hoursPerWeek        String?
+  country             String?
+  state               String?
+  otherAreasOfTopics  String? @db.Text
+  institutionAttended String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -670,6 +679,7 @@ model CommunityTopic {
   body      String  @db.Text
   isBlocked Boolean @default(false)
   likeCount Int     @default(0)
+  viewCount Int     @default(0)
 
   communityId String
   community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
@@ -688,6 +698,7 @@ model CommunityTopic {
   @@index([communityId])
   @@index([authorId])
   @@index([isBlocked])
+  @@index([viewCount])
 }
 
 model CommunityComment {
@@ -759,6 +770,7 @@ model CommunityMention {
   createdAt       DateTime          @default(now())
 
   @@index([mentionedUserId])
+  @@index([communityId])
 }
 
 // NEWS / BLOG

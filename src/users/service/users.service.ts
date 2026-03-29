@@ -45,6 +45,12 @@ const EXPERT_SCALAR_FIELDS = [
   'employer',
   'mentoringPhilosophy',
   'capacityOfMentees',
+  'fees',
+  'companyPitch',
+  'hoursPerWeek',
+  'country',
+  'state',
+  'institutionAttended',
 ] as const;
 
 const EXPERT_ARRAY_FIELDS = [
@@ -675,6 +681,16 @@ export class UserService {
         data.preferredContactMethods = dto.preferredContactMethods;
       if (dto.socials !== undefined) data.socials = dto.socials;
       if (dto.otherLinks !== undefined) data.otherLinks = dto.otherLinks;
+      if (dto.areaToApply !== undefined) data.areaToApply = dto.areaToApply;
+      if (dto.fees !== undefined) data.fees = dto.fees;
+      if (dto.companyPitch !== undefined) data.companyPitch = dto.companyPitch;
+      if (dto.hoursPerWeek !== undefined) data.hoursPerWeek = dto.hoursPerWeek;
+      if (dto.country !== undefined) data.country = dto.country;
+      if (dto.state !== undefined) data.state = dto.state;
+      if (dto.otherAreasOfTopics !== undefined)
+        data.otherAreasOfTopics = dto.otherAreasOfTopics;
+      if (dto.institutionAttended !== undefined)
+        data.institutionAttended = dto.institutionAttended;
 
       // Store phoneNumber on User record if provided
       if (dto.phoneNumber !== undefined) {

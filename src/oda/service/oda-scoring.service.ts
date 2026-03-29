@@ -1,11 +1,10 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
 
 interface AnswerItem {
   questionId: string;
   questionText: string;
-  selectedScale: number;
+  selectedScale: number; // 1–4
   evidence?: string;
 }
 
@@ -13,7 +12,7 @@ interface BlockScoreResult {
   blockId: string;
   blockName: string;
   pillarName: string;
-  rawAverage: number;
+  rawAverage: number; // average of selectedScale values (1–4)
   normalised: number; // scaled to maxScore
   maxScore: number;
   answeredCount: number;
@@ -95,7 +94,7 @@ export class OdaScoringService {
 
     const org = assessment.organization;
 
-    // Historical trend
+    // ── Historical trend ───────────────────────────────────────────────────
     const previousAssessments = await this.prisma.oDAAssessment.findMany({
       where: {
         orgId: assessment.orgId,
@@ -110,7 +109,7 @@ export class OdaScoringService {
     const hasPrevious = previousAssessments.length > 0;
     const lastScore = hasPrevious ? previousAssessments[0].overallScore : null;
 
-    // Block analysis
+    // ── Block analysis — evidence is now captured alongside weak items ─────
     const blockSummaries = assessment.blockResponses.map((br) => {
       const answers = (br.answers as unknown as AnswerItem[]) ?? [];
       const scored = answers.filter((a) => a.selectedScale);
@@ -120,10 +119,26 @@ export class OdaScoringService {
           ? scored.reduce((s, a) => s + a.selectedScale, 0) / scored.length
           : 0;
 
-      const weakItems = scored
+      // Collect weak answers (scale ≤ 2) with their question text AND any
+      // evidence the user provided — this is the most contextual signal we have
+      const weakAnswers = scored
         .filter((a) => a.selectedScale <= 2)
-        .map((a) => a.questionText ?? a.questionId)
-        .slice(0, 2);
+        .slice(0, 3)
+        .map((a) => ({
+          question: a.questionText ?? a.questionId,
+          evidence: (a.evidence ?? '').trim(),
+          scale: a.selectedScale,
+        }));
+
+      // Collect strong answers (scale ≥ 3) with evidence for the strengths section
+      const strongAnswers = scored
+        .filter((a) => a.selectedScale >= 3 && (a.evidence ?? '').trim())
+        .slice(0, 2)
+        .map((a) => ({
+          question: a.questionText ?? a.questionId,
+          evidence: a.evidence!.trim(),
+          scale: a.selectedScale,
+        }));
 
       return {
         pillar: br.buildingBlock.pillar.name,
@@ -131,12 +146,13 @@ export class OdaScoringService {
         score: br.blockScore ?? 0,
         maxScore: br.buildingBlock.maxScore,
         avgScale: parseFloat(avgScale.toFixed(2)),
-        weakItems,
+        weakAnswers,
+        strongAnswers,
         label: this.scaleBand(avgScale),
       };
     });
 
-    // ── Identify weakest pillar group ──────────────────────────────────────
+    // ── Identify weakest/strongest pillar groups ───────────────────────────
     const pillarMap: Record<string, { total: number; count: number }> = {};
     for (const b of blockSummaries) {
       if (!pillarMap[b.pillar]) pillarMap[b.pillar] = { total: 0, count: 0 };
@@ -150,7 +166,7 @@ export class OdaScoringService {
     const weakestPillar = pillarAverages[0]?.name ?? '';
     const strongestPillar = pillarAverages.at(-1)?.name ?? '';
 
-    const weakestBlocks = blockSummaries
+    const weakestBlocks = [...blockSummaries]
       .sort((a, b) => a.avgScale - b.avgScale)
       .slice(0, 3);
 
@@ -159,62 +175,134 @@ export class OdaScoringService {
       weakestBlocks.map((b) => b.block),
     );
 
-    // ── Assemble narrative ─────────────────────────────────────────────────
+    // ── Assemble structured narrative ─────────────────────────────────────
     const overallScore = assessment.overallScore ?? 0;
     const overallBand = this.scoreBand(overallScore);
+    const context = org.sectors?.length
+      ? `${org.sectors.join('/')} organisation in ${org.state ?? 'Nigeria'}`
+      : `organisation in ${org.state ?? 'Nigeria'}`;
 
-    let summary = `## ODA Assessment Summary — ${org.name}\n\n`;
-    summary += `**Overall Score:** ${overallScore.toFixed(1)}% (${overallBand})\n`;
+    const lines: string[] = [];
+
+    // ── Title block ────────────────────────────────────────────────────────
+    lines.push(`ODA Assessment Summary — ${org.name}`);
+    lines.push(`${'─'.repeat(60)}`);
+    lines.push('');
+
+    // ── Overall result ─────────────────────────────────────────────────────
+    lines.push(
+      `Overall Score: ${overallScore.toFixed(1)}%  |  Capacity Level: ${overallBand}`,
+    );
 
     if (hasPrevious && lastScore !== null) {
       const diff = overallScore - lastScore;
       const trend =
         diff > 0
-          ? `improved by ${diff.toFixed(1)} points`
+          ? `improved by ${diff.toFixed(1)} points compared to the previous assessment`
           : diff < 0
-            ? `declined by ${Math.abs(diff).toFixed(1)} points`
-            : 'unchanged';
-      summary += `**Trend:** Score has ${trend} since the last assessment.\n`;
+            ? `declined by ${Math.abs(diff).toFixed(1)} points compared to the previous assessment`
+            : 'remained unchanged since the previous assessment';
+      lines.push(`Performance Trend: The organisation\'s score has ${trend}.`);
     }
 
-    summary += `\n### Pillar Performance\n`;
-    for (const { name, avg } of pillarAverages.slice().reverse()) {
-      summary += `- **${name}:** ${this.scaleBand(avg)} (avg scale ${avg.toFixed(2)}/4)\n`;
-    }
+    lines.push('');
 
-    summary += `\n### Strengths\n`;
-    summary += `Your organisation demonstrates the most capacity in the **${strongestPillar}** pillar. `;
-    const strongBlocks = blockSummaries
-      .filter((b) => b.avgScale >= 3)
-      .map((b) => b.block);
+    // ── Pillar performance table ───────────────────────────────────────────
+    lines.push('PILLAR PERFORMANCE');
+    lines.push('──────────────────');
+    for (const { name, avg } of [...pillarAverages].reverse()) {
+      const bar = '█'.repeat(Math.round(avg)) + '░'.repeat(4 - Math.round(avg));
+      lines.push(
+        `  ${name.padEnd(38)} ${bar}  ${this.scaleBand(avg)} (${avg.toFixed(2)}/4)`,
+      );
+    }
+    lines.push('');
+
+    // ── Strengths ─────────────────────────────────────────────────────────
+    lines.push('STRENGTHS');
+    lines.push('─────────');
+    const strongBlocks = blockSummaries.filter((b) => b.avgScale >= 3);
+
     if (strongBlocks.length) {
-      summary += `Notable strengths were found in: ${strongBlocks.join(', ')}.\n`;
+      lines.push(
+        `The organisation demonstrates its greatest capacity in the ${strongestPillar} pillar. ` +
+          `The following areas are performing well:`,
+      );
+      lines.push('');
+      for (const sb of strongBlocks) {
+        lines.push(`  ${sb.block} (${sb.label})`);
+        // Include any evidence the user provided for strong answers
+        for (const sa of sb.strongAnswers) {
+          lines.push(`    Evidence provided: "${sa.evidence}"`);
+        }
+      }
+    } else {
+      lines.push(
+        `No blocks have yet reached a consistently high performance level. ` +
+          `Continued effort across all pillars is encouraged.`,
+      );
     }
+    lines.push('');
 
-    summary += `\n### Areas for Development\n`;
-    summary += `The **${weakestPillar}** pillar requires the most attention. `;
+    // ── Areas for development ──────────────────────────────────────────────
+    lines.push('AREAS FOR DEVELOPMENT');
+    lines.push('─────────────────────');
+    lines.push(
+      `The ${weakestPillar} pillar requires the most focused attention. ` +
+        `The three lowest-scoring blocks are detailed below, including gaps identified ` +
+        `from both the scale ratings and the evidence provided by respondents.`,
+    );
+    lines.push('');
+
     for (const wb of weakestBlocks) {
-      summary += `\n- **${wb.block}** (${wb.label}): `;
-      if (wb.weakItems.length) {
-        summary += `Key gaps identified around: ${wb.weakItems.join('; ')}.`;
+      lines.push(
+        `  ${wb.block}  [${wb.label} — score ${wb.score.toFixed(1)} / ${wb.maxScore}]`,
+      );
+
+      if (wb.weakAnswers.length) {
+        lines.push('  Identified gaps:');
+        for (const wa of wb.weakAnswers) {
+          const scaleLabel = SCALE_LABELS[wa.scale] ?? `Scale ${wa.scale}`;
+          lines.push(`    • ${wa.question}  (rated: ${scaleLabel})`);
+          if (wa.evidence) {
+            lines.push(`      Organisation noted: "${wa.evidence}"`);
+          }
+        }
       } else {
-        summary += `This block scored below average — a review of current practices is recommended.`;
+        lines.push(
+          '  This block scored below average. A review of current practices is recommended.',
+        );
       }
+      lines.push('');
     }
 
+    // ── Recommended resources ──────────────────────────────────────────────
     if (resourceSuggestions.length) {
-      summary += `\n\n### Recommended Resources\n`;
-      summary += `Based on your assessment gaps, the following resources from the PLRCAP library may help:\n`;
+      lines.push('RECOMMENDED RESOURCES');
+      lines.push('─────────────────────');
+      lines.push(
+        `Based on the gaps identified above, the following resources from the PLRCAP library ` +
+          `may support capacity building:`,
+      );
+      lines.push('');
       for (const r of resourceSuggestions) {
-        summary += `- **${r.title}** — ${r.type.toLowerCase()}\n`;
+        lines.push(`  • ${r.title}  [${r.type.toLowerCase()}]`);
       }
+      lines.push('');
     }
 
-    if (org.sectors?.length) {
-      summary += `\n*This summary was generated based on assessment data for a ${org.sectors.join('/')} organisation in ${org.state ?? 'Nigeria'}.*`;
+    // ── Footer note ────────────────────────────────────────────────────────
+    lines.push(`${'─'.repeat(60)}`);
+    lines.push(
+      `This report was generated from assessment data submitted by ${context}.`,
+    );
+    if (org.numberOfStaff) {
+      lines.push(
+        `Organisation size: approximately ${org.numberOfStaff} staff members.`,
+      );
     }
 
-    return summary;
+    return lines.join('\n');
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -247,6 +335,7 @@ export class OdaScoringService {
     );
 
     // Build OR conditions — keyword match on resource title
+    // Note: Resource has no status field; filter by having a contentUrl (published indicator)
     const resources = await this.prisma.resource.findMany({
       where: {
         contentUrl: { not: null },

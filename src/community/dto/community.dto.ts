@@ -13,6 +13,7 @@ export enum TopicFilter {
   NEW = 'NEW',
   RECENT = 'RECENT',
   TRENDING = 'TRENDING',
+  MOST_VIEWED = 'MOST_VIEWED',
 }
 
 // ─────────────────────────────────────────────
@@ -120,7 +121,8 @@ export class TopicQueryDto {
   @ApiPropertyOptional({
     enum: TopicFilter,
     description:
-      'NEW = most recently created | RECENT = latest activity (updatedAt) | TRENDING = most liked in last 7 days',
+      'NEW = most recently created | RECENT = latest activity (updatedAt) | ' +
+      'TRENDING = most liked in last 7 days | MOST_VIEWED = highest view count',
   })
   @IsOptional()
   @IsEnum(TopicFilter)
@@ -222,6 +224,7 @@ export class TopicResponseDto {
   @ApiProperty() body: string;
   @ApiProperty() isBlocked: boolean;
   @ApiProperty() likeCount: number;
+  @ApiProperty() viewCount: number;
   @ApiProperty() communityId: string;
   @ApiProperty({ type: CommunityAuthorDto }) author: CommunityAuthorDto;
   @ApiProperty({ type: [CommentResponseDto] }) comments: CommentResponseDto[];
@@ -241,6 +244,7 @@ export class AllTopicResponseDto {
   @ApiProperty() body: string;
   @ApiProperty() isBlocked: boolean;
   @ApiProperty() likeCount: number;
+  @ApiProperty() viewCount: number;
   @ApiProperty({ type: CommunityMinDto }) community: CommunityMinDto;
   @ApiProperty({ type: CommunityAuthorDto }) author: CommunityAuthorDto;
   @ApiProperty({ type: [CommentResponseDto] }) comments: CommentResponseDto[];
