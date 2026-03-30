@@ -23,8 +23,8 @@ export class EmailService {
   private readonly fromAddress: string;
 
   constructor(private readonly config: ConfigService) {
-    // this.viewsPath = path.join(__dirname, '../../../views');
-    this.viewsPath = path.join(process.cwd(), 'views');
+    this.viewsPath = path.join(__dirname, '../../../views');
+    // this.viewsPath = path.join(process.cwd(), 'views');
     this.fromAddress =
       this.config.get<string>('EMAIL_FROM') ??
       'PLRCAP Hub <noreply@plrcap.org>';

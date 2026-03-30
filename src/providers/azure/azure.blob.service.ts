@@ -19,6 +19,7 @@ export type AzureContainer =
   | 'communities'
   | 'news-attachments'
   | 'org-logos'
+  | 'categories'
   | 'news';
 
 @Injectable()

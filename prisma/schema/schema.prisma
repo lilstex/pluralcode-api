@@ -36,6 +36,7 @@ enum ResourceType {
   DOCUMENT
   VIDEO
   ARTICLE
+  MULTILINK
 }
 
 enum MentorRequestStatus {
@@ -415,8 +416,9 @@ model Badge {
 }
 
 model Category {
-  id   String @id @default(uuid())
-  name String @unique
+  id       String  @id @default(uuid())
+  name     String  @unique
+  imageUrl String?
 
   parentId  String?
   parent    Category?  @relation("SubCategories", fields: [parentId], references: [id])
@@ -444,14 +446,16 @@ model Resource {
   fileSize    Int?
   points      Int          @default(0)
 
+  imageUrl String?
+
   badgeId String?
   badge   Badge?  @relation(fields: [badgeId], references: [id])
 
-  categoryId String
-  category   Category      @relation(fields: [categoryId], references: [id])
-  tags       Tag[]
-  downloads  DownloadLog[]
-
+  categoryId  String
+  category    Category             @relation(fields: [categoryId], references: [id])
+  tags        Tag[]
+  links       ResourceLink[]
+  downloads   DownloadLog[]
   views       ResourceView[]
   completions ResourceCompletion[]
 
@@ -465,6 +469,17 @@ model Resource {
   @@index([region])
   @@index([createdAt])
   @@index([badgeId])
+}
+
+model ResourceLink {
+  id         String   @id @default(uuid())
+  title      String
+  url        String
+  order      Int      @default(0)
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId])
 }
 
 model ResourceView {

@@ -12,6 +12,7 @@ import {
   UploadedFile,
   ParseFilePipe,
   MaxFileSizeValidator,
+  FileTypeValidator,
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
@@ -53,8 +54,13 @@ import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions';
 
-// 50MB max for video uploads, 10MB for documents
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB for video/docs
+const IMAGE_FILE_PIPE = new ParseFilePipe({
+  validators: [
+    new MaxFileSizeValidator({ maxSize: 2 * 1024 * 1024 }),
+    new FileTypeValidator({ fileType: /^image\/(jpeg|png|webp|svg\+xml)$/ }),
+  ],
+});
 
 @ApiTags('Resource Library')
 @Controller('resources')
@@ -62,7 +68,7 @@ export class ResourceController {
   constructor(private readonly resourceService: ResourceService) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TAXONOMY — CATEGORIES (Admin only)
+  // TAXONOMY — CATEGORIES
   // ─────────────────────────────────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -113,8 +119,34 @@ export class ResourceController {
     return this.resourceService.deleteCategory(admin.id, id);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(Role.SUPER_ADMIN, Role.RESOURCE_ADMIN)
+  @Permissions(PERMISSIONS.TAXONOMY_MANAGE)
+  @ApiBearerAuth()
+  @Post('categories/:id/image')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary:
+      'Admin: Upload or replace a category image (max 2MB, JPEG/PNG/WebP/SVG)',
+  })
+  @ApiParam({ name: 'id', description: 'Category UUID' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  async uploadCategoryImage(
+    @CurrentUser() admin: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile(IMAGE_FILE_PIPE) file: Express.Multer.File,
+  ) {
+    return this.resourceService.uploadCategoryImage(admin.id, id, file);
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
-  // TAXONOMY — TAGS (Admin only)
+  // TAXONOMY — TAGS
   // ─────────────────────────────────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -148,7 +180,7 @@ export class ResourceController {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // BADGE LIBRARY (Super Admin only — upload badge designs for use on resources)
+  // BADGE LIBRARY
   // ─────────────────────────────────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -158,8 +190,6 @@ export class ResourceController {
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: 'Super Admin: Create a new badge (upload badge image)',
-    description:
-      'Upload a badge design (PNG/SVG). Admins then attach this badge to a resource so users earn it on download.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -189,10 +219,7 @@ export class ResourceController {
   }
 
   @Get('badges')
-  @ApiOperation({
-    summary:
-      'List all available badges (public — used by admin when creating resources)',
-  })
+  @ApiOperation({ summary: 'List all available badges (public)' })
   async listBadges() {
     return this.resourceService.listBadges();
   }
@@ -201,9 +228,7 @@ export class ResourceController {
   @Roles(Role.SUPER_ADMIN)
   @ApiBearerAuth()
   @Delete('badges/:id')
-  @ApiOperation({
-    summary: 'Super Admin: Delete a badge and remove its image from Azure',
-  })
+  @ApiOperation({ summary: 'Super Admin: Delete a badge' })
   @ApiParam({ name: 'id', description: 'Badge UUID' })
   async deleteBadge(
     @CurrentUser() admin: any,
@@ -213,7 +238,7 @@ export class ResourceController {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // RESOURCES — BULK ACTIONS (Admin only, before /:id routes to avoid conflict)
+  // BULK ACTIONS (before /:id routes to avoid conflict)
   // ─────────────────────────────────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -225,13 +250,7 @@ export class ResourceController {
   @ApiBody({
     schema: {
       type: 'object',
-      properties: {
-        ids: {
-          type: 'array',
-          items: { type: 'string' },
-          example: ['uuid-1', 'uuid-2'],
-        },
-      },
+      properties: { ids: { type: 'array', items: { type: 'string' } } },
     },
   })
   async bulkDelete(@CurrentUser() admin: any, @Body('ids') ids: string[]) {
@@ -279,12 +298,11 @@ export class ResourceController {
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: 'Admin: Upload a new resource',
-    description: `
-      Supports three content types (set via the "type" field):
-      - DOCUMENT: upload PDF/Word file → OCR text extraction runs automatically
-      - VIDEO: upload MP4 file OR provide externalUrl (YouTube/Vimeo)
-      - ARTICLE: provide articleBody text OR provide externalUrl (website)
-    `,
+    description: `Supported content types (set via the "type" field):
+  - DOCUMENT: upload PDF/Word file → OCR text extraction runs automatically
+  - VIDEO: upload MP4 file OR provide externalUrl (YouTube/Vimeo)
+  - ARTICLE: provide articleBody text OR provide externalUrl (website)
+  - MULTILINK: no file needed — provide a "links" array of { title, url } objects`,
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -294,17 +312,20 @@ export class ResourceController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Required for DOCUMENT and VIDEO types',
+          description: 'Required for DOCUMENT and VIDEO file uploads',
         },
         title: { type: 'string' },
         description: { type: 'string' },
-        type: { type: 'string', enum: ['DOCUMENT', 'VIDEO', 'ARTICLE'] },
+        type: {
+          type: 'string',
+          enum: ['DOCUMENT', 'VIDEO', 'ARTICLE', 'MULTILINK'],
+        },
         categoryId: { type: 'string' },
         author: { type: 'string' },
         tagIds: { type: 'array', items: { type: 'string' } },
         externalUrl: {
           type: 'string',
-          description: 'YouTube/Vimeo OR Blog website URL',
+          description: 'YouTube/Vimeo URL (VIDEO) or website URL (ARTICLE)',
         },
         language: { type: 'string', example: 'en' },
         region: { type: 'string' },
@@ -312,6 +333,18 @@ export class ResourceController {
         articleBody: {
           type: 'string',
           description: 'Body text for ARTICLE type',
+        },
+        links: {
+          type: 'array',
+          description: 'Required for MULTILINK type',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              url: { type: 'string' },
+              order: { type: 'number' },
+            },
+          },
         },
       },
     },
@@ -330,14 +363,39 @@ export class ResourceController {
     return this.resourceService.createResource(admin.id, dto, file);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(Role.SUPER_ADMIN, Role.RESOURCE_ADMIN)
+  @Permissions(PERMISSIONS.RESOURCE_UPLOAD)
+  @ApiBearerAuth()
+  @Post(':id/image')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary:
+      'Admin: Upload or replace resource cover image (max 2MB, JPEG/PNG/WebP/SVG)',
+  })
+  @ApiParam({ name: 'id', description: 'Resource UUID' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  async uploadResourceImage(
+    @CurrentUser() admin: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile(IMAGE_FILE_PIPE) file: Express.Multer.File,
+  ) {
+    return this.resourceService.uploadResourceImage(admin.id, id, file);
+  }
+
   @UseGuards(OptionalJwtGuard)
   @ApiBearerAuth()
   @Get()
   @ApiOperation({
-    summary:
-      'Search and list resources with full-text search and faceted filters',
+    summary: 'Search and list resources (public)',
     description:
-      'Public endpoint. Unauthenticated users see titles/descriptions but not download URLs.',
+      'Unauthenticated users see titles/descriptions but not download URLs or contentUrl.',
   })
   @ApiQuery({
     name: 'search',
@@ -348,8 +406,9 @@ export class ResourceController {
   @ApiQuery({
     name: 'type',
     required: false,
-    enum: ['DOCUMENT', 'VIDEO', 'ARTICLE'],
+    enum: ['DOCUMENT', 'VIDEO', 'ARTICLE', 'MULTILINK'],
   })
+  @ApiQuery({ name: 'tagId', required: false })
   @ApiQuery({ name: 'sector', required: false })
   @ApiQuery({ name: 'region', required: false })
   @ApiQuery({ name: 'language', required: false })
@@ -363,14 +422,13 @@ export class ResourceController {
   @ApiQuery({ name: 'limit', required: false })
   async listResources(@Query() query: ResourceQueryDto, @Req() req: Request) {
     const user = (req as any).user;
-    const isAuthenticated = !!user;
-    return this.resourceService.listResources(query, isAuthenticated, user?.id);
+    return this.resourceService.listResources(query, !!user, user?.id);
   }
 
   @UseGuards(OptionalJwtGuard)
   @ApiBearerAuth()
   @Get(':id')
-  @ApiOperation({ summary: 'Get a single resource by ID' })
+  @ApiOperation({ summary: 'Get a single resource by ID (public)' })
   @ApiParam({ name: 'id', description: 'Resource UUID' })
   @ApiResponse({ status: 200, type: ResourceResponseDto })
   async getResource(
@@ -378,8 +436,7 @@ export class ResourceController {
     @Req() req: Request,
   ) {
     const user = (req as any).user;
-    const isAuthenticated = !!user;
-    return this.resourceService.getResource(id, isAuthenticated, user?.id);
+    return this.resourceService.getResource(id, !!user, user?.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -391,9 +448,7 @@ export class ResourceController {
   @ApiOperation({
     summary: 'Admin: Update resource metadata and/or content',
     description:
-      'Metadata fields (title, description, etc.) are sent as form fields. ' +
-      'To replace content: attach a new file for DOCUMENT types, ' +
-      'send externalUrl for VIDEO types, or send articleBody for ARTICLE types.',
+      'For MULTILINK: send a "links" array to replace all existing links.',
   })
   @ApiParam({ name: 'id', description: 'Resource UUID' })
   @ApiConsumes('multipart/form-data', 'application/json')
@@ -411,7 +466,9 @@ export class ResourceController {
   @Permissions(PERMISSIONS.RESOURCE_DELETE)
   @ApiBearerAuth()
   @Delete(':id')
-  @ApiOperation({ summary: 'Admin: Delete a resource and its Azure Blob file' })
+  @ApiOperation({
+    summary: 'Admin: Delete a resource and its Azure Blob files',
+  })
   @ApiParam({ name: 'id', description: 'Resource UUID' })
   async deleteResource(
     @CurrentUser() admin: any,
@@ -421,7 +478,7 @@ export class ResourceController {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // DOWNLOAD (authenticated users only)
+  // DOWNLOAD / VIEW / COMPLETE (authenticated users only)
   // ─────────────────────────────────────────────────────────────────────────────
 
   @UseGuards(JwtAuthGuard)
@@ -430,7 +487,7 @@ export class ResourceController {
   @ApiOperation({
     summary: 'Record a download and return the file URL',
     description:
-      'Logs the download and returns the Azure Blob URL. Does NOT award points or badges — use POST :id/complete for that.',
+      'Logs the download and returns the Azure Blob URL. Does NOT award points — use POST :id/complete for that.',
   })
   @ApiParam({ name: 'id', description: 'Resource UUID' })
   @ApiResponse({ status: 200, type: DownloadResponseDto })
@@ -446,10 +503,8 @@ export class ResourceController {
   @Post(':id/view')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Mark a resource as viewed',
-    description:
-      'Must be called when a user opens the resource detail screen. ' +
-      'Enables the Complete button on the frontend. Idempotent — safe to call multiple times.',
+    summary: 'Mark a resource as viewed (unlocks the Complete button)',
+    description: 'Idempotent — safe to call multiple times.',
   })
   @ApiParam({ name: 'id', description: 'Resource UUID' })
   async viewResource(
@@ -466,8 +521,7 @@ export class ResourceController {
   @ApiOperation({
     summary: 'Mark a resource as completed — awards points and badge',
     description:
-      'Requires the user to have first called POST :id/view. ' +
-      'Once completed, calling this endpoint again returns 409 — points and badge are only awarded once.',
+      'Requires prior call to POST :id/view. Points and badge awarded once only.',
   })
   @ApiParam({ name: 'id', description: 'Resource UUID' })
   async completeResource(

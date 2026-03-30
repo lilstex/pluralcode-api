@@ -10,6 +10,7 @@ import {
   UpdateCategoryDto,
   CreateTagDto,
   CreateBadgeDto,
+  ResourceType,
 } from '../dto/resources.dto';
 import { OcrService } from './ocr.service';
 import { RewardsService } from 'src/reward/service/reward.service';
@@ -22,6 +23,15 @@ const EXTRACTABLE_MIMETYPES = new Set([
   'text/csv',
   'text/html',
 ]);
+
+// Shared include for resource responses — always includes links
+const RESOURCE_INCLUDE = {
+  category: true,
+  tags: true,
+  links: { orderBy: { order: 'asc' as const } },
+  badge: { select: { id: true, name: true, imageUrl: true } },
+  _count: { select: { downloads: true } },
+} as const;
 
 @Injectable()
 export class ResourceService {
@@ -36,7 +46,7 @@ export class ResourceService {
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // BADGE LIBRARY (Super Admin manages the badge catalogue)
+  // BADGE LIBRARY
   // ─────────────────────────────────────────────────────────────────────────────
 
   async createBadge(
@@ -57,7 +67,6 @@ export class ResourceService {
       }
 
       const imageUrl = await this.azureBlob.upload(file, 'avatars');
-
       const badge = await this.prisma.badge.create({
         data: { name: dto.name, imageUrl, externalSource: false },
       });
@@ -112,21 +121,16 @@ export class ResourceService {
   async deleteBadge(adminId: string, id: string) {
     try {
       const badge = await this.prisma.badge.findUnique({ where: { id } });
-      if (!badge) {
+      if (!badge)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Badge not found.',
         };
-      }
 
-      // Delete image from Azure
-      if (badge.imageUrl) {
+      if (badge.imageUrl)
         await this.azureBlob.delete(badge.imageUrl, 'avatars');
-      }
-
       await this.prisma.badge.delete({ where: { id } });
-
       await this.prisma.auditLog.create({
         data: {
           action: 'BADGE_DELETED',
@@ -161,25 +165,23 @@ export class ResourceService {
         const parent = await this.prisma.category.findUnique({
           where: { id: dto.parentId },
         });
-        if (!parent) {
+        if (!parent)
           return {
             status: false,
             statusCode: HttpStatus.NOT_FOUND,
             message: 'Parent category not found.',
           };
-        }
       }
 
       const existing = await this.prisma.category.findUnique({
         where: { name: dto.name },
       });
-      if (existing) {
+      if (existing)
         return {
           status: false,
           statusCode: HttpStatus.CONFLICT,
           message: 'A category with this name already exists.',
         };
-      }
 
       const category = await this.prisma.category.create({
         data: { name: dto.name, parentId: dto.parentId ?? null },
@@ -237,20 +239,18 @@ export class ResourceService {
   async updateCategory(adminId: string, id: string, dto: UpdateCategoryDto) {
     try {
       const category = await this.prisma.category.findUnique({ where: { id } });
-      if (!category) {
+      if (!category)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Category not found.',
         };
-      }
-      if (dto.parentId === id) {
+      if (dto.parentId === id)
         return {
           status: false,
           statusCode: HttpStatus.BAD_REQUEST,
           message: 'A category cannot be its own parent.',
         };
-      }
 
       const updated = await this.prisma.category.update({
         where: { id },
@@ -289,13 +289,12 @@ export class ResourceService {
         where: { id },
         include: { _count: { select: { resources: true, children: true } } },
       });
-      if (!category) {
+      if (!category)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Category not found.',
         };
-      }
       if (category._count.resources > 0) {
         return {
           status: false,
@@ -309,6 +308,13 @@ export class ResourceService {
           statusCode: HttpStatus.BAD_REQUEST,
           message: `Cannot delete: this category has ${category._count.children} sub-category(ies).`,
         };
+      }
+
+      // Delete Azure image if exists
+      if (category.imageUrl) {
+        await this.azureBlob
+          .delete(category.imageUrl, 'categories')
+          .catch(() => null);
       }
 
       await this.prisma.category.delete({ where: { id } });
@@ -336,6 +342,59 @@ export class ResourceService {
     }
   }
 
+  async uploadCategoryImage(
+    adminId: string,
+    id: string,
+    file: Express.Multer.File,
+  ) {
+    try {
+      const category = await this.prisma.category.findUnique({ where: { id } });
+      if (!category)
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Category not found.',
+        };
+
+      // Delete old image if exists
+      if (category.imageUrl) {
+        await this.azureBlob
+          .delete(category.imageUrl, 'categories')
+          .catch(() => null);
+      }
+
+      const imageUrl = await this.azureBlob.upload(file, 'categories');
+      const updated = await this.prisma.category.update({
+        where: { id },
+        data: { imageUrl },
+        include: { parent: true, children: true },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'CATEGORY_IMAGE_UPLOADED',
+          entity: 'Category',
+          entityId: id,
+          adminId,
+        },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Category image uploaded.',
+        data: updated,
+      };
+    } catch (error) {
+      this.logger.error('uploadCategoryImage error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // TAXONOMY — TAGS
   // ─────────────────────────────────────────────────────────────────────────────
@@ -345,13 +404,13 @@ export class ResourceService {
       const existing = await this.prisma.tag.findUnique({
         where: { name: dto.name },
       });
-      if (existing) {
+      if (existing)
         return {
           status: false,
           statusCode: HttpStatus.CONFLICT,
           message: 'Tag already exists.',
         };
-      }
+
       const tag = await this.prisma.tag.create({ data: { name: dto.name } });
       await this.prisma.auditLog.create({
         data: {
@@ -361,6 +420,7 @@ export class ResourceService {
           adminId,
         },
       });
+
       return {
         status: true,
         statusCode: HttpStatus.CREATED,
@@ -399,17 +459,18 @@ export class ResourceService {
   async deleteTag(adminId: string, id: string) {
     try {
       const tag = await this.prisma.tag.findUnique({ where: { id } });
-      if (!tag) {
+      if (!tag)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Tag not found.',
         };
-      }
+
       await this.prisma.tag.delete({ where: { id } });
       await this.prisma.auditLog.create({
         data: { action: 'TAG_DELETED', entity: 'Tag', entityId: id, adminId },
       });
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -438,13 +499,12 @@ export class ResourceService {
       const category = await this.prisma.category.findUnique({
         where: { id: dto.categoryId },
       });
-      if (!category) {
+      if (!category)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Category not found.',
         };
-      }
 
       if (dto.tagIds?.length) {
         const foundTags = await this.prisma.tag.findMany({
@@ -463,28 +523,36 @@ export class ResourceService {
         const badge = await this.prisma.badge.findUnique({
           where: { id: dto.badgeId },
         });
-        if (!badge) {
+        if (!badge)
           return {
             status: false,
             statusCode: HttpStatus.NOT_FOUND,
             message: 'Badge not found.',
           };
-        }
       }
 
       let contentUrl: string | null = null;
       let rawText: string | null = null;
       let fileSize: number | null = null;
 
-      if (dto.type === 'ARTICLE') {
+      if (dto.type === ResourceType.ARTICLE) {
         rawText = dto.articleBody ?? null;
         contentUrl = dto.externalUrl ?? null;
-      } else if (dto.type === 'VIDEO' && dto.externalUrl) {
+      } else if (dto.type === ResourceType.VIDEO && dto.externalUrl) {
         contentUrl = dto.externalUrl;
+      } else if (dto.type === ResourceType.MULTILINK) {
+        // MULTILINK: no file or URL needed — links are stored separately
+        if (!dto.links?.length) {
+          return {
+            status: false,
+            statusCode: HttpStatus.BAD_REQUEST,
+            message: 'MULTILINK type requires at least one link entry.',
+          };
+        }
+        contentUrl = null;
       } else if (file) {
         contentUrl = await this.azureBlob.upload(file, 'resources');
         fileSize = file.size;
-
         if (EXTRACTABLE_MIMETYPES.has(file.mimetype)) {
           rawText = await this.ocr.extractText(file.buffer, file.mimetype);
         }
@@ -515,13 +583,22 @@ export class ResourceService {
           tags: dto.tagIds?.length
             ? { connect: dto.tagIds.map((id) => ({ id })) }
             : undefined,
+          // MULTILINK links created via createMany after resource exists
         },
-        include: {
-          category: true,
-          tags: true,
-          badge: { select: { id: true, name: true, imageUrl: true } },
-        },
+        include: RESOURCE_INCLUDE,
       });
+
+      // Insert links for MULTILINK type
+      if (dto.type === ResourceType.MULTILINK && dto.links?.length) {
+        await this.prisma.resourceLink.createMany({
+          data: dto.links.map((l, i) => ({
+            resourceId: resource.id,
+            title: l.title,
+            url: l.url,
+            order: l.order ?? i,
+          })),
+        });
+      }
 
       await this.prisma.auditLog.create({
         data: {
@@ -533,11 +610,17 @@ export class ResourceService {
         },
       });
 
+      // Re-fetch with links included
+      const full = await this.prisma.resource.findUnique({
+        where: { id: resource.id },
+        include: RESOURCE_INCLUDE,
+      });
+
       return {
         status: true,
         statusCode: HttpStatus.CREATED,
         message: 'Resource created.',
-        data: resource,
+        data: full,
       };
     } catch (error) {
       this.logger.error('createResource error', error);
@@ -550,7 +633,59 @@ export class ResourceService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // RESOURCES — LIST (full-text + faceted filters including format + tag)
+  // RESOURCES — IMAGE UPLOAD
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async uploadResourceImage(
+    adminId: string,
+    id: string,
+    file: Express.Multer.File,
+  ) {
+    try {
+      const resource = await this.prisma.resource.findUnique({ where: { id } });
+      if (!resource)
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Resource not found.',
+        };
+
+      if (resource.imageUrl) {
+        await this.azureBlob
+          .delete(resource.imageUrl, 'resources')
+          .catch(() => null);
+      }
+
+      const imageUrl = await this.azureBlob.upload(file, 'resources');
+      await this.prisma.resource.update({ where: { id }, data: { imageUrl } });
+
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'RESOURCE_IMAGE_UPLOADED',
+          entity: 'Resource',
+          entityId: id,
+          adminId,
+        },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Resource image uploaded.',
+        imageUrl,
+      };
+    } catch (error) {
+      this.logger.error('uploadResourceImage error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RESOURCES — LIST
   // ─────────────────────────────────────────────────────────────────────────────
 
   async listResources(
@@ -568,8 +703,6 @@ export class ResourceService {
 
       const where: any = {};
 
-      // Category filter — include the category itself AND all its direct children
-      // so filtering by a parent category also returns resources in sub-categories.
       if (query.categoryId) {
         const children = await this.prisma.category.findMany({
           where: { parentId: query.categoryId },
@@ -578,17 +711,13 @@ export class ResourceService {
         const categoryIds = [query.categoryId, ...children.map((c) => c.id)];
         where.categoryId = { in: categoryIds };
       }
-      if (query.type) where.type = query.type; // format filter
+      if (query.type) where.type = query.type;
       if (query.sector)
         where.sector = { contains: query.sector, mode: 'insensitive' };
       if (query.region)
         where.region = { contains: query.region, mode: 'insensitive' };
       if (query.language) where.language = query.language;
-
-      // Tag filter — filter by a single tag UUID via the many-to-many relation
-      if (query.tagId) {
-        where.tags = { some: { id: query.tagId } };
-      }
+      if (query.tagId) where.tags = { some: { id: query.tagId } };
 
       if (query.dateFrom || query.dateTo) {
         where.createdAt = {};
@@ -610,12 +739,7 @@ export class ResourceService {
           where,
           skip,
           take: limit,
-          include: {
-            category: { select: { id: true, name: true } },
-            tags: { select: { id: true, name: true } },
-            badge: { select: { id: true, name: true, imageUrl: true } },
-            _count: { select: { downloads: true } },
-          },
+          include: RESOURCE_INCLUDE,
           orderBy: { createdAt: 'desc' },
         }),
         this.prisma.resource.count({ where }),
@@ -629,7 +753,6 @@ export class ResourceService {
         requiresLogin: !isAuthenticated,
       }));
 
-      // Attach per-resource view/completion state for authenticated users
       if (isAuthenticated && userId) {
         const resourceIds = sanitized.map((r: any) => r.id);
 
@@ -681,26 +804,22 @@ export class ResourceService {
       const resource = await this.prisma.resource.findUnique({
         where: { id },
         include: {
+          ...RESOURCE_INCLUDE,
           category: { include: { parent: true } },
-          tags: true,
-          badge: { select: { id: true, name: true, imageUrl: true } },
-          _count: { select: { downloads: true } },
         },
       });
 
-      if (!resource) {
+      if (!resource)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Resource not found.',
         };
-      }
 
       const { rawText, ...safeResource } = resource as any;
 
-      // Fetch view/completion state for authenticated users
-      let hasViewed = false;
-      let hasCompleted = false;
+      let hasViewed = false,
+        hasCompleted = false;
 
       if (userId) {
         const [view, completion] = await this.prisma.$transaction([
@@ -741,7 +860,7 @@ export class ResourceService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // RESOURCES — DOWNLOAD (file URL only — no points/badge)
+  // RESOURCES — DOWNLOAD / VIEW / COMPLETE
   // ─────────────────────────────────────────────────────────────────────────────
 
   async downloadResource(resourceId: string, userId: string) {
@@ -749,15 +868,12 @@ export class ResourceService {
       const resource = await this.prisma.resource.findUnique({
         where: { id: resourceId },
       });
-
-      if (!resource) {
+      if (!resource)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Resource not found.',
         };
-      }
-
       if (!resource.contentUrl) {
         return {
           status: false,
@@ -784,28 +900,22 @@ export class ResourceService {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // RESOURCES — VIEW (unlocks the complete button)
-  // ─────────────────────────────────────────────────────────────────────────────
-
   async viewResource(resourceId: string, userId: string) {
     try {
       const resource = await this.prisma.resource.findUnique({
         where: { id: resourceId },
       });
-      if (!resource) {
+      if (!resource)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Resource not found.',
         };
-      }
 
-      // Upsert — idempotent, calling view multiple times is harmless
       await this.prisma.resourceView.upsert({
         where: { userId_resourceId: { userId, resourceId } },
         create: { userId, resourceId },
-        update: {}, // already viewed — no-op
+        update: {},
       });
 
       return {
@@ -824,25 +934,19 @@ export class ResourceService {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // RESOURCES — COMPLETE (awards points + badge, once per user per resource)
-  // ─────────────────────────────────────────────────────────────────────────────
-
   async completeResource(resourceId: string, userId: string) {
     try {
       const resource = await this.prisma.resource.findUnique({
         where: { id: resourceId },
         include: { badge: { select: { id: true, name: true } } },
       });
-      if (!resource) {
+      if (!resource)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Resource not found.',
         };
-      }
 
-      // Must have viewed the resource first
       const view = await this.prisma.resourceView.findUnique({
         where: { userId_resourceId: { userId, resourceId } },
       });
@@ -854,7 +958,6 @@ export class ResourceService {
         };
       }
 
-      // Idempotent guard — already completed
       const existing = await this.prisma.resourceCompletion.findUnique({
         where: { userId_resourceId: { userId, resourceId } },
       });
@@ -867,7 +970,6 @@ export class ResourceService {
         };
       }
 
-      // Record the completion first (the ResourceCompletion table is separate from Achievement)
       await this.prisma.resourceCompletion.create({
         data: { userId, resourceId, pointsEarned: resource.points },
       });
@@ -881,9 +983,8 @@ export class ResourceService {
       });
 
       const newBadges: string[] = [];
-      if (rewardResult?.badgeAwarded && resource.badge) {
+      if (rewardResult?.badgeAwarded && resource.badge)
         newBadges.push(resource.badge.name);
-      }
 
       this.notifications
         .create({
@@ -933,46 +1034,41 @@ export class ResourceService {
   ) {
     try {
       const resource = await this.prisma.resource.findUnique({ where: { id } });
-      if (!resource) {
+      if (!resource)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Resource not found.',
         };
-      }
 
       if (dto.categoryId) {
         const cat = await this.prisma.category.findUnique({
           where: { id: dto.categoryId },
         });
-        if (!cat) {
+        if (!cat)
           return {
             status: false,
             statusCode: HttpStatus.NOT_FOUND,
             message: 'Category not found.',
           };
-        }
       }
 
       if (dto.badgeId) {
         const badge = await this.prisma.badge.findUnique({
           where: { id: dto.badgeId },
         });
-        if (!badge) {
+        if (!badge)
           return {
             status: false,
             statusCode: HttpStatus.NOT_FOUND,
             message: 'Badge not found.',
           };
-        }
       }
 
-      // ── Content / file update ─────────────────────────────────────────────
       let contentUrlUpdate: string | undefined;
       let rawTextUpdate: string | null | undefined;
 
       if (file) {
-        // DOCUMENT file replacement — delete old blob, upload new, re-run OCR
         if (resource.contentUrl) {
           await this.azureBlob
             .delete(resource.contentUrl, 'resources')
@@ -983,14 +1079,12 @@ export class ResourceService {
           ? await this.ocr.extractText(file.buffer, file.mimetype)
           : null;
       } else if (dto.externalUrl !== undefined) {
-        // VIDEO external URL change
         contentUrlUpdate = dto.externalUrl;
       } else if (dto.articleBody !== undefined) {
-        // ARTICLE body change — stored as rawText
         rawTextUpdate = dto.articleBody;
       }
 
-      const { tagIds, externalUrl, articleBody, ...metaRest } = dto;
+      const { tagIds, externalUrl, articleBody, links, ...metaRest } = dto;
 
       const updated = await this.prisma.resource.update({
         where: { id },
@@ -1002,12 +1096,25 @@ export class ResourceService {
           ...(rawTextUpdate !== undefined && { rawText: rawTextUpdate }),
           ...(tagIds && { tags: { set: tagIds.map((tid) => ({ id: tid })) } }),
         },
-        include: {
-          category: true,
-          tags: true,
-          badge: { select: { id: true, name: true, imageUrl: true } },
-        },
+        include: RESOURCE_INCLUDE,
       });
+
+      // Replace links for MULTILINK type when provided
+      if (links !== undefined) {
+        await this.prisma.resourceLink.deleteMany({
+          where: { resourceId: id },
+        });
+        if (links.length > 0) {
+          await this.prisma.resourceLink.createMany({
+            data: links.map((l, i) => ({
+              resourceId: id,
+              title: l.title,
+              url: l.url,
+              order: l.order ?? i,
+            })),
+          });
+        }
+      }
 
       await this.prisma.auditLog.create({
         data: {
@@ -1019,7 +1126,13 @@ export class ResourceService {
         },
       });
 
-      const { rawText, ...safeResource } = updated as any;
+      // Re-fetch with updated links
+      const full = await this.prisma.resource.findUnique({
+        where: { id },
+        include: RESOURCE_INCLUDE,
+      });
+
+      const { rawText, ...safeResource } = full as any;
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -1043,17 +1156,19 @@ export class ResourceService {
   async deleteResource(adminId: string, id: string) {
     try {
       const resource = await this.prisma.resource.findUnique({ where: { id } });
-      if (!resource) {
+      if (!resource)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Resource not found.',
         };
-      }
 
-      if (resource.contentUrl) {
+      if (resource.contentUrl)
         await this.azureBlob.delete(resource.contentUrl, 'resources');
-      }
+      if (resource.imageUrl)
+        await this.azureBlob
+          .delete(resource.imageUrl, 'resources')
+          .catch(() => null);
 
       await this.prisma.$transaction([
         this.prisma.downloadLog.deleteMany({ where: { resourceId: id } }),
@@ -1094,11 +1209,14 @@ export class ResourceService {
         where: { id: { in: ids } },
       });
 
-      await Promise.allSettled(
-        resources
+      await Promise.allSettled([
+        ...resources
           .filter((r) => r.contentUrl)
           .map((r) => this.azureBlob.delete(r.contentUrl!, 'resources')),
-      );
+        ...resources
+          .filter((r) => r.imageUrl)
+          .map((r) => this.azureBlob.delete(r.imageUrl!, 'resources')),
+      ]);
 
       await this.prisma.$transaction([
         this.prisma.downloadLog.deleteMany({
@@ -1140,13 +1258,12 @@ export class ResourceService {
       const category = await this.prisma.category.findUnique({
         where: { id: targetCategoryId },
       });
-      if (!category) {
+      if (!category)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Target category not found.',
         };
-      }
 
       await this.prisma.resource.updateMany({
         where: { id: { in: ids } },
