@@ -478,6 +478,7 @@ export class ResourceService {
 
       if (dto.type === 'ARTICLE') {
         rawText = dto.articleBody ?? null;
+        contentUrl = dto.externalUrl ?? null;
       } else if (dto.type === 'VIDEO' && dto.externalUrl) {
         contentUrl = dto.externalUrl;
       } else if (file) {

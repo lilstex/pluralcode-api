@@ -283,7 +283,7 @@ export class ResourceController {
       Supports three content types (set via the "type" field):
       - DOCUMENT: upload PDF/Word file → OCR text extraction runs automatically
       - VIDEO: upload MP4 file OR provide externalUrl (YouTube/Vimeo)
-      - ARTICLE: provide articleBody text — no file needed
+      - ARTICLE: provide articleBody text OR provide externalUrl (website)
     `,
   })
   @ApiConsumes('multipart/form-data')
@@ -304,7 +304,7 @@ export class ResourceController {
         tagIds: { type: 'array', items: { type: 'string' } },
         externalUrl: {
           type: 'string',
-          description: 'YouTube/Vimeo URL for VIDEO type',
+          description: 'YouTube/Vimeo OR Blog website URL',
         },
         language: { type: 'string', example: 'en' },
         region: { type: 'string' },
