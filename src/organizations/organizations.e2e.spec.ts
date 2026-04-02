@@ -13,7 +13,7 @@ import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
 import { RewardsService } from 'src/reward/service/reward.service';

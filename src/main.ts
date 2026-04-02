@@ -2,9 +2,21 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { PrismaService } from './prisma-module/prisma.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // ── Graceful shutdown ────────────────────────────────────────────────────
+  // Tell NestJS to listen for OS shutdown signals (SIGTERM, SIGINT).
+  // Without this, the process exits immediately and Prisma never calls
+  // $disconnect(), leaving connections open in the pool.
+  app.enableShutdownHooks();
+
+  // Ensure Prisma disconnects cleanly when the app closes
+  const prisma = app.get(PrismaService);
+  await prisma.enableShutdownHooks(app);
+
   app.setGlobalPrefix('api/v1/');
 
   app.useGlobalPipes(

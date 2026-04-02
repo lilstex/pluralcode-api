@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 
 // Badge thresholds: { badgeName -> minimum download count required }
 const DOWNLOAD_BADGES: { name: string; threshold: number; imageUrl: string }[] =

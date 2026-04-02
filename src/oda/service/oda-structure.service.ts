@@ -7,7 +7,7 @@ import {
   CreateQuestionDto,
   UpdateQuestionDto,
 } from '../dto/oda-structure.dto';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 
 @Injectable()
 export class OdaStructureService {

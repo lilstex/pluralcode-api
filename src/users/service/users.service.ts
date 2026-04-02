@@ -15,7 +15,7 @@ import {
   UpdateUserOrganizationDto,
   UpsertExpertProfileDto,
 } from '../dto/users.dto';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
 import {

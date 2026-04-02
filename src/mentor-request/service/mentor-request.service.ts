@@ -8,7 +8,7 @@ import {
   AdminUpdateMentorRequestDto,
   ListMentorRequestsQueryDto,
 } from '../dto/mentor-request.dto';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 import { RewardsService } from 'src/reward/service/reward.service';
 import { NotificationsService } from 'src/notifications/service/notifications.service';

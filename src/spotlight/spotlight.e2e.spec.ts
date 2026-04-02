@@ -12,7 +12,7 @@ import { SpotlightService } from 'src/spotlight/service/spotlight.service';
 import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS

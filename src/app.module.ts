@@ -15,9 +15,11 @@ import { NewsModule } from './news/news.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RedisModule } from './providers/redis/redis.module';
+import { PrismaModule } from './prisma-module/prisma.module';
 
 @Module({
   imports: [
+    PrismaModule,
     ScheduleModule.forRoot(),
     UsersModule,
     OrganizationModule,

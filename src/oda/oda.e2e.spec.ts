@@ -13,7 +13,7 @@ import { OdaAssessmentService } from 'src/oda/service/oda-assessment.service';
 import { OdaScoringService } from 'src/oda/service/oda-scoring.service';
 import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
 import { RolesGuard } from 'src/common/guards/roles.guard';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 
 // ─────────────────────────────────────────────────────────────────────────────

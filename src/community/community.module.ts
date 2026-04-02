@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-
-import { PrismaService } from 'src/prisma.service';
 import { AzureModule } from 'src/providers/azure/azure.module';
 import { CommunityService } from './service/community.service';
 import { CommunityController } from './controller/community.controller';
@@ -30,7 +28,7 @@ import { CommunityGateway } from './gateway/community.gateway';
     MulterModule.register({ storage: memoryStorage() }),
   ],
   controllers: [CommunityController],
-  providers: [CommunityService, PrismaService, CommunityGateway],
+  providers: [CommunityService, CommunityGateway],
   exports: [CommunityService],
 })
 export class CommunityModule {}

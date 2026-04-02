@@ -7,7 +7,7 @@ import {
   ListAssessmentsQueryDto,
   AdminListAssessmentsQueryDto,
 } from '../dto/oda-assessment.dto';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 import { OdaScoringService } from './oda-scoring.service';
 

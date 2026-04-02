@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { EventService } from './service/events.service';
-import { PrismaService } from 'src/prisma.service';
 import { AzureModule } from 'src/providers/azure/azure.module';
 import { JitsiModule } from 'src/providers/jitsi/jitsi.module';
 import { EmailModule } from 'src/providers/email/email.module';
@@ -18,7 +17,7 @@ import { YouTubeService } from 'src/providers/youtube/youtube.service';
     NotificationsModule,
   ],
   controllers: [EventController],
-  providers: [EventService, PrismaService, YouTubeService],
+  providers: [EventService, YouTubeService],
   exports: [EventService],
 })
 export class EventsModule {}
