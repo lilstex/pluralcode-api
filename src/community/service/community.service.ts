@@ -1052,6 +1052,49 @@ export class CommunityService {
     }
   }
 
+  async getActivityFeed() {
+    try {
+      const comments = await this.prisma.communityComment.findMany({
+        where: {
+          parentId: null, // top-level comments only
+          topic: { isBlocked: false },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        select: {
+          id: true,
+          body: true,
+          createdAt: true,
+          author: { select: AUTHOR_SELECT },
+          topic: {
+            select: {
+              id: true,
+              title: true,
+              communityId: true,
+              community: {
+                select: { id: true, name: true, imageUrl: true },
+              },
+            },
+          },
+        },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Activity feed retrieved.',
+        data: comments,
+      };
+    } catch (err) {
+      this.logger.error('getActivityFeed error', err);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // LIKES
   // ─────────────────────────────────────────────────────────────────────────────

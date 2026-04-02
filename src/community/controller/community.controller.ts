@@ -159,6 +159,18 @@ export class CommunityController {
     return this.communityService.listReportedTopics(query);
   }
 
+  @Get('activity/feed')
+  @ApiOperation({
+    summary: 'Global activity feed — latest 30 comments across all communities',
+    description:
+      'Public endpoint. Returns the 30 most recent top-level comments ' +
+      'across all active communities, newest first. Each item includes ' +
+      'the comment body, timestamp, author, and the topic + community it belongs to.',
+  })
+  async getActivityFeed() {
+    return this.communityService.getActivityFeed();
+  }
+
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get(':communityId')
