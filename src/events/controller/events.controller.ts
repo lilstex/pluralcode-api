@@ -40,6 +40,7 @@ import {
   EventStatus,
   EventResponseDto,
   JitsiTokenResponseDto,
+  GuestRegisterEventDto,
 } from '../dto/events.dto';
 import { EventService } from '../service/events.service';
 
@@ -190,6 +191,23 @@ export class EventController {
     return this.eventService.unregisterFromEvent(user.id, id);
   }
 
+  @Post(':id/register/guest')
+  @ApiOperation({
+    summary: 'Guest registration for a public event (no account required)',
+    description:
+      'Allows unauthenticated users to register for public events. ' +
+      'Requires full name and email. A confirmation email with an ICS invite is sent. ' +
+      'Only works for events where isPublic = true.',
+  })
+  @ApiParam({ name: 'id', description: 'Event UUID' })
+  @ApiResponse({ status: 201, description: 'Guest registration successful.' })
+  async guestRegister(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: GuestRegisterEventDto,
+  ) {
+    return this.eventService.guestRegisterForEvent(id, dto);
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // AUTHENTICATED — JITSI TOKEN
   // ─────────────────────────────────────────────────────────────────────────────
@@ -251,7 +269,7 @@ export class EventController {
   @ApiOperation({
     summary: 'Create a new event',
     description:
-      'Available to SUPER_ADMIN, EVENT_ADMIN, NGO_MEMBER, and EXPERT. The creator automatically becomes the meeting moderator.',
+      'Available to SUPER_ADMIN, EVENT_ADMIN, NGO_MEMBER, and EXPERT. The creator automatically becomes the meeting moderator. Set isPublic=false to make the event private (authenticated users only).',
   })
   @ApiResponse({ status: 201, type: EventResponseDto })
   async createEvent(@CurrentUser() user: any, @Body() dto: CreateEventDto) {
@@ -364,6 +382,73 @@ export class EventController {
     file: Express.Multer.File,
   ) {
     return this.eventService.uploadCoverImage(user.id, user.role, id, file);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // YOUTUBE — MANUAL UPLOAD
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN)
+  @Permissions(PERMISSIONS.EVENT_WRITE)
+  @ApiBearerAuth()
+  @Post(':id/upload-recording')
+  @ApiOperation({
+    summary: 'Admin: Upload event recording to YouTube',
+    description:
+      'Uploads a recording to the configured PLRCAP YouTube channel. ' +
+      'Provide either a public URL (e.g. Jitsi download link) or a server file path as recordingSource. ' +
+      'On success, the YouTube URL is saved as the event archiveUrl. ' +
+      'Privacy defaults to "unlisted" unless overridden.',
+  })
+  @ApiParam({ name: 'id', description: 'Event UUID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['recordingSource'],
+      properties: {
+        recordingSource: {
+          type: 'string',
+          example: 'https://recordings.jitsi.example/room123.mp4',
+        },
+        privacyStatus: {
+          type: 'string',
+          enum: ['public', 'unlisted', 'private'],
+          default: 'unlisted',
+        },
+      },
+    },
+  })
+  async uploadRecording(
+    @CurrentUser() user: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('recordingSource') recordingSource: string,
+    @Body('privacyStatus') privacyStatus?: 'public' | 'unlisted' | 'private',
+  ) {
+    return this.eventService.uploadRecordingToYouTube(
+      user.id,
+      user.role,
+      id,
+      recordingSource,
+      privacyStatus,
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // JITSI WEBHOOK — called by Jitsi server when a recording becomes available
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @Post('jitsi/webhook')
+  @ApiOperation({
+    summary: '[Internal] Jitsi recording webhook — do not call manually',
+    description:
+      'This endpoint is called by the Jitsi server when a meeting recording is ready. ' +
+      'It automatically uploads the recording to YouTube and saves the URL on the event. ' +
+      'DevOps must configure Jitsi to POST to this URL with a shared secret header. ' +
+      'See docs/DEVOPS.md for configuration instructions.',
+  })
+  async jitsiWebhook(@Body() payload: Record<string, any>) {
+    return this.eventService.handleJitsiWebhook(payload);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

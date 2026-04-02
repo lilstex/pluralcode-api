@@ -7,6 +7,7 @@ import { EmailModule } from 'src/providers/email/email.module';
 import { EventController } from './controller/events.controller';
 import { UsersModule } from 'src/users/users.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { YouTubeService } from 'src/providers/youtube/youtube.service';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     NotificationsModule,
   ],
   controllers: [EventController],
-  providers: [EventService, PrismaService],
+  providers: [EventService, PrismaService, YouTubeService],
   exports: [EventService],
 })
 export class EventsModule {}

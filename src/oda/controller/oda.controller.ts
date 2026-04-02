@@ -11,7 +11,9 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -30,7 +32,6 @@ import {
   UpdateQuestionDto,
   StructureResponseDto,
   StructureActionResponseDto,
-  SummaryResponseDto,
 } from '../dto/oda-structure.dto';
 import {
   SaveBlockResponseDto,
@@ -71,17 +72,6 @@ export class OdaController {
   @ApiResponse({ status: 200, type: StructureResponseDto })
   getStructure() {
     return this.structure.getFullStructure();
-  }
-
-  @Get('structure/summary')
-  @ApiOperation({
-    summary: 'Get ODA structure summary',
-    description:
-      'Returns pillars with block counts and blocks with question counts.',
-  })
-  @ApiResponse({ status: 200, type: SummaryResponseDto })
-  getStructureSummary() {
-    return this.structure.getStructureSummary();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -395,5 +385,44 @@ export class OdaController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.assessment.deleteAssessment(user.id, id);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NGO + ADMIN — PDF DOWNLOAD
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  @Get('assessments/:id/download')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Download AI evaluation report as PDF',
+    description:
+      'Streams a styled PDF of the AI summary for a COMPLETED assessment. ' +
+      "NGO members can only download their own org's assessments. " +
+      'Admins can download any.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Assessment UUID' })
+  async downloadAssessmentPdf(
+    @CurrentUser() user: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const result = await this.assessment.generatePdfReport(
+      user.id,
+      user.role,
+      id,
+    );
+
+    if (!result.status) {
+      return res.status(result.statusCode).json({ message: result.message });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="oda-assessment-${id}.pdf"`,
+    );
+    result.stream.pipe(res);
   }
 }

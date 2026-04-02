@@ -14,6 +14,7 @@ import { AchievementsModule } from './achievements/achievements.module';
 import { NewsModule } from './news/news.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsModule } from './notifications/notifications.module';
+import { RedisModule } from './providers/redis/redis.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     AchievementsModule,
     NewsModule,
     NotificationsModule,
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

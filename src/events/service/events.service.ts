@@ -9,10 +9,12 @@ import {
   EventQueryDto,
   CancelEventDto,
   EventStatus,
+  GuestRegisterEventDto,
 } from '../dto/events.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { NotificationsService } from 'src/notifications/service/notifications.service';
 import { NotificationType } from '@prisma/client';
+import { YouTubeService } from 'src/providers/youtube/youtube.service';
 
 @Injectable()
 export class EventService {
@@ -24,6 +26,7 @@ export class EventService {
     private readonly jitsi: JitsiService,
     private readonly emailService: EmailService,
     private readonly notifications: NotificationsService,
+    private readonly youtube: YouTubeService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -137,9 +140,13 @@ export class EventService {
           startTime: start,
           endTime: end,
           jitsiRoomId,
+          // externalMeetingUrl is only set when the creator supplies a third-party
+          // URL (Zoom, Google Meet, etc.) via dto.externalMeetingUrl.
+          // For platform-hosted Jitsi events the URL is derived on-demand from jitsiRoomId.
           externalMeetingUrl: dto.externalMeetingUrl ?? null,
           capacity: dto.capacity ?? null,
           tags: dto.tags ?? [],
+          isPublic: dto.isPublic ?? true,
           createdById: creatorId,
         },
         include: { _count: { select: { registrations: true } } },
@@ -184,6 +191,9 @@ export class EventService {
       );
       const skip = (page - 1) * limit;
       const where: any = {};
+
+      // Unauthenticated users only see public events
+      if (!userId) where.isPublic = true;
 
       if (query.search) {
         where.OR = [
@@ -738,6 +748,13 @@ export class EventService {
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
         };
+      if (!event.isPublic)
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message:
+            'This is a private event. You must be logged in to register.',
+        };
       if (event.isCancelled)
         return {
           status: false,
@@ -779,8 +796,7 @@ export class EventService {
       // For Jitsi events the raw URL has no JWT — that is intentional, the ICS
       // is informational only and the user must join through the frontend.
       const rawMeetingUrl =
-        event.externalMeetingUrl ??
-        `${process.env.FRONTEND_URL}/events?eventId=${event.id}&email=${registration.user.email}`;
+        event.externalMeetingUrl ?? this.jitsi.getMeetingUrl(event.jitsiRoomId);
 
       const icsContent = this.generateIcs({
         id: event.id,
@@ -817,7 +833,6 @@ export class EventService {
           this.logger.error('sendEventRegistrationConfirmation failed', err),
         );
 
-      // After successful registration:
       this.notifications
         .create({
           userId,
@@ -838,6 +853,113 @@ export class EventService {
       };
     } catch (error) {
       this.logger.error('registerForEvent error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async guestRegisterForEvent(eventId: string, dto: GuestRegisterEventDto) {
+    try {
+      const event = await this.prisma.event.findUnique({
+        where: { id: eventId },
+        include: { _count: { select: { registrations: true } } },
+      });
+
+      if (!event)
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Event not found.',
+        };
+      if (!event.isPublic)
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message:
+            'This is a private event. Guest registration is not allowed.',
+        };
+      if (event.isCancelled)
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'This event has been cancelled.',
+        };
+      if (event.isPast)
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'This event has already ended.',
+        };
+
+      if (event.capacity && event._count.registrations >= event.capacity) {
+        return {
+          status: false,
+          statusCode: HttpStatus.CONFLICT,
+          message: 'This event is fully booked.',
+        };
+      }
+
+      // Check for duplicate guest email registration
+      const existing = await this.prisma.eventRegistration.findUnique({
+        where: { guestEmail_eventId: { guestEmail: dto.guestEmail, eventId } },
+      });
+      if (existing)
+        return {
+          status: false,
+          statusCode: HttpStatus.CONFLICT,
+          message: 'This email address is already registered for this event.',
+        };
+
+      const registration = await this.prisma.eventRegistration.create({
+        data: { eventId, guestName: dto.guestName, guestEmail: dto.guestEmail },
+      });
+
+      // Email confirmation with ICS
+      const rawMeetingUrl =
+        event.externalMeetingUrl ??
+        `${process.env.FRONTEND_URL}/events?eventId=${event.id}&email=${dto.guestEmail}`;
+
+      const icsContent = this.generateIcs({
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        meetingUrl: rawMeetingUrl,
+      });
+
+      const emailJoinUrl =
+        event.externalMeetingUrl ??
+        `${process.env.FRONTEND_URL}/events/${event.id}`;
+
+      this.emailService
+        .sendEventRegistrationConfirmation({
+          fullName: dto.guestName,
+          email: dto.guestEmail,
+          eventTitle: event.title,
+          startTime: event.startTime,
+          endTime: event.endTime,
+          meetingUrl: emailJoinUrl,
+          icsContent,
+        })
+        .catch((err) => this.logger.error('guestRegister email failed', err));
+
+      return {
+        status: true,
+        statusCode: HttpStatus.CREATED,
+        message:
+          'Guest registration successful. A confirmation has been sent to your email.',
+        data: {
+          registrationId: registration.id,
+          eventId,
+          guestEmail: dto.guestEmail,
+        },
+      };
+    } catch (error) {
+      this.logger.error('guestRegisterForEvent error', error);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -1196,6 +1318,181 @@ export class EventService {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Server error.',
+      };
+    }
+  }
+
+  /**
+   * Webhook handler called by Jitsi when a meeting ends and a recording
+   * is available for download.
+   *
+   * Jitsi sends a POST to /events/jitsi/webhook with a JSON body.
+   * DevOps must configure the Jitsi server to call this endpoint.
+   * See docs/DEVOPS.md for the full Jitsi webhook configuration.
+   *
+   * Expected payload shape (simplified — varies by Jitsi version):
+   * {
+   *   "event":      "RECORDING_AVAILABLE",
+   *   "roomName":   "<jitsiRoomId>",
+   *   "recordingUrl": "https://..."
+   * }
+   */
+  async handleJitsiWebhook(payload: Record<string, any>) {
+    try {
+      const { event: eventType, roomName, recordingUrl } = payload;
+
+      if (eventType !== 'RECORDING_AVAILABLE' || !roomName || !recordingUrl) {
+        this.logger.warn(
+          'Jitsi webhook: unrecognised or incomplete payload',
+          payload,
+        );
+        return { status: false, message: 'Unrecognised webhook payload.' };
+      }
+
+      // Look up the event by Jitsi room ID
+      const event = await this.prisma.event.findUnique({
+        where: { jitsiRoomId: roomName },
+      });
+
+      if (!event) {
+        this.logger.warn(
+          `Jitsi webhook: no event found for roomName=${roomName}`,
+        );
+        return {
+          status: false,
+          message: `No event found for room ${roomName}.`,
+        };
+      }
+
+      this.logger.log(
+        `Jitsi webhook: recording available for event "${event.title}" — auto-uploading to YouTube`,
+      );
+
+      const privacyStatus =
+        (process.env.YOUTUBE_DEFAULT_PRIVACY as any) ?? 'unlisted';
+
+      const description =
+        `Recording of the PLRCAP event: "${event.title}"\n` +
+        `Date: ${event.startTime.toLocaleDateString('en-GB')}\n\n` +
+        `${event.description}`;
+
+      const result = await this.youtube.uploadRecording({
+        title: event.title,
+        description,
+        privacyStatus,
+        source: recordingUrl,
+      });
+
+      await this.prisma.event.update({
+        where: { id: event.id },
+        data: { archiveUrl: result.videoUrl, isPast: true },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'EVENT_RECORDING_AUTO_UPLOADED',
+          entity: 'Event',
+          entityId: event.id,
+          details: {
+            videoId: result.videoId,
+            videoUrl: result.videoUrl,
+            roomName,
+          } as any,
+          adminId: 'SYSTEM',
+        },
+      });
+
+      this.logger.log(
+        `Auto-upload complete for "${event.title}": ${result.videoUrl}`,
+      );
+      return {
+        status: true,
+        message: 'Recording uploaded.',
+        videoUrl: result.videoUrl,
+      };
+    } catch (error) {
+      this.logger.error('handleJitsiWebhook error', error);
+      return {
+        status: false,
+        message: `Webhook processing failed: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Manually trigger a YouTube upload for a completed event recording.
+   * The recordingSource can be a public URL (e.g. Jitsi recording download link)
+   * or an absolute file path on the server.
+   *
+   * Privacy defaults to 'unlisted' so only people with the link can view it.
+   * Admin can override by passing privacyStatus explicitly.
+   */
+  async uploadRecordingToYouTube(
+    userId: string,
+    userRole: string,
+    eventId: string,
+    recordingSource: string,
+    privacyStatus: 'public' | 'unlisted' | 'private' = 'unlisted',
+  ) {
+    try {
+      const event = await this.prisma.event.findUnique({
+        where: { id: eventId },
+      });
+      if (!event)
+        return { status: false, statusCode: 404, message: 'Event not found.' };
+
+      if (!this.isOwnerOrAdmin(event, userId, userRole)) {
+        return {
+          status: false,
+          statusCode: 403,
+          message: 'You do not have permission to upload this recording.',
+        };
+      }
+
+      const description =
+        `Recording of the PLRCAP event: "${event.title}"\n` +
+        `Date: ${event.startTime.toLocaleDateString('en-GB')}\n\n` +
+        `${event.description}`;
+
+      const result = await this.youtube.uploadRecording({
+        title: event.title,
+        description,
+        privacyStatus,
+        source: recordingSource,
+      });
+
+      // Save the YouTube URL as the archiveUrl
+      await this.prisma.event.update({
+        where: { id: eventId },
+        data: { archiveUrl: result.videoUrl, isPast: true },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'EVENT_RECORDING_UPLOADED',
+          entity: 'Event',
+          entityId: eventId,
+          details: {
+            videoId: result.videoId,
+            videoUrl: result.videoUrl,
+            privacyStatus,
+          } as any,
+          adminId: userId,
+        },
+      });
+
+      return {
+        status: true,
+        statusCode: 200,
+        message: 'Recording uploaded to YouTube successfully.',
+        data: { videoId: result.videoId, videoUrl: result.videoUrl },
+      };
+    } catch (error) {
+      this.logger.error('uploadRecordingToYouTube error', error);
+      return {
+        status: false,
+        statusCode: 500,
+        message: `Upload failed: ${error.message}`,
       };
     }
   }

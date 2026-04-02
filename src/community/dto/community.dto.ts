@@ -206,7 +206,6 @@ export class CommunityResponseDto {
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }
-
 export class CommentResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() body: string;
@@ -232,7 +231,6 @@ export class TopicResponseDto {
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }
-
 export class CommunityMinDto {
   @ApiProperty() id: string;
   @ApiProperty() name: string;

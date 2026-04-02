@@ -1,5 +1,6 @@
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { FormStatus } from '@prisma/client';
+import * as PDFDocument from 'pdfkit';
 
 import {
   SaveBlockResponseDto,
@@ -10,6 +11,8 @@ import { PrismaService } from 'src/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 import { OdaScoringService } from './oda-scoring.service';
 
+// ── Prisma include for a full assessment with all block detail ────────────────
+// Note: NOT declared as const — Prisma requires mutable arrays for orderBy
 const FULL_ASSESSMENT_INCLUDE = {
   organization: { select: { id: true, name: true } },
   blockResponses: {
@@ -35,7 +38,9 @@ export class OdaAssessmentService {
     private readonly email: EmailService,
   ) {}
 
+  // ─────────────────────────────────────────────────────────────────────────
   // HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
 
   private buildProgress(blockResponses: any[]) {
     const blocksTotal = blockResponses.length;
@@ -105,7 +110,9 @@ export class OdaAssessmentService {
     return { skip: (p - 1) * l, take: l, page: p, limit: l };
   }
 
-  // NGO START ASSESSMENT
+  // ─────────────────────────────────────────────────────────────────────────
+  // NGO — START ASSESSMENT
+  // ─────────────────────────────────────────────────────────────────────────
 
   async startAssessment(ngoUserId: string) {
     // Must have an org
@@ -185,7 +192,9 @@ export class OdaAssessmentService {
     };
   }
 
-  // NGO LIST OWN ASSESSMENTS
+  // ─────────────────────────────────────────────────────────────────────────
+  // NGO — LIST OWN ASSESSMENTS
+  // ─────────────────────────────────────────────────────────────────────────
 
   async getMyAssessments(ngoUserId: string, query: ListAssessmentsQueryDto) {
     const user = await this.prisma.user.findUnique({
@@ -213,7 +222,7 @@ export class OdaAssessmentService {
         take,
         include: {
           organization: { select: { id: true, name: true } },
-          blockResponses: { select: { status: true } },
+          blockResponses: { select: { status: true } }, // light — just for progress counts
         },
         orderBy: { startedAt: 'desc' },
       }),
@@ -231,7 +240,9 @@ export class OdaAssessmentService {
     };
   }
 
-  // NGO GET SINGLE ASSESSMENT
+  // ─────────────────────────────────────────────────────────────────────────
+  // NGO — GET SINGLE ASSESSMENT
+  // ─────────────────────────────────────────────────────────────────────────
 
   async getMyAssessmentById(ngoUserId: string, assessmentId: string) {
     const user = await this.prisma.user.findUnique({
@@ -259,7 +270,9 @@ export class OdaAssessmentService {
     };
   }
 
-  // NGO SAVE BLOCK ANSWERS (draft, can be called multiple times)
+  // ─────────────────────────────────────────────────────────────────────────
+  // NGO — SAVE BLOCK ANSWERS (draft, can be called multiple times)
+  // ─────────────────────────────────────────────────────────────────────────
 
   async saveBlockResponse(
     ngoUserId: string,
@@ -376,7 +389,7 @@ export class OdaAssessmentService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // NGO SUBMIT A SINGLE BLOCK
+  // NGO — SUBMIT A SINGLE BLOCK
   // ─────────────────────────────────────────────────────────────────────────
 
   async submitBlock(ngoUserId: string, assessmentId: string, blockId: string) {
@@ -567,7 +580,7 @@ export class OdaAssessmentService {
             fullName: user.fullName,
             email: user.email,
             orgName,
-            dashboardUrl: `${process.env.FRONTEND_URL}/admin/oda/${assessmentId}`,
+            dashboardUrl: `${process.env.FRONTEND_URL}/dashboard/oda/${assessmentId}`,
           })
           .catch((err) =>
             this.logger.error('ODA completion email failed', err),
@@ -756,5 +769,209 @@ export class OdaAssessmentService {
         blockBreakdown,
       },
     };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PDF DOWNLOAD — streams a styled PDF of the AI summary
+  // ─────────────────────────────────────────────────────────────────────────
+
+  async generatePdfReport(
+    requesterId: string,
+    requesterRole: string,
+    assessmentId: string,
+  ) {
+    try {
+      // Resolve access — NGO members can only download their own org's assessment
+      const assessment = await this.prisma.oDAAssessment.findUnique({
+        where: { id: assessmentId },
+        include: {
+          organization: { select: { id: true, name: true, userId: true } },
+        },
+      });
+
+      if (!assessment) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Assessment not found.',
+        };
+      }
+
+      const isAdmin = ['SUPER_ADMIN', 'CONTENT_ADMIN'].includes(requesterRole);
+      if (!isAdmin && assessment.organization.userId !== requesterId) {
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message: 'Access denied.',
+        };
+      }
+
+      if (assessment.status !== FormStatus.COMPLETED || !assessment.aiSummary) {
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message:
+            'Assessment is not yet complete. The report is only available after the AI summary is generated.',
+        };
+      }
+
+      const stream = await this.buildPdf(
+        assessment.aiSummary,
+        assessment.organization.name,
+        assessment.completedAt ?? new Date(),
+        assessment.overallScore ?? 0,
+      );
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'PDF ready.',
+        stream,
+      };
+    } catch (err) {
+      this.logger.error('generatePdfReport error', err);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  private buildPdf(
+    summary: string,
+    orgName: string,
+    completedAt: Date,
+    overallScore: number,
+  ): Promise<InstanceType<typeof PDFDocument>> {
+    return new Promise((resolve) => {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+
+      // ── Cover header ──────────────────────────────────────────────────────
+      // PLRCAP logo placeholder — replace logoPath with actual path when available:
+      // doc.image(logoPath, 50, 40, { width: 120 });
+
+      doc
+        .fontSize(9)
+        .fillColor('#888888')
+        .text('PLRCAP — NGO Support Hub', 50, 50, { align: 'right' });
+
+      doc.moveDown(0.5);
+
+      // Accent bar
+      doc.rect(50, 75, doc.page.width - 100, 4).fill('#1B4F72');
+
+      doc.moveDown(2);
+
+      // Title
+      doc
+        .fontSize(18)
+        .fillColor('#1B4F72')
+        .font('Helvetica-Bold')
+        .text('ODA Assessment Report', { align: 'center' });
+
+      doc
+        .fontSize(13)
+        .fillColor('#333333')
+        .font('Helvetica')
+        .text(orgName, { align: 'center' });
+
+      doc.moveDown(0.4);
+
+      doc
+        .fontSize(9)
+        .fillColor('#888888')
+        .text(
+          `Completed: ${completedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` +
+            `   |   Overall Score: ${overallScore.toFixed(1)}%`,
+          { align: 'center' },
+        );
+
+      doc.moveDown(0.5);
+      doc.rect(50, doc.y, doc.page.width - 100, 1).fill('#CCCCCC');
+      doc.moveDown(1.5);
+
+      // ── Body — render summary lines ────────────────────────────────────────
+      const lines = summary.split('');
+
+      for (const line of lines) {
+        const trimmed = line.trimEnd();
+
+        // Section headings (ALL CAPS lines like "PILLAR PERFORMANCE")
+        if (/^[A-Z][A-Z &]+$/.test(trimmed) && trimmed.length > 3) {
+          doc.moveDown(0.6);
+          doc
+            .fontSize(11)
+            .fillColor('#1B4F72')
+            .font('Helvetica-Bold')
+            .text(trimmed);
+          doc.moveDown(0.2);
+          continue;
+        }
+
+        // Separator lines (─────)
+        if (/^[──]+$/.test(trimmed)) {
+          doc.rect(50, doc.y, doc.page.width - 100, 0.5).fill('#CCCCCC');
+          doc.moveDown(0.4);
+          continue;
+        }
+
+        // Bullet points (• ...)
+        if (trimmed.startsWith('  •') || trimmed.startsWith('•')) {
+          doc
+            .fontSize(9)
+            .fillColor('#222222')
+            .font('Helvetica')
+            .text(trimmed.replace(/^  /, ''), { indent: 12 });
+          continue;
+        }
+
+        // Indented sub-text (evidence / areas)
+        if (trimmed.startsWith('    ')) {
+          doc
+            .fontSize(8.5)
+            .fillColor('#555555')
+            .font('Helvetica-Oblique')
+            .text(trimmed.trim(), { indent: 24 });
+          continue;
+        }
+
+        // Score headline
+        if (trimmed.startsWith('Overall Score:')) {
+          doc
+            .fontSize(12)
+            .fillColor('#1B4F72')
+            .font('Helvetica-Bold')
+            .text(trimmed);
+          doc.moveDown(0.3);
+          continue;
+        }
+
+        // Empty line
+        if (!trimmed) {
+          doc.moveDown(0.4);
+          continue;
+        }
+
+        // Default body text
+        doc.fontSize(9.5).fillColor('#222222').font('Helvetica').text(trimmed);
+      }
+
+      // ── Footer ─────────────────────────────────────────────────────────────
+      doc.moveDown(2);
+      doc.rect(50, doc.y, doc.page.width - 100, 1).fill('#1B4F72');
+      doc.moveDown(0.5);
+      doc
+        .fontSize(8)
+        .fillColor('#888888')
+        .font('Helvetica')
+        .text(
+          'This document was generated by the PLRCAP NGO Support Hub. For questions, contact support@plrcap.ng',
+          { align: 'center' },
+        );
+
+      doc.end();
+      resolve(doc);
+    });
   }
 }

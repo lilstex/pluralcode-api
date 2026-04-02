@@ -16,6 +16,8 @@ import {
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
 import { NotificationsService } from 'src/notifications/service/notifications.service';
 import { NotificationType } from '@prisma/client';
+import { CommunityGateway } from '../gateway/community.gateway';
+import { RedisService } from 'src/providers/redis/redis.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED SELECTS
@@ -59,6 +61,8 @@ export class CommunityService {
     private readonly prisma: PrismaService,
     private readonly azureBlob: AzureBlobService,
     private readonly notifications: NotificationsService,
+    private readonly gateway: CommunityGateway,
+    private readonly redis: RedisService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -121,6 +125,24 @@ export class CommunityService {
         return { createdAt: 'desc' };
     }
   }
+
+  private formatCommunity(c: any) {
+    return {
+      ...c,
+      memberCount: c._count?.memberships ?? 0,
+      topicCount: c._count?.topics ?? 0,
+      _count: undefined,
+    };
+  }
+
+  private formatTopic(t: any) {
+    return {
+      ...t,
+      commentCount: t._count?.comments ?? 0,
+      _count: undefined,
+    };
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // COMMUNITY CRUD
   // ─────────────────────────────────────────────────────────────────────────────
@@ -377,15 +399,6 @@ export class CommunityService {
     }
   }
 
-  private formatCommunity(c: any) {
-    return {
-      ...c,
-      memberCount: c._count?.memberships ?? 0,
-      topicCount: c._count?.topics ?? 0,
-      _count: undefined,
-    };
-  }
-
   // ─────────────────────────────────────────────────────────────────────────────
   // MEMBERSHIP
   // ─────────────────────────────────────────────────────────────────────────────
@@ -631,11 +644,22 @@ export class CommunityService {
         include: TOPIC_INCLUDE,
       });
 
+      // Broadcast new topic in real-time to all members in this community room
+      this.gateway.broadcastNewTopic(communityId, {
+        id: topic.id,
+        title: topic.title,
+        body: topic.body,
+        communityId: topic.communityId,
+        author: topic.author as any,
+        createdAt: topic.createdAt,
+      });
+
+      const formatted = this.formatTopic(topic);
       return {
         status: true,
         statusCode: HttpStatus.CREATED,
         message: 'Topic created.',
-        data: this.formatTopic(topic),
+        data: formatted,
       };
     } catch (err) {
       this.logger.error('createTopic error', err);
@@ -1028,14 +1052,6 @@ export class CommunityService {
     }
   }
 
-  private formatTopic(t: any) {
-    return {
-      ...t,
-      commentCount: t._count?.comments ?? 0,
-      _count: undefined,
-    };
-  }
-
   // ─────────────────────────────────────────────────────────────────────────────
   // LIKES
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1228,17 +1244,16 @@ export class CommunityService {
         },
       });
 
-      // Parse @mentions
-      // const filteredMentions = dto.mentionedUserIds.filter(
-      //   (id) => id !== userId,
-      // );
+      // Mentions: use explicit UUID array from frontend typeahead
       const filteredMentions = (dto.mentionedUserIds ?? []).filter(
         (id) => id !== userId,
       );
-      await this.saveMentions(filteredMentions, {
-        communityId: communityId,
-        commentId: comment.id,
-      });
+      if (filteredMentions.length > 0) {
+        await this.saveMentions(filteredMentions, {
+          communityId,
+          commentId: comment.id,
+        });
+      }
 
       // Notify topic author of the new comment (unless they wrote it themselves)
       if (topic.authorId !== userId) {
@@ -1270,6 +1285,17 @@ export class CommunityService {
           .catch((err) =>
             this.logger.error('notification fan-out failed', err),
           );
+
+        // Real-time push — reaches mentioned users even if not in the community room
+        for (const mentionedUserId of filteredMentions) {
+          this.gateway.broadcastMention(mentionedUserId, {
+            communityId,
+            topicId,
+            commentId: comment.id,
+            topicTitle: topic.title,
+            mentionedBy: userId,
+          });
+        }
       }
 
       return {
@@ -1326,21 +1352,22 @@ export class CommunityService {
         },
       });
 
-      // Replace all previous mentions for this comment with the new list
+      // Replace mentions with updated list
       await this.prisma.communityMention.deleteMany({ where: { commentId } });
-
       const toMention = (dto.mentionedUserIds ?? []).filter(
         (id) => id !== userId,
       );
       if (toMention.length > 0) {
-        await this.prisma.communityMention.createMany({
-          data: toMention.map((mentionedUserId) => ({
-            mentionedUserId,
+        await this.saveMentions(toMention, { communityId, commentId });
+        for (const mentionedUserId of toMention) {
+          this.gateway.broadcastMention(mentionedUserId, {
             communityId,
+            topicId,
             commentId,
-          })),
-          skipDuplicates: true,
-        });
+            topicTitle: '',
+            mentionedBy: userId,
+          });
+        }
       }
 
       return {
@@ -1539,7 +1566,7 @@ export class CommunityService {
         data: {
           totalMembers,
           totalTopics,
-          onlineMembers: null, // Requires WebSocket/Redis presence layer
+          onlineMembers: await this.redis.getOnlineCount(communityId),
           dateJoined: membership?.joinedAt ?? null,
         },
       };

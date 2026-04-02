@@ -914,14 +914,35 @@ export class UserService {
     try {
       const users = await this.prisma.user.findMany({
         where: { role: Role.EXPERT, status: 'APPROVED' },
-        select: { id: true, fullName: true, email: true, avatarUrl: true },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatarUrl: true,
+          expertProfile: {
+            select: {
+              areasOfExpertise: true,
+              title: true,
+              employer: true,
+            },
+          },
+        },
         orderBy: { fullName: 'asc' },
       });
+
+      // Flatten expertProfile fields onto the user object for a cleaner response
+      const data = users.map(({ expertProfile, ...u }) => ({
+        ...u,
+        areasOfExpertise: expertProfile?.areasOfExpertise ?? [],
+        title: expertProfile?.title ?? null,
+        employer: expertProfile?.employer ?? null,
+      }));
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Approved expert users retrieved for dropdown.',
-        data: users,
+        data,
       };
     } catch (error) {
       this.logger.error('dropDownListExperts error', error);

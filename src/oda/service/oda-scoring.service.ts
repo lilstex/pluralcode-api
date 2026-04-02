@@ -291,6 +291,28 @@ export class OdaScoringService {
       lines.push('');
     }
 
+    // ── Expert / mentor recommendations ───────────────────────────────────
+    const expertSuggestions = await this.findRelevantExperts(
+      weakestBlocks.map((b) => b.block),
+    );
+
+    if (expertSuggestions.length) {
+      lines.push('RECOMMENDED MENTORS & EXPERTS');
+      lines.push('─────────────────────────────');
+      lines.push(
+        `The following PLRCAP-registered experts have experience in the areas ` +
+          `where this organisation needs the most support:`,
+      );
+      lines.push('');
+      for (const e of expertSuggestions) {
+        const role = [e.title, e.employer].filter(Boolean).join(' — ');
+        const areas = e.areasOfExpertise.slice(0, 3).join(', ');
+        lines.push(`  • ${e.fullName}${role ? `  (${role})` : ''}`);
+        if (areas) lines.push(`    Areas: ${areas}`);
+      }
+      lines.push('');
+    }
+
     // ── Footer note ────────────────────────────────────────────────────────
     lines.push(`${'─'.repeat(60)}`);
     lines.push(
@@ -349,5 +371,72 @@ export class OdaScoringService {
     });
 
     return resources;
+  }
+
+  /**
+   * Find up to 3 approved EXPERT users whose areasOfExpertise overlap with
+   * the weakest block names. Same keyword-match approach as findRelevantResources.
+   */
+  private async findRelevantExperts(blockNames: string[]) {
+    if (!blockNames.length) return [];
+
+    const keywords = blockNames.flatMap((n) =>
+      n
+        .toLowerCase()
+        .split(/[\s&,/]+/)
+        .filter((w) => w.length > 3),
+    );
+
+    const profiles = await this.prisma.expertProfile.findMany({
+      where: {
+        user: { role: 'EXPERT', status: 'APPROVED' },
+        OR: keywords.slice(0, 5).map((kw) => ({
+          // hasSome is case-sensitive in Prisma; use contains on joined string as fallback
+          areasOfExpertise: { hasSome: [kw] },
+        })),
+      },
+      select: {
+        title: true,
+        employer: true,
+        areasOfExpertise: true,
+        user: { select: { id: true, fullName: true, avatarUrl: true } },
+      },
+      take: 3,
+    });
+
+    // Fallback: if hasSome yields nothing (case mismatch), try title/about keyword search
+    if (!profiles.length) {
+      const fallback = await this.prisma.expertProfile.findMany({
+        where: {
+          user: { role: 'EXPERT', status: 'APPROVED' },
+          OR: keywords.slice(0, 5).flatMap((kw) => [
+            { about: { contains: kw, mode: 'insensitive' as any } },
+            {
+              otherAreasOfTopics: {
+                contains: kw,
+                mode: 'insensitive' as any,
+              },
+            },
+          ]),
+        },
+        select: {
+          title: true,
+          employer: true,
+          areasOfExpertise: true,
+          user: { select: { id: true, fullName: true, avatarUrl: true } },
+        },
+        take: 3,
+      });
+      profiles.push(...fallback);
+    }
+
+    return profiles.slice(0, 3).map((p) => ({
+      id: p.user.id,
+      fullName: p.user.fullName,
+      avatarUrl: p.user.avatarUrl,
+      title: p.title,
+      employer: p.employer,
+      areasOfExpertise: p.areasOfExpertise,
+    }));
   }
 }

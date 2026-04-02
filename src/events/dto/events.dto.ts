@@ -7,6 +7,8 @@ import {
   IsUrl,
   IsArray,
   IsEnum,
+  IsBoolean,
+  IsEmail,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -66,13 +68,34 @@ export class CreateEventDto {
   tags?: string[];
 
   @ApiPropertyOptional({
-    example: 'https://google-meet/ngo-governance-masterclass',
-    description: 'External meeting link (e.g., Zoom, Jitsi, Google Meet)',
+    example: 'https://external-platform.com/meeting',
+    description: 'External meeting URL (overrides Jitsi if set)',
   })
   @IsOptional()
-  @IsString()
   @IsUrl()
   externalMeetingUrl?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Public events are open for registration to all users including guests. ' +
+      'Private events require an authenticated account. Defaults to true.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
+}
+
+export class GuestRegisterEventDto {
+  @ApiProperty({ example: 'Jane Doe' })
+  @IsNotEmpty()
+  @IsString()
+  guestName: string;
+
+  @ApiProperty({ example: 'jane@example.com' })
+  @IsNotEmpty()
+  @IsEmail()
+  guestEmail: string;
 }
 
 export class UpdateEventDto {
@@ -88,8 +111,13 @@ export class UpdateEventDto {
   tags?: string[];
   @ApiPropertyOptional() @IsOptional() @IsUrl() externalMeetingUrl?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() archiveUrl?: string;
+  @ApiPropertyOptional({
+    description: 'Change event visibility: true = public, false = private',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
 }
-
 export class EventQueryDto {
   @ApiPropertyOptional({ enum: EventStatus })
   @IsOptional()
@@ -163,6 +191,7 @@ export class EventResponseDto {
   @ApiPropertyOptional() capacity?: number;
   @ApiProperty() registrationCount: number;
   @ApiProperty() tags: string[];
+  @ApiProperty() isPublic: boolean;
   @ApiProperty() createdAt: Date;
 }
 
