@@ -1,0 +1,49 @@
+<%
+  var title = 'New ODA Submission — ' + orgName;
+  var scoreColor = overallScore >= 75 ? '#065f46' : overallScore >= 50 ? '#1e40af' : overallScore >= 25 ? '#92400e' : '#991b1b';
+  var scoreBg    = overallScore >= 75 ? '#ecfdf5' : overallScore >= 50 ? '#eff6ff' : overallScore >= 25 ? '#fffbeb' : '#fef2f2';
+  var scoreBand  = overallScore >= 75 ? 'High Capacity' : overallScore >= 50 ? 'Moderate Capacity' : overallScore >= 25 ? 'Developing Capacity' : 'Low Capacity';
+  var body = `
+    <h1>New ODA Assessment Submitted</h1>
+    <p>
+      An Organisational Development Assessment has been submitted and fully processed.
+      The details are below for your review.
+    </p>
+
+    <table class="info-table">
+      <tr>
+        <td class="label">Organisation</td>
+        <td><strong>${orgName}</strong></td>
+      </tr>
+      <tr>
+        <td class="label">Overall Score</td>
+        <td>
+          <span>
+            ${overallScore}% &mdash; ${scoreBand}
+          </span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label">Submitted</td>
+        <td>${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+      </tr>
+    </table>
+
+    <div class="btn-wrapper">
+      <a href="${adminDashboardUrl}" class="btn">Review on Admin Dashboard &rarr;</a>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="alert alert-info">
+      &#128274;&nbsp; ODA results are confidential. The organisation's admin and the
+      PLRCAP team are the only parties with access to this report.
+    </div>
+
+    <p style="font-size:13px; color:#718096;">
+      This alert was sent to you because you are a registered PLRCAP administrator.<br />
+      Questions? Contact <a href="mailto:support@plrcap.org" style="color:#2e86c1;">support@plrcap.org</a>
+    </p>
+  `;
+%>
+<%- include('_layout', { title, body }) %>

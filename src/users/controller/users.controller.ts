@@ -37,7 +37,7 @@ import {
   ResetPasswordDto,
   UpdateProfileDto,
   UpsertExpertProfileDto,
-  UpdateOrganizationDto,
+  UpdateUserOrganizationDto,
   SignUpResponseDto,
   LoginResponseDto,
   UserResponseDto,
@@ -222,7 +222,7 @@ export class UserController {
     summary: 'Create or update your expert profile (EXPERT role only)',
     description:
       'All fields are optional — only provided fields are updated. ' +
-      'Call this after registration to fill in the full expert profile.',
+      'Returns profileCompletion % and a reward object when the profile first reaches ≥80% completion.',
   })
   async upsertExpertProfile(
     @CurrentUser() user: any,
@@ -233,6 +233,7 @@ export class UserController {
 
   // ─────────────────────────────────────────────────────────────────────────────
   // PUBLIC — EXPERTS DIRECTORY
+  // Static routes must come before /:userId wildcard
   // ─────────────────────────────────────────────────────────────────────────────
 
   @Get('experts')
@@ -256,6 +257,27 @@ export class UserController {
     @Query('limit') limit?: number,
   ) {
     return this.userService.listExperts({ search, expertise, page, limit });
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.EXPERT)
+  @ApiBearerAuth()
+  @Get('experts/dashboard')
+  @ApiOperation({
+    summary: 'Expert dashboard analytics (EXPERT only)',
+    description:
+      'Returns profile completion %, total mentorship requests, pending requests, and completed sessions.',
+  })
+  async getExpertDashboard(@CurrentUser() user: any) {
+    return this.userService.getExpertDashboard(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('experts/drop-down')
+  @ApiOperation({ summary: 'List approved experts for a dropdown' })
+  async dropDownListExperts() {
+    return this.userService.dropDownListExperts();
   }
 
   @Get('experts/:userId')
@@ -291,7 +313,7 @@ export class UserController {
   })
   async updateOrganization(
     @CurrentUser() user: any,
-    @Body() dto: UpdateOrganizationDto,
+    @Body() dto: UpdateUserOrganizationDto,
   ) {
     return this.userService.updateOrganization(user.id, dto);
   }
@@ -328,6 +350,14 @@ export class UserController {
     return this.userService.uploadLogo(user.id, file);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('guests')
+  @ApiOperation({ summary: 'Dropdown list of all approved guest users' })
+  async guestUsersList() {
+    return this.userService.guestUsersList();
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // ADMIN: USER MANAGEMENT
   // ─────────────────────────────────────────────────────────────────────────────
@@ -338,6 +368,7 @@ export class UserController {
     Role.CONTENT_ADMIN,
     Role.EVENT_ADMIN,
     Role.RESOURCE_ADMIN,
+    Role.NGO_MEMBER,
   )
   @Permissions(PERMISSIONS.USER_READ)
   @ApiBearerAuth()
@@ -349,15 +380,21 @@ export class UserController {
     required: false,
     enum: ['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'],
   })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search by fullName or email',
+  })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   async listUsers(
     @Query('role') role?: Role,
     @Query('status') status?: string,
+    @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.userService.listUsers({ role, status, page, limit });
+    return this.userService.listUsers({ role, status, search, page, limit });
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -437,7 +474,7 @@ export class UserController {
         permissions: {
           type: 'array',
           items: { type: 'string' },
-          example: ['event:read', 'event:write', 'user:read'],
+          example: ['event:read', 'event:write'],
         },
       },
     },

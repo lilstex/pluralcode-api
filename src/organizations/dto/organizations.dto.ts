@@ -8,6 +8,7 @@ import {
   IsArray,
   Min,
   Max,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -106,15 +107,13 @@ export class UpdateOrganizationDto {
 
   @ApiPropertyOptional({
     description: 'Document links: [{ "plans": "url" }, { "report": "url" }]',
-    example: [{ report: 'https://stc.org/annual-report-2024.pdf' }],
+    example: [
+      { website: 'https://stc.org/annual-report-2024.pdf' },
+      { report: 'https://stc.org/annual-report-2024.pdf' },
+    ],
   })
   @IsOptional()
   otherLinks?: any[];
-
-  @ApiPropertyOptional({ example: 'https://savethechildren.org.ng' })
-  @IsOptional()
-  @IsString()
-  website?: string;
 
   @ApiPropertyOptional({
     example: 'We work across Nigeria to promote child welfare...',
@@ -122,6 +121,36 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Is your organization a local/national organization in Nigeria?',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isLocalOrNational?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Does your organization have experience working in humanitarian contexts?',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  hasHumanitarianExperience?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Is your organization interested in registering for training and mentorship programs?',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isInterestedInTraining?: boolean;
 }
 
 // ─────────────────────────────────────────────
@@ -396,7 +425,6 @@ export class OrganizationResponseDto {
   @ApiProperty() lga: string;
   @ApiPropertyOptional() address?: string;
   @ApiPropertyOptional() logoUrl?: string;
-  @ApiPropertyOptional() website?: string;
   @ApiPropertyOptional() description?: string;
   @ApiPropertyOptional() mission?: string;
   @ApiPropertyOptional() vision?: string;
@@ -404,6 +432,16 @@ export class OrganizationResponseDto {
   @ApiPropertyOptional() numberOfStaff?: number;
   @ApiPropertyOptional() numberOfVolunteers?: number;
   @ApiPropertyOptional() annualBudget?: string;
+  @ApiProperty({ description: 'Is a local/national organization in Nigeria' })
+  isLocalOrNational: boolean;
+  @ApiProperty({
+    description: 'Has experience working in humanitarian contexts',
+  })
+  hasHumanitarianExperience: boolean;
+  @ApiProperty({
+    description: 'Interested in training and mentorship programs',
+  })
+  isInterestedInTraining: boolean;
   @ApiProperty() socials: any[];
   @ApiProperty() otherLinks: any[];
   @ApiProperty({ type: [ActivityResponseDto] })
@@ -428,6 +466,94 @@ export class OrganizationSummaryResponseDto {
   @ApiPropertyOptional() mission?: string;
   @ApiPropertyOptional() numberOfStaff?: number;
   @ApiPropertyOptional() numberOfVolunteers?: number;
-  @ApiPropertyOptional() website?: string;
+  @ApiProperty({ description: 'Is a local/national organization in Nigeria' })
+  isLocalOrNational: boolean;
+  @ApiProperty({
+    description: 'Has experience working in humanitarian contexts',
+  })
+  hasHumanitarianExperience: boolean;
+  @ApiProperty({
+    description: 'Interested in training and mentorship programs',
+  })
+  isInterestedInTraining: boolean;
   @ApiProperty() createdAt: Date;
+}
+
+// ─────────────────────────────────────────────
+// DASHBOARD DTOs
+// ─────────────────────────────────────────────
+
+export class DashboardEventDto {
+  @ApiProperty() id: string;
+  @ApiProperty() title: string;
+  @ApiProperty() description: string;
+  @ApiProperty() startTime: Date;
+  @ApiProperty() endTime: Date;
+  @ApiPropertyOptional() coverImageUrl?: string;
+  @ApiPropertyOptional() externalMeetingUrl?: string;
+  @ApiPropertyOptional() capacity?: number;
+  @ApiProperty({ type: [String] }) tags: string[];
+}
+
+export class DashboardActivityDto {
+  @ApiProperty() id: string;
+  @ApiProperty() sector: string;
+  @ApiProperty() who: string;
+  @ApiProperty() where: string;
+  @ApiProperty() when: number;
+  @ApiProperty() activity: string;
+  @ApiProperty() createdAt: Date;
+}
+
+export class OrgDashboardResponseDto {
+  @ApiProperty({ description: 'Profile completion percentage (0–100)' })
+  profileCompletion: number;
+
+  @ApiProperty({ description: 'Total number of program activities logged' })
+  activityCount: number;
+
+  @ApiProperty({
+    description: 'Total number of ODA assessments (all statuses)',
+  })
+  assessmentCount: number;
+
+  @ApiProperty({
+    description: 'Points earned by the organization owner (resource downloads)',
+  })
+  pointsEarned: number;
+
+  @ApiProperty({
+    description: 'Number of badges earned by the organization owner',
+  })
+  badgeCount: number;
+
+  @ApiProperty({
+    type: [DashboardEventDto],
+    description: 'Up to 10 upcoming events',
+  })
+  upcomingEvents: DashboardEventDto[];
+
+  @ApiProperty({
+    type: [DashboardActivityDto],
+    description: 'Up to 10 most recent activities',
+  })
+  recentActivities: DashboardActivityDto[];
+}
+
+// Response DTO for a single assessment item
+export class ExternalAssessmentRecordResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() assessmentBody: string;
+  @ApiProperty() month: number;
+  @ApiProperty() year: number;
+  @ApiProperty() createdAt: Date;
+  @ApiProperty() updatedAt: Date;
+}
+
+// Wrapped response for the API
+export class ExternalAssessmentListResponseDto {
+  @ApiProperty() status: boolean;
+  @ApiProperty() statusCode: number;
+  @ApiProperty({ type: [ExternalAssessmentRecordResponseDto] })
+  data: ExternalAssessmentRecordResponseDto[];
 }

@@ -1,0 +1,1171 @@
+[
+  {
+    "ID": 1,
+    "user_id": 1,
+    "activities": "We\\'ve been dreaming of great things!",
+    "date_created": "2023-11-06T19:58:39.000Z",
+    "date_updated": "2023-11-06T19:58:39.000Z"
+  },
+  {
+    "ID": 10,
+    "user_id": 1,
+    "activities": "<p>sdsdsdsdsdsds</p>",
+    "date_created": "2023-11-18T17:21:11.000Z",
+    "date_updated": "2023-11-18T17:21:11.000Z"
+  },
+  {
+    "ID": 12,
+    "user_id": 22,
+    "activities": "<p>Organizational Profile, Organizational Assessment </p>",
+    "date_created": "2024-02-03T07:47:10.000Z",
+    "date_updated": "2024-02-03T07:47:10.000Z"
+  },
+  {
+    "ID": 9,
+    "user_id": 1,
+    "activities": "<p><img class=\"size-medium wp-image-1699 alignleft\" src=\"https://ngosupporthub.ng/wp-content/uploads/2023/09/ssda23_a_christian_aid_staff_providing_aid_to_people_in_need_8k_f4df069f-2848-46c2-90c3-7d5c72a01e13-300x300.png\" /></p><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent sodales tortor ac nisi sodales tempus at pharetra nisi. Nulla eu porttitor nisl. Duis interdum a dolor a luctus. Nulla dolor dolor, sodales vitae enim non, mattis scelerisque nunc.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent sodales tortor ac nisi sodales tempus at pharetra nisi. Nulla eu porttitor nisl. Duis interdum a dolor a luctus. Nulla dolor dolor, sodales vitae enim non, mattis scelerisque nunc.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent sodales tortor ac nisi sodales tempus at pharetra nisi. Nulla eu porttitor nisl. Duis interdum a dolor a luctus. Nulla dolor dolor, sodales vitae enim non, mattis scelerisque nunc.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent sodales tortor ac nisi sodales tempus at pharetra nisi. Nulla eu porttitor nisl. Duis interdum a dolor a luctus. Nulla dolor dolor, sodales vitae enim non, mattis scelerisque nunc.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent sodales tortor ac nisi sodales tempus at pharetra nisi. Nulla eu porttitor nisl. Duis interdum a dolor a luctus. Nulla dolor dolor, sodales vitae enim non, mattis scelerisque nunc.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent sodales tortor ac nisi sodales tempus at pharetra nisi. Nulla eu porttitor nisl. Duis interdum a dolor a luctus. Nulla dolor dolor, sodales vitae enim non, mattis scelerisque nunc.</p>",
+    "date_created": "2023-11-07T15:30:08.000Z",
+    "date_updated": "2023-11-07T15:30:08.000Z"
+  },
+  {
+    "ID": 7,
+    "user_id": 1,
+    "activities": "<p><img class=\"alignnone size-full wp-image-2017\" src=\"https://ngosupporthub.ng/wp-content/uploads/2023/10/brand-4.png\" /></p><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent sodales tortor ac nisi sodales tempus at pharetra nisi. Nulla eu porttitor nisl. Duis interdum a dolor a luctus. Nulla dolor dolor, sodales vitae enim non, mattis scelerisque nunc.</p>",
+    "date_created": "2023-11-07T06:51:36.000Z",
+    "date_updated": "2023-11-07T06:51:36.000Z"
+  },
+  {
+    "ID": 13,
+    "user_id": 22,
+    "activities": "<p><strong>30th January 2024: </strong>MESAF Trainees underwent an Online Session in preparation for Self Assessment and selection of Learning Goals </p>",
+    "date_created": "2024-02-14T07:41:00.000Z",
+    "date_updated": "2024-02-14T07:41:00.000Z"
+  },
+  {
+    "ID": 14,
+    "user_id": 22,
+    "activities": "<p><strong>1st February 2024</strong> - MESAF Trainees underwent an online masterclass on Leadership and Fundraising Skills</p>",
+    "date_created": "2024-02-14T07:50:53.000Z",
+    "date_updated": "2024-02-14T07:50:53.000Z"
+  },
+  {
+    "ID": 15,
+    "user_id": 22,
+    "activities": "<p><strong>14th February 2024</strong> - PLRCAP Masterclass on Grant Writing (10am - 12pm). PLRCAP Masterclass on Resource Mobilization (2pm - 4pm)</p>",
+    "date_created": "2024-02-16T07:51:40.000Z",
+    "date_updated": "2024-02-16T07:51:40.000Z"
+  },
+  {
+    "ID": 16,
+    "user_id": 22,
+    "activities": "<p><strong>21st February 2024</strong> - PLRCAP Masterclass on Finance Management (10am - 12pm). PLRCAP Masterclass HR Management (2pm - 4pm)</p>",
+    "date_created": "2024-02-24T03:50:22.000Z",
+    "date_updated": "2024-02-24T03:50:22.000Z"
+  },
+  {
+    "ID": 20,
+    "user_id": 22,
+    "activities": "<p><strong>28th February, </strong>Masterclass on Effective Partnerships &amp; Networks I 10am - 12pm. Masterclass on Effective Partnership &amp; Networks II </p>",
+    "date_created": "2024-03-11T14:49:12.000Z",
+    "date_updated": "2024-03-11T14:49:12.000Z"
+  },
+  {
+    "ID": 21,
+    "user_id": 22,
+    "activities": "<p><strong>6th March</strong>, Masterclass on Project Management  (10am - 12pm)</p>",
+    "date_created": "2024-03-11T14:54:14.000Z",
+    "date_updated": "2024-03-11T14:54:14.000Z"
+  },
+  {
+    "ID": 22,
+    "user_id": 76,
+    "activities": "<p>Feeding the World and making impacts</p>",
+    "date_created": "2024-03-16T08:55:02.000Z",
+    "date_updated": "2024-03-16T08:55:02.000Z"
+  },
+  {
+    "ID": 23,
+    "user_id": 79,
+    "activities": "<p>I love God!</p>",
+    "date_created": "2024-03-16T12:31:02.000Z",
+    "date_updated": "2024-03-16T12:31:02.000Z"
+  },
+  {
+    "ID": 25,
+    "user_id": 30,
+    "activities": "<p>Awareness and Sensitization at Yerwa Government Girls College Maiduguri on Gender-Based Violence.</p>",
+    "date_created": "2024-03-18T18:17:25.000Z",
+    "date_updated": "2024-03-18T18:17:25.000Z"
+  },
+  {
+    "ID": 26,
+    "user_id": 30,
+    "activities": "<p>One-Day Stakeholder Engagement on Understanding and Implementing the VAPP Law off Borno State</p>",
+    "date_created": "2024-03-18T18:18:58.000Z",
+    "date_updated": "2024-03-18T18:18:58.000Z"
+  },
+  {
+    "ID": 30,
+    "user_id": 54,
+    "activities": "<p>Connect women to markets for improved income opportunities. </p>",
+    "date_created": "2024-03-18T20:43:34.000Z",
+    "date_updated": "2024-03-18T20:43:34.000Z"
+  },
+  {
+    "ID": 28,
+    "user_id": 54,
+    "activities": "<p>Establish demonstration farms in the communities where rural women can learn  practically climate-smart agricultural techniques.</p>",
+    "date_created": "2024-03-18T20:38:06.000Z",
+    "date_updated": "2024-03-18T20:38:06.000Z"
+  },
+  {
+    "ID": 29,
+    "user_id": 54,
+    "activities": "<p>Train rural women on the use of Compost or organic fertilizer as an alternative to chemical fertilizer.</p>",
+    "date_created": "2024-03-18T20:40:23.000Z",
+    "date_updated": "2024-03-18T20:40:23.000Z"
+  },
+  {
+    "ID": 45,
+    "user_id": 54,
+    "activities": "<p><strong>Training to Women and Youth on Improved Farming Techniques in Rice Irrigation Farming at Daro Community Yola South, Adamawa State Nigeria.</strong></p>",
+    "date_created": "2024-03-31T14:37:54.000Z",
+    "date_updated": "2024-03-31T14:37:54.000Z"
+  },
+  {
+    "ID": 35,
+    "user_id": 155,
+    "activities": "Food Security/Livelihood Support and Sexual Reproductive Health Right Livelihood and Economic Empowerment ",
+    "date_created": "2024-03-19T06:20:03.000Z",
+    "date_updated": "2024-03-19T06:20:03.000Z"
+  },
+  {
+    "ID": 36,
+    "user_id": 72,
+    "activities": "The Foundation has embarked on the Fostering Education project.",
+    "date_created": "2024-03-19T07:53:48.000Z",
+    "date_updated": "2024-03-19T07:53:48.000Z"
+  },
+  {
+    "ID": 34,
+    "user_id": 24,
+    "activities": "<p>Education,</p><p>Health,</p><p>Livelihood and empowerment</p><p>Protection of women and girls</p><p>Environment and climate action,</p><p>Youth leadership and development.</p>",
+    "date_created": "2024-03-19T04:45:20.000Z",
+    "date_updated": "2024-03-19T04:45:20.000Z"
+  },
+  {
+    "ID": 37,
+    "user_id": 24,
+    "activities": "<p>Our empowerment &amp; leadership programs enhance acquisition of vocational/digital skills, financial literacy, and foster mindset change</p>",
+    "date_created": "2024-03-19T08:49:58.000Z",
+    "date_updated": "2024-03-19T08:49:58.000Z"
+  },
+  {
+    "ID": 38,
+    "user_id": 24,
+    "activities": "<p>Our education programs promotes and support access to quality, safe, continuous, and inclusive Education in Nigeria</p>",
+    "date_created": "2024-03-19T09:18:45.000Z",
+    "date_updated": "2024-03-19T09:18:45.000Z"
+  },
+  {
+    "ID": 39,
+    "user_id": 24,
+    "activities": "<p>Our Protection program work to keep children, and women safe,  protected with improved resilience to foster their development</p>",
+    "date_created": "2024-03-19T09:27:12.000Z",
+    "date_updated": "2024-03-19T09:27:12.000Z"
+  },
+  {
+    "ID": 40,
+    "user_id": 24,
+    "activities": "<p>Our Environment program focus on WASH and Climate action, we are increasing awareness on Climate change and good Hygiene practices</p>",
+    "date_created": "2024-03-19T09:29:13.000Z",
+    "date_updated": "2024-03-19T09:29:13.000Z"
+  },
+  {
+    "ID": 102,
+    "user_id": 234,
+    "activities": "<p>we have recently developed a project that  titled  as sokoto state people with disability development projects.</p>",
+    "date_created": "2024-05-10T14:07:24.000Z",
+    "date_updated": "2024-05-10T14:07:24.000Z"
+  },
+  {
+    "ID": 46,
+    "user_id": 31,
+    "activities": "<p>1. Education</p><p>2. Health</p><p>3 Gender Based Violence</p><p>4. Empowerment</p>",
+    "date_created": "2024-04-21T07:18:35.000Z",
+    "date_updated": "2024-04-21T07:18:35.000Z"
+  },
+  {
+    "ID": 47,
+    "user_id": 215,
+    "activities": "\n 1.We are a youth led organization working in the area of culture and heritage;\n\n2. Peace building initiatives \n\n\n\n",
+    "date_created": "2024-04-24T08:31:44.000Z",
+    "date_updated": "2024-04-24T08:31:44.000Z"
+  },
+  {
+    "ID": 70,
+    "user_id": 178,
+    "activities": "Promoting digital skills for women, youths and PWD in partnership with ZOA/JDPH funded by EU",
+    "date_created": "2024-04-25T08:18:00.000Z",
+    "date_updated": "2024-04-25T08:18:00.000Z"
+  },
+  {
+    "ID": 49,
+    "user_id": 245,
+    "activities": "<p>Outreach on Budget tracking, Advocacy, workshops and Prompting gender based programs.</p>",
+    "date_created": "2024-04-24T10:10:09.000Z",
+    "date_updated": "2024-04-24T10:10:09.000Z"
+  },
+  {
+    "ID": 50,
+    "user_id": 244,
+    "activities": "\n \t\n\n\n\n\n",
+    "date_created": "2024-04-24T10:13:14.000Z",
+    "date_updated": "2024-04-24T10:13:14.000Z"
+  },
+  {
+    "ID": 51,
+    "user_id": 205,
+    "activities": "<p>December 9, 2023- symposium in commemoration of International Anti-corruption day in Kano</p>",
+    "date_created": "2024-04-24T10:15:43.000Z",
+    "date_updated": "2024-04-24T10:15:43.000Z"
+  },
+  {
+    "ID": 52,
+    "user_id": 205,
+    "activities": "<p>December 10, 2023- Zoom conference in Commemoration of International Human Rights</p>",
+    "date_created": "2024-04-24T10:16:02.000Z",
+    "date_updated": "2024-04-24T10:16:02.000Z"
+  },
+  {
+    "ID": 53,
+    "user_id": 205,
+    "activities": "<p>August 15, 2023- Staged a Peaceful protest in Katsina to oppose coup d\\'etat in Niger Republic and Military rule in Africa</p>",
+    "date_created": "2024-04-24T10:16:33.000Z",
+    "date_updated": "2024-04-24T10:16:33.000Z"
+  },
+  {
+    "ID": 54,
+    "user_id": 255,
+    "activities": "<p>Budget tracking, gender equality,gender based violence,to promote peace, justice and unity among youths </p>",
+    "date_created": "2024-04-24T10:35:30.000Z",
+    "date_updated": "2024-04-24T10:35:30.000Z"
+  },
+  {
+    "ID": 55,
+    "user_id": 194,
+    "activities": "<p>We are currently implementing a Global Fund-supported project titled \\\"Community-led monitoring\\\" in Kaita LGA of Katsina state</p>",
+    "date_created": "2024-04-24T11:06:53.000Z",
+    "date_updated": "2024-04-24T11:06:53.000Z"
+  },
+  {
+    "ID": 56,
+    "user_id": 224,
+    "activities": "<p>Community mobilization for the prevention of HIV/AIDS and reduction for mother of child bearing age in katsina. KATSACA Katsina 2007</p>",
+    "date_created": "2024-04-24T11:16:09.000Z",
+    "date_updated": "2024-04-24T11:16:09.000Z"
+  },
+  {
+    "ID": 57,
+    "user_id": 224,
+    "activities": "<p>Care &amp; support for infected HIV Victims</p><p>KATSACA katsina 2008</p>",
+    "date_created": "2024-04-24T11:18:38.000Z",
+    "date_updated": "2024-04-24T11:18:38.000Z"
+  },
+  {
+    "ID": 58,
+    "user_id": 209,
+    "activities": "<p>food and security survey in security compromised LGAs, Diphtheria, migration project measles campaign</p>",
+    "date_created": "2024-04-24T11:21:54.000Z",
+    "date_updated": "2024-04-24T11:21:54.000Z"
+  },
+  {
+    "ID": 76,
+    "user_id": 328,
+    "activities": "<p>We created awareness on the importance of medical check-up for women at Galadima Ward, Barka Lahu, Gasau Zamfara State </p>",
+    "date_created": "2024-04-25T16:47:17.000Z",
+    "date_updated": "2024-04-25T16:47:17.000Z"
+  },
+  {
+    "ID": 63,
+    "user_id": 271,
+    "activities": "<p>Agroforestry for Improved Livelihoods in Sokoto, funded by the Canadian High Commission and French Embassy in Nigeria</p>",
+    "date_created": "2024-04-24T12:40:23.000Z",
+    "date_updated": "2024-04-24T12:40:23.000Z"
+  },
+  {
+    "ID": 64,
+    "user_id": 226,
+    "activities": "Improve the welfare and wellbeing of women and childrenPromoting the welfare of youth and vulnerable group in the society <!--more-->",
+    "date_created": "2024-04-24T15:23:53.000Z",
+    "date_updated": "2024-04-24T15:23:53.000Z"
+  },
+  {
+    "ID": 65,
+    "user_id": 97,
+    "activities": "<p>Currently on GC7 project for Malaria, HIV and TB under Charanchi LGA in Katsina State. </p>",
+    "date_created": "2024-04-24T16:41:23.000Z",
+    "date_updated": "2024-04-24T16:41:23.000Z"
+  },
+  {
+    "ID": 66,
+    "user_id": 92,
+    "activities": " Security and peace initiatives. Women empowerment. Digital Inclusion.  ",
+    "date_created": "2024-04-24T16:52:31.000Z",
+    "date_updated": "2024-04-24T16:52:31.000Z"
+  },
+  {
+    "ID": 67,
+    "user_id": 212,
+    "activities": "<p>Some of our Activities include:</p><p>1. Sensitization of communities on gender based violence in some selected communities of Gwadabawa LG</p><p> </p><p> </p><p> </p>",
+    "date_created": "2024-04-24T19:45:24.000Z",
+    "date_updated": "2024-04-24T19:45:24.000Z"
+  },
+  {
+    "ID": 68,
+    "user_id": 214,
+    "activities": "<p>Sensitization on Fistula Prevention and referral to health facility, Sokoto state</p><p>Sensitization on COVID 19, Sokoto South LGA</p><p> </p>",
+    "date_created": "2024-04-24T20:46:00.000Z",
+    "date_updated": "2024-04-24T20:46:00.000Z"
+  },
+  {
+    "ID": 69,
+    "user_id": 238,
+    "activities": "Awareness creation <!--more-->",
+    "date_created": "2024-04-24T22:35:12.000Z",
+    "date_updated": "2024-04-24T22:35:12.000Z"
+  },
+  {
+    "ID": 71,
+    "user_id": 178,
+    "activities": "Promoting digital skills for women, youths and PWD in partnership with ZOA/JDPH funded by EU",
+    "date_created": "2024-04-25T08:18:00.000Z",
+    "date_updated": "2024-04-25T08:18:00.000Z"
+  },
+  {
+    "ID": 72,
+    "user_id": 352,
+    "activities": "<p>Advocacy,&amp; community mobilization, Health education ,and creating aweaness on health and environmental issues</p>",
+    "date_created": "2024-04-25T09:11:48.000Z",
+    "date_updated": "2024-04-25T09:11:48.000Z"
+  },
+  {
+    "ID": 73,
+    "user_id": 345,
+    "activities": "Good governance,community development,monitoring and evaluation,good governance in state and federal,national assembly.",
+    "date_created": "2024-04-25T09:13:08.000Z",
+    "date_updated": "2024-04-25T09:13:08.000Z"
+  },
+  {
+    "ID": 74,
+    "user_id": 361,
+    "activities": "<a href=\"https://web.facebook.com/100005409257705/videos/715986877003894/\">https://web.facebook.com/100005409257705/videos/715986877003894/</a>",
+    "date_created": "2024-04-25T10:30:10.000Z",
+    "date_updated": "2024-04-25T10:30:10.000Z"
+  },
+  {
+    "ID": 121,
+    "user_id": 150,
+    "activities": "Promoting press freedom through engagement with stakeholders. Research, document and campaigns against violation of journalists rights",
+    "date_created": "2024-05-18T08:44:48.000Z",
+    "date_updated": "2024-05-18T08:44:48.000Z"
+  },
+  {
+    "ID": 77,
+    "user_id": 278,
+    "activities": "<p>Our staff participated in PLRCAP Humanitarian Principles and Access online first session and introductory sessions </p>",
+    "date_created": "2024-04-25T17:57:43.000Z",
+    "date_updated": "2024-04-25T17:57:43.000Z"
+  },
+  {
+    "ID": 84,
+    "user_id": 267,
+    "activities": "<p><strong>Community Outreach and Awareness Campaigns</strong></p>",
+    "date_created": "2024-04-25T20:00:24.000Z",
+    "date_updated": "2024-04-25T20:00:24.000Z"
+  },
+  {
+    "ID": 83,
+    "user_id": 267,
+    "activities": "<p><strong>Teacher Training and Capacity Building:</strong> workshops for teachers  to enhance their  skills, curriculum development, and classroom management</p><p> </p>",
+    "date_created": "2024-04-25T19:59:28.000Z",
+    "date_updated": "2024-04-25T19:59:28.000Z"
+  },
+  {
+    "ID": 82,
+    "user_id": 267,
+    "activities": "<p><strong>Educational Programs:</strong> recently we develop and implement educational programs aimed at various target groups, such as children, adolescents.</p>",
+    "date_created": "2024-04-25T19:55:20.000Z",
+    "date_updated": "2024-04-25T19:55:20.000Z"
+  },
+  {
+    "ID": 85,
+    "user_id": 233,
+    "activities": "<a href=\"https://ngosupporthub.ng/project-management-for-civil-society-organizations-csos-in-nigeria-project-management-basics-2/\">Project Management for Civil Society Organizations (CSOs) in Nigeria Project Management Basics-2</a>",
+    "date_created": "2024-04-25T20:01:19.000Z",
+    "date_updated": "2024-04-25T20:01:19.000Z"
+  },
+  {
+    "ID": 86,
+    "user_id": 267,
+    "activities": "<p>Emergency Response and Humanitarian Aid were given to migrants that were affected by banditry </p>",
+    "date_created": "2024-04-25T20:01:47.000Z",
+    "date_updated": "2024-04-25T20:01:47.000Z"
+  },
+  {
+    "ID": 87,
+    "user_id": 267,
+    "activities": "<p>Girls child education awareness campaigns were carrying out to improve girls child education</p>",
+    "date_created": "2024-04-25T20:03:29.000Z",
+    "date_updated": "2024-04-25T20:03:29.000Z"
+  },
+  {
+    "ID": 88,
+    "user_id": 267,
+    "activities": "<p>Monitoring and Evaluation of some government\\'s intervention works in the community schools were done </p><p> </p>",
+    "date_created": "2024-04-25T20:07:06.000Z",
+    "date_updated": "2024-04-25T20:07:06.000Z"
+  },
+  {
+    "ID": 89,
+    "user_id": 298,
+    "activities": "<p>Advocacy on and impacting skills etc to make the youth productive and shun criminality </p>",
+    "date_created": "2024-04-28T12:41:15.000Z",
+    "date_updated": "2024-04-28T12:41:15.000Z"
+  },
+  {
+    "ID": 90,
+    "user_id": 158,
+    "activities": "<p>Establishing a Youth-led partnership for community development, Fantsuam Foundation First-Eleven, FFFEleven</p>",
+    "date_created": "2024-04-30T21:08:18.000Z",
+    "date_updated": "2024-04-30T21:08:18.000Z"
+  },
+  {
+    "ID": 91,
+    "user_id": 174,
+    "activities": "<p>Education, Protection, Child Protection, Gender Base Violence, WASH, Nutrition, Peace Building, Early recovery &amp; Livelihood</p>",
+    "date_created": "2024-05-01T12:15:02.000Z",
+    "date_updated": "2024-05-01T12:15:02.000Z"
+  },
+  {
+    "ID": 92,
+    "user_id": 177,
+    "activities": "<p>Skill Acquisition for SGBV survivor</p>",
+    "date_created": "2024-05-01T19:36:23.000Z",
+    "date_updated": "2024-05-01T19:36:23.000Z"
+  },
+  {
+    "ID": 93,
+    "user_id": 430,
+    "activities": "<p>Save women and children today</p>",
+    "date_created": "2024-05-02T06:52:52.000Z",
+    "date_updated": "2024-05-02T06:52:52.000Z"
+  },
+  {
+    "ID": 94,
+    "user_id": 155,
+    "activities": "<p>Livelihood economic empowerment for vulnerable women in Demsa LGA of Adamawa State</p>",
+    "date_created": "2024-05-02T07:25:30.000Z",
+    "date_updated": "2024-05-02T07:25:30.000Z"
+  },
+  {
+    "ID": 95,
+    "user_id": 298,
+    "activities": "<p>Advocacy on and impacting skills etc to make the youth productive and shun criminality</p>",
+    "date_created": "2024-05-02T13:29:59.000Z",
+    "date_updated": "2024-05-02T13:29:59.000Z"
+  },
+  {
+    "ID": 96,
+    "user_id": 298,
+    "activities": "<p>Training of Girls and Women aged 18 to 35 years on Entrepreneurship and link access to finance. </p>",
+    "date_created": "2024-05-02T13:36:44.000Z",
+    "date_updated": "2024-05-02T13:36:44.000Z"
+  },
+  {
+    "ID": 97,
+    "user_id": 176,
+    "activities": "<p>Women and Youths Empowerment</p>",
+    "date_created": "2024-05-03T13:31:02.000Z",
+    "date_updated": "2024-05-03T13:31:02.000Z"
+  },
+  {
+    "ID": 98,
+    "user_id": 150,
+    "activities": "<p>Community sensitization on factchecking misinformation</p><p>Professional support to media and journalists in Africa</p>",
+    "date_created": "2024-05-03T20:06:32.000Z",
+    "date_updated": "2024-05-03T20:06:32.000Z"
+  },
+  {
+    "ID": 99,
+    "user_id": 174,
+    "activities": "<p>Multi-sectoral Intervention to Conflict-affected IDPs and Vulnerable Host Communities in Hong and Gombi LGAs, Adamawa State</p>",
+    "date_created": "2024-05-07T14:07:48.000Z",
+    "date_updated": "2024-05-07T14:07:48.000Z"
+  },
+  {
+    "ID": 100,
+    "user_id": 278,
+    "activities": "<p>Our Executive Director attends 4days workshop on development of implementation strategy of child protection law of Zamfara State </p>",
+    "date_created": "2024-05-09T22:22:57.000Z",
+    "date_updated": "2024-05-09T22:22:57.000Z"
+  },
+  {
+    "ID": 101,
+    "user_id": 168,
+    "activities": "<p>Comprehensive gender based violence support and disability inclusion </p>",
+    "date_created": "2024-05-10T06:28:04.000Z",
+    "date_updated": "2024-05-10T06:28:04.000Z"
+  },
+  {
+    "ID": 103,
+    "user_id": 29,
+    "activities": "<p>Managing PLHIV; Placement to treatment, reminder to adhere to clinical appointments, distribution of start-up kits to HHs affected by HIV</p>",
+    "date_created": "2024-05-11T10:14:08.000Z",
+    "date_updated": "2024-05-11T10:14:08.000Z"
+  },
+  {
+    "ID": 105,
+    "user_id": 36,
+    "activities": "Soft loans granted to rural women for micro-scaled businesses since 2000",
+    "date_created": "2024-05-11T21:13:01.000Z",
+    "date_updated": "2024-05-11T21:13:01.000Z"
+  },
+  {
+    "ID": 106,
+    "user_id": 36,
+    "activities": "Relief materials supplied to Dumne victims of Fulani clash in 2003",
+    "date_created": "2024-05-11T21:13:50.000Z",
+    "date_updated": "2024-05-11T21:13:50.000Z"
+  },
+  {
+    "ID": 107,
+    "user_id": 36,
+    "activities": "Training on peaceful co-existence for women and youth to enhance daily business activities",
+    "date_created": "2024-05-11T21:14:36.000Z",
+    "date_updated": "2024-05-11T21:14:36.000Z"
+  },
+  {
+    "ID": 108,
+    "user_id": 36,
+    "activities": "Economic empowerment programs for women and youth in collaboration with Plan International and GIZ",
+    "date_created": "2024-05-11T21:15:13.000Z",
+    "date_updated": "2024-05-11T21:15:13.000Z"
+  },
+  {
+    "ID": 109,
+    "user_id": 36,
+    "activities": "ASSESS project funded by IRC to strengthen the education system in Adamawa StateCare and support for orphans and vulnerable children",
+    "date_created": "2024-05-11T21:15:48.000Z",
+    "date_updated": "2024-05-11T21:15:48.000Z"
+  },
+  {
+    "ID": 110,
+    "user_id": 36,
+    "activities": "Projects promoting positive participation in democracy among women and youthProvision of books and educational materials to primary schools",
+    "date_created": "2024-05-11T21:16:27.000Z",
+    "date_updated": "2024-05-11T21:16:27.000Z"
+  },
+  {
+    "ID": 111,
+    "user_id": 36,
+    "activities": "Conflict management initiatives among women and youth with Creative and NERI",
+    "date_created": "2024-05-11T21:18:08.000Z",
+    "date_updated": "2024-05-11T21:18:08.000Z"
+  },
+  {
+    "ID": 112,
+    "user_id": 36,
+    "activities": "Projects promoting positive participation in democracy among women and youthProvision of books and educational materials to primary schools",
+    "date_created": "2024-05-11T21:18:46.000Z",
+    "date_updated": "2024-05-11T21:18:46.000Z"
+  },
+  {
+    "ID": 113,
+    "user_id": 36,
+    "activities": "Awareness campaigns for parents of out-of-school childrenPurchase of ambulance for Dumne Primary Healthcare",
+    "date_created": "2024-05-11T21:19:26.000Z",
+    "date_updated": "2024-05-11T21:19:26.000Z"
+  },
+  {
+    "ID": 114,
+    "user_id": 36,
+    "activities": "<p> </p>Free HIV and Malaria screening and treatment in partnership with health concern foundation",
+    "date_created": "2024-05-11T21:20:31.000Z",
+    "date_updated": "2024-05-11T21:20:31.000Z"
+  },
+  {
+    "ID": 115,
+    "user_id": 36,
+    "activities": "Quality healthcare services for maternal, neonatal, and child health (MNCH) including HIV/AIDS prevention, malaria, and tuberculosis",
+    "date_created": "2024-05-11T21:21:17.000Z",
+    "date_updated": "2024-05-11T21:21:17.000Z"
+  },
+  {
+    "ID": 116,
+    "user_id": 36,
+    "activities": "Community sensitization on SRHR, GBV, and Post Abortion Care and Referral services in Yola-North and Yola-South",
+    "date_created": "2024-05-11T21:21:51.000Z",
+    "date_updated": "2024-05-11T21:21:51.000Z"
+  },
+  {
+    "ID": 117,
+    "user_id": 36,
+    "activities": "Supply of vitamin A and Albendazole for children aged 0-5 years in partnership with Vitamin Angel.",
+    "date_created": "2024-05-11T21:22:30.000Z",
+    "date_updated": "2024-05-11T21:22:30.000Z"
+  },
+  {
+    "ID": 118,
+    "user_id": 265,
+    "activities": "Sponsorship of Women,Girls and the Almajiris out of school ",
+    "date_created": "2024-05-12T10:41:37.000Z",
+    "date_updated": "2024-05-12T10:41:37.000Z"
+  },
+  {
+    "ID": 119,
+    "user_id": 47,
+    "activities": "<p>AYA W&amp;Y Initiative is a woman led organization that focuses on women and children.</p>",
+    "date_created": "2024-05-12T18:16:30.000Z",
+    "date_updated": "2024-05-12T18:16:30.000Z"
+  },
+  {
+    "ID": 120,
+    "user_id": 150,
+    "activities": "Civic engagementResearch Advocacy Training/Media DevelopmentCommunication consultancy",
+    "date_created": "2024-05-16T12:00:45.000Z",
+    "date_updated": "2024-05-16T12:00:45.000Z"
+  },
+  {
+    "ID": 122,
+    "user_id": 267,
+    "activities": "<p>DAKKEDAN conducted sensitization programs on risks associated with drug addict.</p>",
+    "date_created": "2024-05-18T12:17:58.000Z",
+    "date_updated": "2024-05-18T12:17:58.000Z"
+  },
+  {
+    "ID": 123,
+    "user_id": 511,
+    "activities": "<p>Academics, personal development, values, leadership trainings and employability drills.</p>",
+    "date_created": "2024-05-19T09:18:47.000Z",
+    "date_updated": "2024-05-19T09:18:47.000Z"
+  },
+  {
+    "ID": 124,
+    "user_id": 511,
+    "activities": "<p> </p><p> </p><p>Currently, we\\'re planning for the 3rd edition of one of our core programmes called, \\\"LUNCH AND READ\\\", </p><p> </p>",
+    "date_created": "2024-05-19T09:21:03.000Z",
+    "date_updated": "2024-05-19T09:21:03.000Z"
+  },
+  {
+    "ID": 127,
+    "user_id": 531,
+    "activities": "<p>Improving GBV prevention and response services, SRH to girls and vulnerable women in Jere, Bama, Konduga and MMC LGAs of Borno State.</p>",
+    "date_created": "2024-05-21T12:54:31.000Z",
+    "date_updated": "2024-05-21T12:54:31.000Z"
+  },
+  {
+    "ID": 126,
+    "user_id": 531,
+    "activities": "<p>Strengthening Disability Inclusion-GBV Responses, Mitigation and SRH services in Michika, Mubi North and Hong LGAs of Adamawa State.</p>",
+    "date_created": "2024-05-21T12:53:10.000Z",
+    "date_updated": "2024-05-21T12:53:10.000Z"
+  },
+  {
+    "ID": 128,
+    "user_id": 531,
+    "activities": "<p>Strengthening COVID 19 Prevention Services and Mitigation in Borno, Adamawa and Yobe (BAY) States.  </p>",
+    "date_created": "2024-05-21T12:56:12.000Z",
+    "date_updated": "2024-05-21T12:56:12.000Z"
+  },
+  {
+    "ID": 129,
+    "user_id": 531,
+    "activities": "<p>Mitigating HIV and Gender Based Violence (GBV) incidence amongst the Adolescents in Kwara State</p>",
+    "date_created": "2024-05-21T12:56:47.000Z",
+    "date_updated": "2024-05-21T12:56:47.000Z"
+  },
+  {
+    "ID": 130,
+    "user_id": 549,
+    "activities": "<p>We just concluded our Month of May outreach Tagged \\\"Snack a Child\\\", </p><p><a href=\"https://qfbf.org/blogs-events/\">https://qfbf.org/blogs-events/</a></p>",
+    "date_created": "2024-06-07T13:08:13.000Z",
+    "date_updated": "2024-06-07T13:08:13.000Z"
+  },
+  {
+    "ID": 131,
+    "user_id": 575,
+    "activities": "<p>Distribution of farm inputs, mentoring &amp; supervision, formation of farmer Cooperative Society, training of agro-business groups.</p>",
+    "date_created": "2024-06-10T13:42:21.000Z",
+    "date_updated": "2024-06-10T13:42:21.000Z"
+  },
+  {
+    "ID": 132,
+    "user_id": 575,
+    "activities": "<p>Training of Health workers on comprehensive SRH Topics, Raise awareness and Sensitization on Comprehensive SRH topics</p>",
+    "date_created": "2024-06-10T13:45:52.000Z",
+    "date_updated": "2024-06-10T13:45:52.000Z"
+  },
+  {
+    "ID": 133,
+    "user_id": 575,
+    "activities": "<p>Screening, testing and Counselling for Viral infectious</p>",
+    "date_created": "2024-06-10T13:53:14.000Z",
+    "date_updated": "2024-06-10T13:53:14.000Z"
+  },
+  {
+    "ID": 134,
+    "user_id": 575,
+    "activities": "<p>Active case findings (MUAC Screening),  Supervisions</p>",
+    "date_created": "2024-06-10T13:53:36.000Z",
+    "date_updated": "2024-06-10T13:53:36.000Z"
+  },
+  {
+    "ID": 135,
+    "user_id": 575,
+    "activities": "<p>Conduct consultation sessions with women, girls, men and boys, through FGD</p><p>Conduct Awareness and Sensitization’s on Protections Concerns</p>",
+    "date_created": "2024-06-10T13:54:38.000Z",
+    "date_updated": "2024-06-10T13:54:38.000Z"
+  },
+  {
+    "ID": 136,
+    "user_id": 575,
+    "activities": "<p>Train Staff on GBV principles and core concepts and CP core concepts, Provide Case management services, Provide Child protection services</p>",
+    "date_created": "2024-06-10T13:55:20.000Z",
+    "date_updated": "2024-06-10T13:55:20.000Z"
+  },
+  {
+    "ID": 137,
+    "user_id": 575,
+    "activities": "<p>Conduct Psychosocial support sessions.</p>",
+    "date_created": "2024-06-10T13:55:52.000Z",
+    "date_updated": "2024-06-10T13:55:52.000Z"
+  },
+  {
+    "ID": 138,
+    "user_id": 575,
+    "activities": "<p>Distribution of Multi-purpose Cash Assistance for Vulnerable individuals</p>",
+    "date_created": "2024-06-10T13:56:08.000Z",
+    "date_updated": "2024-06-10T13:56:08.000Z"
+  },
+  {
+    "ID": 139,
+    "user_id": 575,
+    "activities": "<p>Construction and rehabilitation of Women and girls’ safe spaces and Child friendly space, Distribution of food assistance, and NFIs,</p>",
+    "date_created": "2024-06-10T13:57:09.000Z",
+    "date_updated": "2024-06-10T13:57:09.000Z"
+  },
+  {
+    "ID": 140,
+    "user_id": 575,
+    "activities": "<p>Advocate to stakeholders (community leaders, SEMA, relevant MDAs) for peace building and re-integration of low-risk associate</p>",
+    "date_created": "2024-06-10T13:59:05.000Z",
+    "date_updated": "2024-06-10T13:59:05.000Z"
+  },
+  {
+    "ID": 141,
+    "user_id": 575,
+    "activities": "<p>Enroll out of school children into formal and informal education (Vocational), distribution of scholastic material.</p>",
+    "date_created": "2024-06-10T14:01:37.000Z",
+    "date_updated": "2024-06-10T14:01:37.000Z"
+  },
+  {
+    "ID": 142,
+    "user_id": 549,
+    "activities": "<p>A very bright and fulfilled week, we are are planning our next outreach, to March out Hunger off our communities.</p>",
+    "date_created": "2024-06-11T09:28:43.000Z",
+    "date_updated": "2024-06-11T09:28:43.000Z"
+  },
+  {
+    "ID": 143,
+    "user_id": 22,
+    "activities": "<p><strong>11th June 2024</strong>, PLRCAP Mentorship Class on Finance Management.   </p>",
+    "date_created": "2024-06-12T10:40:07.000Z",
+    "date_updated": "2024-06-12T10:40:07.000Z"
+  },
+  {
+    "ID": 145,
+    "user_id": 560,
+    "activities": "<p>WASH</p><p>PROTECTION </p><p>EDUCETION</p><p>NUTRITION </p>",
+    "date_created": "2024-06-24T15:07:34.000Z",
+    "date_updated": "2024-06-24T15:07:34.000Z"
+  },
+  {
+    "ID": 146,
+    "user_id": 560,
+    "activities": "<p>WASH</p><p>PROTECTION </p><p>EDUCATION</p>",
+    "date_created": "2024-06-24T15:08:03.000Z",
+    "date_updated": "2024-06-24T15:08:03.000Z"
+  },
+  {
+    "ID": 147,
+    "user_id": 614,
+    "activities": "Our latest activities are dedicated to uplifting communities through education, healthcare, and sustainability.",
+    "date_created": "2024-07-01T11:58:09.000Z",
+    "date_updated": "2024-07-01T11:58:09.000Z"
+  },
+  {
+    "ID": 150,
+    "user_id": 573,
+    "activities": "<p>JDPH implements a reintegration project in Borno and Yobe States, focusing on FSL, WASH, Peace building, and digital skills</p>",
+    "date_created": "2024-07-02T09:32:52.000Z",
+    "date_updated": "2024-07-02T09:32:52.000Z"
+  },
+  {
+    "ID": 152,
+    "user_id": 536,
+    "activities": "ACRI is dedicated to improving the lives of Almajiri children in Nigeria",
+    "date_created": "2024-07-09T20:55:10.000Z",
+    "date_updated": "2024-07-09T20:55:10.000Z"
+  },
+  {
+    "ID": 166,
+    "user_id": 624,
+    "activities": "<p>We are strengthening the implementation of Universal Health Coverage (UHC) through partnerships.</p>",
+    "date_created": "2024-10-25T21:51:59.000Z",
+    "date_updated": "2024-10-25T21:51:59.000Z"
+  },
+  {
+    "ID": 154,
+    "user_id": 537,
+    "activities": "<p><strong>Promoting Digital Skills for Women, Hard-to-Reach Youth, and People with Disabilities in Mafa LG, Borno State</strong></p><p> </p>",
+    "date_created": "2024-07-13T13:07:09.000Z",
+    "date_updated": "2024-07-13T13:07:09.000Z"
+  },
+  {
+    "ID": 155,
+    "user_id": 54,
+    "activities": "<p>Nutrition advocacy and budget tracking.It was done through the Adamawa state chapter of Civil Society Scaling Up Nutrition in Nigeria. </p>",
+    "date_created": "2024-08-10T10:47:48.000Z",
+    "date_updated": "2024-08-10T10:47:48.000Z"
+  },
+  {
+    "ID": 156,
+    "user_id": 54,
+    "activities": "<p>A five-day campaign on <em>\\\"You Are What You EAT\\\"</em> project. In Collaboration with Amazon Healing for Women and Children Empowerment Initiative.</p>",
+    "date_created": "2024-08-10T10:53:19.000Z",
+    "date_updated": "2024-08-10T10:53:19.000Z"
+  },
+  {
+    "ID": 157,
+    "user_id": 54,
+    "activities": "<p>Lessons Learned workshop organized by PLRCAP to review and discuss progress, challenges, and learnings from the training sessions.</p>",
+    "date_created": "2024-08-10T11:10:48.000Z",
+    "date_updated": "2024-08-10T11:10:48.000Z"
+  },
+  {
+    "ID": 158,
+    "user_id": 23,
+    "activities": "<p>Attending training on GBV Prevention and response</p>",
+    "date_created": "2024-09-02T08:43:05.000Z",
+    "date_updated": "2024-09-02T08:43:05.000Z"
+  },
+  {
+    "ID": 159,
+    "user_id": 44,
+    "activities": "<p>Community Engagements (Advocacies and Sensitizations) on Preventing Conflict Related SGBV among Internally Displaced Women and Girls</p>",
+    "date_created": "2024-09-02T11:54:36.000Z",
+    "date_updated": "2024-09-02T11:54:36.000Z"
+  },
+  {
+    "ID": 160,
+    "user_id": 534,
+    "activities": "<p>DFGRI drives climate action and promotes hygiene, soap distribution, menstrual health, and breastfeeding support.</p>",
+    "date_created": "2024-09-11T10:53:44.000Z",
+    "date_updated": "2024-09-11T10:53:44.000Z"
+  },
+  {
+    "ID": 162,
+    "user_id": 54,
+    "activities": "<p>Training for 25 teachers and 30 club leaders on strengthening agricultural clubs with smart agriculture solutions in Adamawa State.</p>",
+    "date_created": "2024-10-10T13:02:02.000Z",
+    "date_updated": "2024-10-10T13:02:02.000Z"
+  },
+  {
+    "ID": 163,
+    "user_id": 670,
+    "activities": " ",
+    "date_created": "2024-10-22T14:07:56.000Z",
+    "date_updated": "2024-10-22T14:07:56.000Z"
+  },
+  {
+    "ID": 164,
+    "user_id": 670,
+    "activities": "https://fabelfoundation.org.ng/fabel-foundation-empowers-female-students-at-arc-yola-on-international-day-of-the-girl-child/",
+    "date_created": "2024-10-22T14:08:26.000Z",
+    "date_updated": "2024-10-22T14:08:26.000Z"
+  },
+  {
+    "ID": 165,
+    "user_id": 670,
+    "activities": "<p>https://fabelfoundation.org.ng/fabel-foundation-joins-stakeholders-in-commemorating-international-day-to-protect-education-against-attacks/</p>",
+    "date_created": "2024-10-22T14:10:41.000Z",
+    "date_updated": "2024-10-22T14:10:41.000Z"
+  },
+  {
+    "ID": 169,
+    "user_id": 25,
+    "activities": "<p>Partnering with PLAN international to improve maternal and child nutrition in Adamawa State. Funded by Nigerian Humanitarian Fund (NHF)</p>",
+    "date_created": "2024-10-26T08:05:37.000Z",
+    "date_updated": "2024-10-26T08:05:37.000Z"
+  },
+  {
+    "ID": 170,
+    "user_id": 688,
+    "activities": "<p>Protection which includes Child protection, GBV and MHPSS.</p><p>Education,WASH, Nutrition</p><p>, Health and livelihood.</p><p> </p><p> </p><p> </p>",
+    "date_created": "2024-11-20T13:32:09.000Z",
+    "date_updated": "2024-11-20T13:32:09.000Z"
+  },
+  {
+    "ID": 175,
+    "user_id": 610,
+    "activities": "<p>Improve Water Sanitation and Hygiene and Livelihood in 2 COMM. of Wamakko LGA of Sokoto Funded by (DIWA) </p>",
+    "date_created": "2025-01-20T10:13:46.000Z",
+    "date_updated": "2025-01-20T10:13:46.000Z"
+  },
+  {
+    "ID": 174,
+    "user_id": 610,
+    "activities": "<p>INTER PERSONAL COMMUNICATION IN MALARIA  WITH SUPPORT FROM GLOBAL FUND/ACOMIN</p><p>SPOTLIGHT INITIATIVE ON GBV, VAWG AND HP</p>",
+    "date_created": "2025-01-20T10:02:02.000Z",
+    "date_updated": "2025-01-20T10:02:02.000Z"
+  },
+  {
+    "ID": 176,
+    "user_id": 610,
+    "activities": "<p>IMPROVE WATER SANITATION AND HYGINE AND LIVELIHOOD IN 2 COMM. OF WAMAKO LGA SOKOTO FUNDED BY - DIWA</p>",
+    "date_created": "2025-01-20T10:19:17.000Z",
+    "date_updated": "2025-01-20T10:19:17.000Z"
+  },
+  {
+    "ID": 177,
+    "user_id": 610,
+    "activities": "<p>IMPROVE WATER SANITATION AND HYGINE AND LIVELIHOOD IN 2 COMM. OF WAMAKO LGA SOKOTO FUNDED BY - DIWA</p>",
+    "date_created": "2025-01-20T10:19:17.000Z",
+    "date_updated": "2025-01-20T10:19:17.000Z"
+  },
+  {
+    "ID": 178,
+    "user_id": 610,
+    "activities": "<p>IMPROVE WATER SANITATION AND HYGINE AND LIVELIHOOD IN 2 COMM. OF WAMAKO LGA SOKOTO FUNDED BY - DIWA</p>",
+    "date_created": "2025-01-20T10:19:17.000Z",
+    "date_updated": "2025-01-20T10:19:17.000Z"
+  },
+  {
+    "ID": 179,
+    "user_id": 610,
+    "activities": "<p>IMPROVE WATER SANITATION AND HYGINE AND LIVELIHOOD IN 2 COMM. OF WAMAKO LGA SOKOTO FUNDED BY - DIWA</p>",
+    "date_created": "2025-01-20T10:19:17.000Z",
+    "date_updated": "2025-01-20T10:19:17.000Z"
+  },
+  {
+    "ID": 180,
+    "user_id": 610,
+    "activities": "<p>IMPROVE WATER SANITATION AND HYGINE AND LIVELIHOOD IN 2 COMM. OF WAMAKO LGA SOKOTO FUNDED BY - DIWA</p>",
+    "date_created": "2025-01-20T10:19:17.000Z",
+    "date_updated": "2025-01-20T10:19:17.000Z"
+  },
+  {
+    "ID": 181,
+    "user_id": 610,
+    "activities": "<p>IMPROVE WATER SANITATION AND HYGINE AND LIVELIHOOD IN 2 COMM. OF WAMAKO LGA SOKOTO FUNDED BY - DIWA</p>",
+    "date_created": "2025-01-20T10:19:17.000Z",
+    "date_updated": "2025-01-20T10:19:17.000Z"
+  },
+  {
+    "ID": 182,
+    "user_id": 610,
+    "activities": "<p>IMPROVE WATER SANITATION AND HYGINE AND LIVELIHOOD IN 2 COMM. OF WAMAKO LGA SOKOTO FUNDED BY - DIWA</p>",
+    "date_created": "2025-01-20T10:19:17.000Z",
+    "date_updated": "2025-01-20T10:19:17.000Z"
+  },
+  {
+    "ID": 183,
+    "user_id": 610,
+    "activities": "<p>IMPROVE WATER SANITATION AND HYGINE AND LIVELIHOOD IN 2 COMM. OF WAMAKO LGA SOKOTO FUNDED BY - DIWA</p>",
+    "date_created": "2025-01-20T10:19:27.000Z",
+    "date_updated": "2025-01-20T10:19:27.000Z"
+  },
+  {
+    "ID": 184,
+    "user_id": 610,
+    "activities": "<p>GF/NACA/ATM/NEPWHAN - RESSILIENCE SUSTAINABLE SYSTEM FOR HEALTH - COVID19 AND GENDER BASED VIOLENCE </p>",
+    "date_created": "2025-01-20T10:25:23.000Z",
+    "date_updated": "2025-01-20T10:25:23.000Z"
+  },
+  {
+    "ID": 185,
+    "user_id": 610,
+    "activities": "<p>PROVISION OF FOOD AND LIVELIHOOD SUPPORT FOR VULVERABLE CHILDREN FUNDED BY DECAI</p>",
+    "date_created": "2025-01-20T10:26:32.000Z",
+    "date_updated": "2025-01-20T10:26:32.000Z"
+  },
+  {
+    "ID": 186,
+    "user_id": 610,
+    "activities": "<p>IMPROVE WATER SANITATION AND HYGINE AND LIVELIHOOD IN 2 COMM. OF WAMAKO LGA SOKOTO FUNDED BY - DIWA</p>",
+    "date_created": "2025-01-20T13:25:57.000Z",
+    "date_updated": "2025-01-20T13:25:57.000Z"
+  },
+  {
+    "ID": 190,
+    "user_id": 710,
+    "activities": "<p> EIEWC empowers women through vocational training, supports child protection, provides health outreach, and promotes WASH programs</p>",
+    "date_created": "2025-02-04T06:38:58.000Z",
+    "date_updated": "2025-02-04T06:38:58.000Z"
+  },
+  {
+    "ID": 191,
+    "user_id": 710,
+    "activities": "<p> EIEWC empowers women through vocational training, supports child protection, provides health outreach, and promotes WASH programs.</p>",
+    "date_created": "2025-02-04T06:38:59.000Z",
+    "date_updated": "2025-02-04T06:38:59.000Z"
+  },
+  {
+    "ID": 189,
+    "user_id": 47,
+    "activities": "<p>I\\'ve worked with survivors of domestic violence, sexual harassment, parental separation, and health issues.</p>",
+    "date_created": "2025-01-23T12:16:57.000Z",
+    "date_updated": "2025-01-23T12:16:57.000Z"
+  },
+  {
+    "ID": 192,
+    "user_id": 721,
+    "activities": "\nWe convene sensitization and advocacy calls among the in-school and out-of-school youths on drug abuse and SGBV as well as leadership",
+    "date_created": "2025-02-05T06:41:30.000Z",
+    "date_updated": "2025-02-05T06:41:30.000Z"
+  },
+  {
+    "ID": 193,
+    "user_id": 516,
+    "activities": "<p>Girl\\'s Rights and Education Advancement Project (GREAP) expansion in Kaduna State reaching young girls to become Champions of of rights. </p>",
+    "date_created": "2025-02-05T11:56:24.000Z",
+    "date_updated": "2025-02-05T11:56:24.000Z"
+  },
+  {
+    "ID": 194,
+    "user_id": 516,
+    "activities": "<p>Girl\\'s Rights and Education Advancement Project (GREAP) expansion in Kaduna State reaching young girls to become Champions of of rights. </p>",
+    "date_created": "2025-02-05T11:56:24.000Z",
+    "date_updated": "2025-02-05T11:56:24.000Z"
+  },
+  {
+    "ID": 195,
+    "user_id": 729,
+    "activities": "<p>PALRI promotes peace, supports livelihoods, enhances education, improves health, advocates for rights</p>",
+    "date_created": "2025-02-05T12:43:42.000Z",
+    "date_updated": "2025-02-05T12:43:42.000Z"
+  },
+  {
+    "ID": 196,
+    "user_id": 729,
+    "activities": "<p>PALRI manages camps, engages communities, coordinates services, supports livelihoods, monitors protection, and builds capacity.</p>",
+    "date_created": "2025-02-05T12:45:39.000Z",
+    "date_updated": "2025-02-05T12:45:39.000Z"
+  },
+  {
+    "ID": 197,
+    "user_id": 770,
+    "activities": "<p>FOCEI empowers Gombe communities through health, education, governance, and environmental initiatives, partnering </p>",
+    "date_created": "2025-02-05T14:11:51.000Z",
+    "date_updated": "2025-02-05T14:11:51.000Z"
+  },
+  {
+    "ID": 198,
+    "user_id": 770,
+    "activities": "<p>FOCEI empowers Gombe communities through health, education, governance, and environmental initiatives, partnering with key organizations.</p>",
+    "date_created": "2025-02-05T14:12:23.000Z",
+    "date_updated": "2025-02-05T14:12:23.000Z"
+  },
+  {
+    "ID": 199,
+    "user_id": 869,
+    "activities": "<p>Spelling bee, cultural dances and quizzes among the children for a better educational background </p>",
+    "date_created": "2025-02-07T05:25:47.000Z",
+    "date_updated": "2025-02-07T05:25:47.000Z"
+  },
+  {
+    "ID": 200,
+    "user_id": 885,
+    "activities": "<p>Implementing 30days advocacy to ministry of health, NBPLC, CFID, KSPHCB,CIHP, for MNCH partnership</p>",
+    "date_created": "2025-02-10T08:07:09.000Z",
+    "date_updated": "2025-02-10T08:07:09.000Z"
+  },
+  {
+    "ID": 201,
+    "user_id": 904,
+    "activities": "<p>Preventing Period Poverty<br /><a href=\"http://goto.gg/13660\">http://goto.gg/13660</a></p>",
+    "date_created": "2025-02-10T19:28:49.000Z",
+    "date_updated": "2025-02-10T19:28:49.000Z"
+  },
+  {
+    "ID": 202,
+    "user_id": 821,
+    "activities": "<p>Humanitarian, Development and peace </p>",
+    "date_created": "2025-02-13T06:57:46.000Z",
+    "date_updated": "2025-02-13T06:57:46.000Z"
+  },
+  {
+    "ID": 203,
+    "user_id": 885,
+    "activities": "<p>Implement an advocacy to two communities for partnership towards FAROF\\'s medical outreach.</p>",
+    "date_created": "2025-02-24T06:48:02.000Z",
+    "date_updated": "2025-02-24T06:48:02.000Z"
+  },
+  {
+    "ID": 204,
+    "user_id": 54,
+    "activities": "<p>RATEI launched the Durable Solution Model to empower women IDPs in Yola South, boosting productivity, profitability &amp; wealth.</p>",
+    "date_created": "2025-03-15T18:51:53.000Z",
+    "date_updated": "2025-03-15T18:51:53.000Z"
+  },
+  {
+    "ID": 205,
+    "user_id": 54,
+    "activities": "<p>RATEI launched the Durable Solution Model to empower women IDPs in Yola South, boosting productivity, profitability &amp; wealth.</p>",
+    "date_created": "2025-03-15T18:54:37.000Z",
+    "date_updated": "2025-03-15T18:54:37.000Z"
+  },
+  {
+    "ID": 206,
+    "user_id": 43,
+    "activities": " <a href=\"https://web.facebook.com/share/p/15tY6tocMk/\">https://web.facebook.com/share/p/15tY6tocMk/</a>",
+    "date_created": "2025-03-22T14:03:22.000Z",
+    "date_updated": "2025-03-22T14:03:22.000Z"
+  },
+  {
+    "ID": 207,
+    "user_id": 946,
+    "activities": "<p>BRHO provides protection, shelter, WASH, MHPSS, livelihoods</p>",
+    "date_created": "2025-03-25T07:32:31.000Z",
+    "date_updated": "2025-03-25T07:32:31.000Z"
+  },
+  {
+    "ID": 209,
+    "user_id": 959,
+    "activities": "<p>To pilot the enrollment of 200 Boys and Girls into Climate Action clubs across 20 Junior schools within Damaturu by the end of 2025</p>",
+    "date_created": "2025-04-15T08:48:37.000Z",
+    "date_updated": "2025-04-15T08:48:37.000Z"
+  },
+  {
+    "ID": 210,
+    "user_id": 54,
+    "activities": "<p><strong>STRENGTHENING GBV PREVENTION AND LIVELIHOODS FOR VULNERABLE WOMEN IDPS AND PWDS IN YOLA SOUTH &amp; FUFORE LGAS OF ADAMAWA STATE.</strong></p>",
+    "date_created": "2025-06-13T14:52:01.000Z",
+    "date_updated": "2025-06-13T14:52:01.000Z"
+  },
+  {
+    "ID": 211,
+    "user_id": 931,
+    "activities": "<p>ECW Project in GWOZA and UNODC Project in Yobe</p>",
+    "date_created": "2025-11-19T07:44:29.000Z",
+    "date_updated": "2025-11-19T07:44:29.000Z"
+  },
+  {
+    "ID": 212,
+    "user_id": 178,
+    "activities": "<p><strong>Support to Improving Social Cohesion through CDP</strong>, in  partnership  with <strong>Oxfam</strong>, funded by <strong>BMZ &amp; co-funding by EU. </strong></p>",
+    "date_created": "2025-12-22T14:30:14.000Z",
+    "date_updated": "2025-12-22T14:30:14.000Z"
+  }
+]

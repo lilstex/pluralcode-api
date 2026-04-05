@@ -139,6 +139,14 @@ export class ListMentorRequestsQueryDto {
   @IsEnum(MentorRequestStatus)
   status?: MentorRequestStatus;
 
+  @ApiPropertyOptional({
+    description: 'Search by requester or mentor name/email',
+    example: 'John Doe',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
   @IsInt()

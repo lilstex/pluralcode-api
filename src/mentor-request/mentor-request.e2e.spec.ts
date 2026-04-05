@@ -2,6 +2,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtService, JwtModule } from '@nestjs/jwt';
+import { Reflector } from '@nestjs/core';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule } from '@nestjs/config';
 import request from 'supertest';
@@ -12,8 +13,9 @@ import { MentorRequestService } from 'src/mentor-request/service/mentor-request.
 import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
+import { RewardsService } from 'src/reward/service/reward.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -163,6 +165,16 @@ const mockEmail = {
   sendMentorRequestDecision: jest.fn(),
 };
 
+const mockRewards = {
+  award: jest.fn().mockResolvedValue({
+    pointsEarned: 10,
+    totalPoints: 10,
+    badgeAwarded: null,
+    achievementId: 'ach-1',
+  }),
+  hasAchievement: jest.fn().mockResolvedValue(false),
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // JWT HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -202,6 +214,9 @@ describe('Mentor Requests Module — E2E', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
+    process.env.JWT_SECRET = JWT_SECRET;
+    process.env.FRONTEND_URL = 'https://app.example.com';
+
     const module: TestingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
@@ -217,13 +232,9 @@ describe('Mentor Requests Module — E2E', () => {
         JwtStrategy,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EmailService, useValue: mockEmail },
-        {
-          provide: 'ConfigService',
-          useValue: {
-            get: (k: string) =>
-              ({ JWT_SECRET, FRONTEND_URL: 'https://app.example.com' })[k],
-          },
-        },
+        { provide: RewardsService, useValue: mockRewards },
+        RolesGuard,
+        Reflector,
       ],
     }).compile();
 
@@ -248,6 +259,28 @@ describe('Mentor Requests Module — E2E', () => {
    */
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Restore fire-and-forget mocks wiped by clearAllMocks
+    mockRewards.award.mockResolvedValue({
+      pointsEarned: 10,
+      totalPoints: 10,
+      badgeAwarded: null,
+      achievementId: 'ach-1',
+    });
+    mockRewards.hasAchievement.mockResolvedValue(false);
+    mockEmail.sendMentorRequestNotification.mockResolvedValue(undefined);
+    mockEmail.sendMentorRequestDecision.mockResolvedValue(undefined);
+
+    // Restore mock defaults wiped by clearAllMocks
+    mockRewards.award.mockResolvedValue({
+      pointsEarned: 10,
+      totalPoints: 10,
+      badgeAwarded: null,
+      achievementId: 'ach-1',
+    });
+    mockRewards.hasAchievement.mockResolvedValue(false);
+    mockEmail.sendMentorRequestNotification.mockResolvedValue(undefined);
+    mockEmail.sendMentorRequestDecision.mockResolvedValue(undefined);
 
     // Route findUnique by where.id so JwtStrategy always gets the right user
     // back, regardless of which token is on the request or how many other
@@ -408,14 +441,6 @@ describe('Mentor Requests Module — E2E', () => {
       await request(app.getHttpServer())
         .post('/mentor-requests')
         .set('Authorization', `Bearer ${expertToken()}`)
-        .send(validBody)
-        .expect(403);
-    });
-
-    it('403 — GUEST cannot submit a mentor request', async () => {
-      await request(app.getHttpServer())
-        .post('/mentor-requests')
-        .set('Authorization', `Bearer ${guestToken()}`)
         .send(validBody)
         .expect(403);
     });

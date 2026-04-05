@@ -1,0 +1,145 @@
+[
+  {
+    "ID": 1,
+    "user_id": 89,
+    "mentor_id": 89,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"sdsd\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"dvfd\",\"orgOtherInfo\":\"cdcdcd\",\"orgBgInterests\":\"ccdcd\",\"orgTrainingMentorship\":\"dfdf\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2024-03-18T08:27:18.000Z",
+    "date_updated": "2024-03-18T08:27:18.000Z"
+  },
+  {
+    "ID": 2,
+    "user_id": 89,
+    "mentor_id": 89,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"dcdc\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"cxcxcx\",\"orgOtherInfo\":\"xccxcx\",\"orgBgInterests\":\"vcxcxc\",\"orgTrainingMentorship\":\"xcxcx\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "DECLINED",
+    "date_created": "2024-03-18T08:30:19.000Z",
+    "date_updated": "2024-03-18T08:30:19.000Z"
+  },
+  {
+    "ID": 3,
+    "user_id": 433,
+    "mentor_id": 164,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"ddfdf\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"dffd\",\"orgOtherInfo\":\"fdfd\",\"orgBgInterests\":\"dfdf\",\"orgTrainingMentorship\":\"fdf\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2024-05-02T09:10:14.000Z",
+    "date_updated": "2024-05-02T09:10:14.000Z"
+  },
+  {
+    "ID": 4,
+    "user_id": 433,
+    "mentor_id": 431,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"Challenges in leadership\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal distribution of letters, as opposed to using \\\\'Content here, content here\\\\', making it look like readable English.\",\"orgOtherInfo\":\"It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal distribution of letters, as opposed to using \\\\'Content here, content here\\\\', making it look like readable English.\",\"orgBgInterests\":\"It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal distribution of letters, as opposed to using \\\\'Content here, content here\\\\', making it look like readable English.\",\"orgTrainingMentorship\":\"It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal distribution of letters, as opposed to using \\\\'Content here, content here\\\\', making it look like readable English.\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2024-05-02T09:29:41.000Z",
+    "date_updated": "2024-05-02T09:29:41.000Z"
+  },
+  {
+    "ID": 5,
+    "user_id": 38,
+    "mentor_id": 164,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"Securing initial funding is a significant hurdle for us. We are struggling to attract donors or secure grants. We lack the infrastructure, resources, and expertise needed to effectively carry out our missions. This includes having systems in place for financial management, program evaluation, and organizational governance. Specific goals we have for the training and mentorship are: To get training and resources to help our staff and volunteers to develop the skills and knowledge needed to effectively manage and grow the organization. To get networking opportunities. To establish systems for monitoring and evaluating our organization\\\\'s programs and activities, and use this information to continually learn and improve.\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"Yes, our organization has participated in an organizational development assessment program with PLRCAP (Promoting Local Response Capacity and Partnership). The training provided through PLRCAP was comprehensive, covering a wide range of topics relevant to organizational development. However, one challenge we encountered was the limited time allocated to some of the topics. As a result, while the training was informative, there wasn\\\\'t sufficient opportunity to delve deeply into certain areas. This meant that some topics may not have been explored as thoroughly as desired, potentially limiting the effectiveness of our organizational development efforts in those areas.\",\"orgOtherInfo\":\"As you consider my application for the training and mentorship program, I\\\\'d like to emphasize my enthusiasm and that of the entire Morning Star Foundation members for learning and our dedication to the mission of our organization. While we may have encountered challenges in the past, we am committed to utilizing any opportunity for growth and development to enhance our skills and contribute more effectively to our organization\\\\'s success. We are eager to engage with the program\\\\'s content and mentors, and we are open to feedback and guidance to continually improve and maximize our potential. Thank you for considering my application, and we look forward to the opportunity to participate in the training and mentorship program as an organization.\",\"orgBgInterests\":\"Morning Star Foundation (MSF) is a registered organization in Nigeria, officially established with the Corporate Affairs Commission (CAC) on May 20, 2021. The foundation operates from its office located at No 18 Bole Road, Shagari Phase 1, Yola, Nigeria. MSF envisions a future where the quality of life for women, youths, and orphans is significantly improved through a commitment to providing quality education, engaging with the youth, and contributing to community development without discrimination. Vision: To improve the quality of life of women, youths, and orphans through providing quality education, youth engagement, and community development without discrimination. Mission: To provide quality education, eradicate poverty, and improve the lives of people for a better society. Goals: 1. Access to Quality Education: MSF aims to ensure that every child, regardless of their background, has access to a quality education. The foundation is dedicated to establishing and supporting schools, providing scholarships, and promoting innovative educational initiatives to nurture the potential of the next generation. 2. Poverty Eradication: MSF has set an objective to alleviate poverty by addressing its root causes. The foundation works towards creating sustainable livelihoods, offering vocational training, and supporting small-scale entrepreneurs to break the cycle of poverty. 3. Improved Quality of Life: MSF is committed to enhancing the overall quality of life for individuals and communities. This includes initiatives related to healthcare access, clean water, nutrition, and affordable housing. The foundation\\\\'s focus is on holistic development that fosters physical, mental, and emotional well-being.\",\"orgTrainingMentorship\":\"No\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2024-05-07T23:27:03.000Z",
+    "date_updated": "2024-05-07T23:27:03.000Z"
+  },
+  {
+    "ID": 6,
+    "user_id": 624,
+    "mentor_id": 183,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"Our goal is to assist the Nigerian Government in enhancing the implementation of the mandatory social health insurance scheme, which is a vision of the National Health Insurance Authority. This initiative aims to ensure that every Nigerian has access to healthcare without out-of-pocket payments.\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"Yes, we performed very well in areas of strategic planning, but performed poorly in governance.\",\"orgOtherInfo\":\"I am a pharmacist. I am highly interested in improving the healthcare system in Nigeria. I hope to work with brilliant minds in the industry to advance universal health coverage.\",\"orgBgInterests\":\"Prime White Stallions is an NGO that aims to unite other national NGOs to strengthen the implementation of the mandatory social health insurance scheme in Nigeria, A mandate of the NHIA. We share a common vision of improving universal health coverage in the country.\",\"orgTrainingMentorship\":\"We leveraged the PLRCAP resource library, which guided our strategic approach and helped us identify the partners we need and where to find them.\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2024-10-31T06:32:19.000Z",
+    "date_updated": "2024-10-31T06:32:19.000Z"
+  },
+  {
+    "ID": 7,
+    "user_id": 624,
+    "mentor_id": 164,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"We are looking to establish a collaboration between INGO and the National health insurance authority (NHIA) to advance the means of implementation of the mandatory social health insurance agency.\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"Yes, we performed excellently in strategic planning.\",\"orgOtherInfo\":\"Yes. I am a pharmacist and i am keen to seeing policies sorrounding universal health coverage implemented.\",\"orgBgInterests\":\"We are uniting national NGOs to assist the National health insurance authority (NHIA) to advance the means of implementation of the mandatory social health insurance program.\",\"orgTrainingMentorship\":\"Yes, we leveraged on the resource library on the PLRCAP NGO HUB\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2024-11-01T22:17:18.000Z",
+    "date_updated": "2024-11-01T22:17:18.000Z"
+  },
+  {
+    "ID": 8,
+    "user_id": 624,
+    "mentor_id": 62,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"We need to be more excellent with our approach for partnership and network building. Most times, we know what our partners need, but how to establish a proper synergy becomes a challenge.\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"Yes, we did well in most areas except board governance.\",\"orgOtherInfo\":\"I am a pharmacist and very enthusiatic about a better health care system in Nigeria.\",\"orgBgInterests\":\"For specificity, we need to get more partners and build a stronger network. We need funding to hire an experienced team.\",\"orgTrainingMentorship\":\"We used the resource library on NGO HUB. We took a course on Leadership, board management, strategic planning, branding and proposal writing.\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2024-11-01T23:38:28.000Z",
+    "date_updated": "2024-11-01T23:38:28.000Z"
+  },
+  {
+    "ID": 9,
+    "user_id": 624,
+    "mentor_id": 51,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"We need to be more excellent with our approach for partnership and network building. Most times, we know what our partners need, but an appropriate proposal writing becomes a challenge. Lack of funding is also a barrier as we cannot get good hires.\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"es, we did good in strategic planning for the organisati\",\"orgOtherInfo\":\"I am a pharmacist and very enthusiatic about a better health care system in Nigeria.\",\"orgBgInterests\":\"We are advancing universal health coverage in Africa. We work with governmental organisation like the NHIA( National Health Insurance Authority ) whose mandate is universal health coverage.\",\"orgTrainingMentorship\":\"We used the resource library on NGO HUB.\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2024-11-01T23:45:12.000Z",
+    "date_updated": "2024-11-01T23:45:12.000Z"
+  },
+  {
+    "ID": 10,
+    "user_id": 624,
+    "mentor_id": 51,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"We need to be more excellent with our approach for partnership and network building. Most times, we know what our partners need, but an appropriate proposal writing becomes a challenge. Lack of funding is also a barrier as we cannot get good hires.\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"es, we did good in strategic planning for the organisation\",\"orgOtherInfo\":\"I am a pharmacist and very enthusiatic about a better health care system in Nigeria.\",\"orgBgInterests\":\"We are advancing universal health coverage in Africa. We work with governmental organisation like the NHIA( National Health Insurance Authority ) whose mandate is universal health coverage.\",\"orgTrainingMentorship\":\"We used the resource library on NGO HUB.\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2024-11-01T23:45:14.000Z",
+    "date_updated": "2024-11-01T23:45:14.000Z"
+  },
+  {
+    "ID": 11,
+    "user_id": 624,
+    "mentor_id": 51,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"We need to be more excellent with our approach for partnership and network building. Most times, we know what our partners need, but an appropriate proposal writing becomes a challenge. Lack of funding is also a barrier as we cannot get good hires.\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"es, we did good in strategic planning for the organisation\",\"orgOtherInfo\":\"I am a pharmacist and very enthusiatic about a better health care system in Nigeria.\",\"orgBgInterests\":\"We are advancing universal health coverage in Africa. We work with governmental organisation like the NHIA( National Health Insurance Authority ) whose mandate is universal health coverage.\",\"orgTrainingMentorship\":\"We used the resource library on NGO HUB.\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2024-11-01T23:45:15.000Z",
+    "date_updated": "2024-11-01T23:45:15.000Z"
+  },
+  {
+    "ID": 12,
+    "user_id": 624,
+    "mentor_id": 63,
+    "availabilityComm": "{\"hoursPerWeek\":\"3-5\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"We need to be more excellent with our approach for partnership and network building. Most times, we know what our partners need, but an appropriate proposal writing becomes a challenge.\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"Yes, we did good in strategic planning for the organisation.\",\"orgOtherInfo\":\"I am Anthony Douglas, the founder of Prime White Stallions and a pharmacist which made me very enthusiastic about a better health care system in Nigeria. My co-founder is a full stack developer. We have two other volunteers in the organisation, another full stack developer and a community pharmacist\",\"orgBgInterests\":\"We are advancing universal health coverage in Africa. We work with governmental organisation like the NHIA( National Health Insurance Authority ) whose mandate is universal health coverage.\",\"orgTrainingMentorship\":\"We used the resource library on NGO HUB.\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2024-11-01T23:53:36.000Z",
+    "date_updated": "2024-11-01T23:53:36.000Z"
+  },
+  {
+    "ID": 13,
+    "user_id": 532,
+    "mentor_id": 550,
+    "availabilityComm": "{\"hoursPerWeek\":\"\",\"inperson\":\"in-person meetings\",\"video\":\"Video calls\",\"phoneCalls\":\"Phone calls\",\"email\":\"Email\",\"other\":\"other\"}",
+    "mentorshipPreference": "{\"orgChallenges\":\"nn\",\"orgNeeds\":\"\",\"leadership\":\"Leadership\",\"strategicVision\":\"Strategic visioning and planning\",\"effectiveGov\":\"Effective governance\",\"humanResource\":\"Human resource and Finance management\",\"resourceMobilization\":\"Resource mobilization\",\"projectDev\":\"Project development and implementation\",\"commsBranding\":\"Communications and branding\",\"partnershipNetwork\":\"Partnership and network building\",\"OrganizationalDev\":\"Organizational development and Change management\"}",
+    "basic": "{\"orgDevAss\":\"sdf\",\"orgOtherInfo\":\"sdf\",\"orgBgInterests\":\"sdf\",\"orgTrainingMentorship\":\"sd\",\"acceptTerms\":\"acceptTerms\"}",
+    "request_status": "PENDING",
+    "date_created": "2025-08-29T06:48:49.000Z",
+    "date_updated": "2025-08-29T06:48:49.000Z"
+  }
+]

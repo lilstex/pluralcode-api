@@ -8,7 +8,8 @@ import { UserService } from './service/users.service';
 import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
 import { EmailModule } from 'src/providers/email/email.module';
 import { AzureModule } from 'src/providers/azure/azure.module';
-import { PrismaService } from 'src/prisma.service';
+import { RewardsModule } from 'src/reward/reward.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -26,9 +27,11 @@ import { PrismaService } from 'src/prisma.service';
     }),
     EmailModule,
     AzureModule,
+    RewardsModule,
+    NotificationsModule,
   ],
   controllers: [UserController],
-  providers: [UserService, JwtStrategy, PrismaService],
+  providers: [UserService, JwtStrategy],
   exports: [UserService, JwtModule],
 })
 export class UsersModule {}

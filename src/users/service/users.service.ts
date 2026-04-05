@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Injectable, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger, HttpException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { Role } from '@prisma/client';
+import { NotificationType, Role } from '@prisma/client';
 
 import {
   CreateUserDto,
@@ -12,10 +12,10 @@ import {
   VerifyOtpDto,
   ResetPasswordDto,
   UpdateProfileDto,
-  UpdateOrganizationDto,
+  UpdateUserOrganizationDto,
   UpsertExpertProfileDto,
 } from '../dto/users.dto';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
 import {
@@ -24,6 +24,8 @@ import {
   isExpired,
   otpExpiresAt,
 } from 'src/util/helper';
+import { RewardsService } from 'src/reward/service/reward.service';
+import { NotificationsService } from 'src/notifications/service/notifications.service';
 
 const ADMIN_ROLES: Role[] = [
   Role.SUPER_ADMIN,
@@ -31,6 +33,48 @@ const ADMIN_ROLES: Role[] = [
   Role.EVENT_ADMIN,
   Role.RESOURCE_ADMIN,
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EXPERT PROFILE COMPLETION HELPER
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EXPERT_SCALAR_FIELDS = [
+  'title',
+  'yearsOfExperience',
+  'about',
+  'employer',
+  'mentoringPhilosophy',
+  'capacityOfMentees',
+  'fees',
+  'companyPitch',
+  'hoursPerWeek',
+  'country',
+  'state',
+  'institutionAttended',
+] as const;
+
+const EXPERT_ARRAY_FIELDS = [
+  'areasOfExpertise',
+  'servicesOffered',
+  'preferredContactMethods',
+] as const;
+
+function calcExpertCompletion(profile: any): number {
+  const total = EXPERT_SCALAR_FIELDS.length + EXPERT_ARRAY_FIELDS.length;
+  const filled =
+    EXPERT_SCALAR_FIELDS.filter((k) => {
+      const v = profile[k];
+      return v !== null && v !== undefined && v !== '';
+    }).length +
+    EXPERT_ARRAY_FIELDS.filter((k) => {
+      const v = profile[k];
+      return Array.isArray(v) && v.length > 0;
+    }).length;
+  return Math.round((filled / total) * 100);
+}
+
+const EXPERT_COMPLETE_THRESHOLD = 80;
+const EXPERT_COMPLETE_TITLE = 'Expert Profile Completed';
 
 @Injectable()
 export class UserService {
@@ -42,6 +86,8 @@ export class UserService {
     private readonly emailService: EmailService,
     private readonly azureBlob: AzureBlobService,
     private readonly config: ConfigService,
+    private readonly rewards: RewardsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -73,14 +119,25 @@ export class UserService {
     const otpExpiry = otpExpiresAt(15);
 
     let createdUser: any;
+
     try {
       createdUser = await this.prisma.$transaction(async (tx) => {
+        // Check CAC uniqueness BEFORE creating anything
+        if (dto.role === Role.NGO_MEMBER) {
+          const existingOrg = await tx.organization.findUnique({
+            where: { cacNumber: dto.cacNumber! },
+          });
+
+          if (existingOrg) {
+            throw new Error('CAC_NUMBER_EXISTS');
+          }
+        }
+
+        // Create User
         const user = await tx.user.create({
           data: {
             email: dto.email,
             fullName: dto.fullName,
-            // Only store phoneNumber on User for non-expert roles.
-            // Expert phone lives in ExpertProfile.
             phoneNumber: dto.role !== Role.EXPERT ? dto.phoneNumber : null,
             passwordHash,
             role: dto.role,
@@ -90,7 +147,7 @@ export class UserService {
           },
         });
 
-        // ── NGO_MEMBER: create the Organization record ────────────────────────
+        // NGO_MEMBER: create Organization
         if (dto.role === Role.NGO_MEMBER) {
           await tx.organization.create({
             data: {
@@ -101,11 +158,14 @@ export class UserService {
               lga: dto.lga!,
               address: dto.address ?? null,
               userId: user.id,
+              isLocalOrNational: dto.isLocalOrNational,
+              hasHumanitarianExperience: dto.hasHumanitarianExperience,
+              isInterestedInTraining: dto.isInterestedInTraining,
             },
           });
         }
 
-        // ── EXPERT: create the ExpertProfile record with seed data ─────────────
+        // EXPERT: create ExpertProfile
         if (dto.role === Role.EXPERT) {
           await tx.expertProfile.create({
             data: {
@@ -113,8 +173,6 @@ export class UserService {
               title: dto.title ?? null,
               yearsOfExperience: dto.yearsOfExperience ?? null,
               areasOfExpertise: dto.areasOfExpertise ?? [],
-              // phoneNumber lives in ExpertProfile, not User
-              // Store via the profile update flow — seeded here from registration
             },
           });
         }
@@ -123,6 +181,16 @@ export class UserService {
       });
     } catch (error) {
       this.logger.error('createUser error', error);
+
+      // Handle CAC duplicate error cleanly
+      if (error.message === 'CAC_NUMBER_EXISTS') {
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'An organization with this CAC number already exists.',
+        };
+      }
+
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -232,6 +300,23 @@ export class UserService {
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Server error.',
       };
+    }
+  }
+
+  async getUserByEmail(email: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { email: email },
+      });
+
+      if (!user) {
+        throw new HttpException('User not found.', HttpStatus.NOT_FOUND);
+      }
+
+      return user;
+    } catch (error) {
+      this.logger.error('verifyEmail error', error);
+      throw error;
     }
   }
 
@@ -596,10 +681,19 @@ export class UserService {
         data.preferredContactMethods = dto.preferredContactMethods;
       if (dto.socials !== undefined) data.socials = dto.socials;
       if (dto.otherLinks !== undefined) data.otherLinks = dto.otherLinks;
+      if (dto.areaToApply !== undefined) data.areaToApply = dto.areaToApply;
+      if (dto.fees !== undefined) data.fees = dto.fees;
+      if (dto.companyPitch !== undefined) data.companyPitch = dto.companyPitch;
+      if (dto.hoursPerWeek !== undefined) data.hoursPerWeek = dto.hoursPerWeek;
+      if (dto.country !== undefined) data.country = dto.country;
+      if (dto.state !== undefined) data.state = dto.state;
+      if (dto.otherAreasOfTopics !== undefined)
+        data.otherAreasOfTopics = dto.otherAreasOfTopics;
+      if (dto.institutionAttended !== undefined)
+        data.institutionAttended = dto.institutionAttended;
 
-      // Also update phoneNumber on ExpertProfile if provided
+      // Store phoneNumber on User record if provided
       if (dto.phoneNumber !== undefined) {
-        // Store phone on the User record too so it's visible on the user object
         await this.prisma.user.update({
           where: { id: userId },
           data: { phoneNumber: dto.phoneNumber },
@@ -612,11 +706,39 @@ export class UserService {
         update: data,
       });
 
+      // ── Profile completion reward (once only, when ≥80% complete) ────────
+      let rewardResult: any = undefined;
+      const profileCompletion = calcExpertCompletion(profile);
+
+      if (profileCompletion >= EXPERT_COMPLETE_THRESHOLD) {
+        const alreadyAwarded = await this.rewards.hasAchievement(
+          userId,
+          EXPERT_COMPLETE_TITLE,
+        );
+        if (!alreadyAwarded) {
+          rewardResult = await this.rewards.award({
+            userId,
+            points: 10,
+            title: EXPERT_COMPLETE_TITLE,
+            description: 'Awarded for completing your expert profile.',
+            useFirstBadge: true,
+          });
+        }
+      }
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Expert profile updated.',
         data: profile,
+        profileCompletion,
+        ...(rewardResult && {
+          reward: {
+            pointsEarned: rewardResult.pointsEarned,
+            totalPoints: rewardResult.totalPoints,
+            badgeAwarded: rewardResult.badgeAwarded,
+          },
+        }),
       };
     } catch (error) {
       this.logger.error('upsertExpertProfile error', error);
@@ -748,6 +870,114 @@ export class UserService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // EXPERT DASHBOARD ANALYTICS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async getExpertDashboard(userId: string) {
+    try {
+      const [profile, totalRequests, pendingRequests, completedRequests] =
+        await Promise.all([
+          this.prisma.expertProfile.findUnique({ where: { userId } }),
+          this.prisma.mentorRequest.count({ where: { mentorId: userId } }),
+          this.prisma.mentorRequest.count({
+            where: { mentorId: userId, status: 'PENDING' },
+          }),
+          this.prisma.mentorRequest.count({
+            where: { mentorId: userId, status: 'COMPLETED' },
+          }),
+        ]);
+
+      const profileCompletion = profile ? calcExpertCompletion(profile) : 0;
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Expert dashboard retrieved.',
+        data: {
+          profileCompletion,
+          totalMentorshipRequests: totalRequests,
+          pendingMentorshipRequests: pendingRequests,
+          completedMentorshipSessions: completedRequests,
+        },
+      };
+    } catch (error) {
+      this.logger.error('getExpertDashboard error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async dropDownListExperts() {
+    try {
+      const users = await this.prisma.user.findMany({
+        where: { role: Role.EXPERT, status: 'APPROVED' },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatarUrl: true,
+          expertProfile: {
+            select: {
+              areasOfExpertise: true,
+              title: true,
+              employer: true,
+            },
+          },
+        },
+        orderBy: { fullName: 'asc' },
+      });
+
+      // Flatten expertProfile fields onto the user object for a cleaner response
+      const data = users.map(({ expertProfile, ...u }) => ({
+        ...u,
+        areasOfExpertise: expertProfile?.areasOfExpertise ?? [],
+        title: expertProfile?.title ?? null,
+        employer: expertProfile?.employer ?? null,
+      }));
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Approved expert users retrieved for dropdown.',
+        data,
+      };
+    } catch (error) {
+      this.logger.error('dropDownListExperts error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async guestUsersList() {
+    try {
+      const users = await this.prisma.user.findMany({
+        where: { role: Role.GUEST, status: 'APPROVED' },
+        select: { id: true, fullName: true, email: true, avatarUrl: true },
+        orderBy: { fullName: 'asc' },
+      });
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Approved guest users retrieved for dropdown.',
+        data: users,
+      };
+    } catch (error) {
+      this.logger.error('guestUsersList error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // ORGANIZATION — GET & UPDATE
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -786,7 +1016,7 @@ export class UserService {
     }
   }
 
-  async updateOrganization(userId: string, dto: UpdateOrganizationDto) {
+  async updateOrganization(userId: string, dto: UpdateUserOrganizationDto) {
     try {
       const org = await this.prisma.organization.findUnique({
         where: { userId },
@@ -828,7 +1058,6 @@ export class UserService {
           }),
           ...(dto.socials !== undefined && { socials: dto.socials }),
           ...(dto.otherLinks !== undefined && { otherLinks: dto.otherLinks }),
-          ...(dto.website !== undefined && { website: dto.website }),
           ...(dto.description !== undefined && {
             description: dto.description,
           }),
@@ -958,13 +1187,13 @@ export class UserService {
     const existing = await this.prisma.user.findFirst({
       where: { role: Role.SUPER_ADMIN },
     });
-    // if (existing) {
-    //   return {
-    //     status: false,
-    //     statusCode: HttpStatus.CONFLICT,
-    //     message: 'A Super Admin account already exists.',
-    //   };
-    // }
+    if (existing) {
+      return {
+        status: false,
+        statusCode: HttpStatus.CONFLICT,
+        message: 'A Super Admin account already exists.',
+      };
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const superAdmin = await this.prisma.user.create({
@@ -1010,11 +1239,46 @@ export class UserService {
       };
     }
 
-    return this._updateUserStatus(adminId, userId, 'APPROVED');
+    const result = await this._updateUserStatus(adminId, userId, 'APPROVED');
+    if (result.status) {
+      this.notifications
+        .create({
+          userId,
+          type: NotificationType.ACCOUNT_APPROVED,
+          title: 'Account Approved',
+          body: 'Your account has been approved. You can now access all platform features.',
+          link: '/dashboard',
+        })
+        .catch((err) => this.logger.error('notification failed', err));
+    }
+    return result;
   }
 
   async rejectUser(adminId: string, userId: string, reason?: string) {
-    return this._updateUserStatus(adminId, userId, 'REJECTED', reason);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    const result = await this._updateUserStatus(
+      adminId,
+      userId,
+      'REJECTED',
+      reason,
+    );
+    if (result.status && user) {
+      this.notifications
+        .create({
+          userId: user.id,
+          type: NotificationType.ACCOUNT_REJECTED,
+          title: 'Account Application Rejected',
+          body: reason
+            ? `Your account application was not approved: ${reason}`
+            : 'Your account application was not approved. Please contact support.',
+          link: '/support',
+        })
+        .catch((err) => this.logger.error('notification failed', err));
+    }
+    return result;
   }
 
   async suspendUser(adminId: string, userId: string) {
@@ -1129,6 +1393,7 @@ export class UserService {
   async listUsers(query: {
     role?: Role;
     status?: string;
+    search?: string;
     page?: number;
     limit?: number;
   }) {
@@ -1143,6 +1408,13 @@ export class UserService {
       const where: any = {};
       if (query.role) where.role = query.role;
       if (query.status) where.status = query.status;
+
+      if (query.search) {
+        where.OR = [
+          { fullName: { contains: query.search, mode: 'insensitive' } },
+          { email: { contains: query.search, mode: 'insensitive' } },
+        ];
+      }
 
       const [users, total] = await this.prisma.$transaction([
         this.prisma.user.findMany({

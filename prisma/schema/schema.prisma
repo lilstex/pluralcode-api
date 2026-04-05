@@ -7,6 +7,757 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id                      String                   @id @default(uuid())
+  email                   String                   @unique
+  passwordHash            String
+  fullName                String
+  role                    Role                     @default(GUEST)
+  status                  ApprovalStatus           @default(PENDING)
+  isEmailVerified         Boolean                  @default(false)
+  otp                     String?
+  otpExpiresAt            DateTime?
+  resetPasswordToken      String?                  @unique
+  resetPasswordExpiresAt  DateTime?
+  avatarUrl               String?
+  phoneNumber             String?
+  pointsCount             Int                      @default(0)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  achievements            Achievement[]            @relation("UserAchievements")
+  adminPermission         AdminPermission?
+  actionsPerformed        AuditLog[]
+  communitiesCreated      Community[]              @relation("CommunityCreator")
+  commentsAuthored        CommunityComment[]       @relation("CommentAuthor")
+  communityLikes          CommunityLike[]          @relation("CommunityLikes")
+  communityMemberships    CommunityMembership[]    @relation("CommunityMemberships")
+  communityMentions       CommunityMention[]       @relation("CommunityMentions")
+  communityReports        CommunityReport[]        @relation("CommunityReports")
+  communityCommentReports CommunityCommentReport[] @relation("CommentReports")
+  topicsAuthored          CommunityTopic[]         @relation("TopicAuthor")
+  downloads               DownloadLog[]
+  eventsCreated           Event[]                  @relation("EventCreator")
+  events                  EventRegistration[]
+  expertProfile           ExpertProfile?
+  mentorAssignments       MentorRequest[]          @relation("MentorAssignments")
+  mentorRequests          MentorRequest[]          @relation("MentorRequests")
+  newsPosts               NewsPost[]               @relation("NewsAuthor")
+  notifications           Notification[]
+  organization            Organization?
+  organizationMemberships OrganizationMember[]
+  resourceCompletions     ResourceCompletion[]     @relation("ResourceCompletions")
+  resourceViews           ResourceView[]           @relation("ResourceViews")
+  topicViews              TopicView[]              @relation("TopicViews")
+  badges                  Badge[]                  @relation("BadgeToUser")
+
+  @@index([role])
+  @@index([status])
+  @@index([resetPasswordToken])
+}
+
+model ExpertProfile {
+  id                          String   @id @default(uuid())
+  userId                      String   @unique
+  title                       String?
+  yearsOfExperience           Int?
+  about                       String?
+  employer                    String?
+  otherExperience             String?
+  mentoringPhilosophy         String?
+  previousMentoringExperience String?
+  capacityOfMentees           String?
+  education                   Json     @default("[]")
+  areasOfExpertise            String[]
+  servicesOffered             String[]
+  referees                    Json     @default("[]")
+  preferredContactMethods     String[]
+  socials                     Json     @default("[]")
+  otherLinks                  Json     @default("[]")
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  areaToApply                 String[]
+  companyPitch                String?
+  country                     String?
+  fees                        String?
+  hoursPerWeek                String?
+  institutionAttended         String?
+  otherAreasOfTopics          String?
+  state                       String?
+  user                        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Organization {
+  id                        String                   @id @default(uuid())
+  name                      String
+  acronym                   String?
+  cacNumber                 String                   @unique
+  phoneNumber               String
+  publicEmail               String?
+  state                     String
+  lga                       String
+  address                   String?
+  description               String?
+  logoUrl                   String?
+  mission                   String?
+  vision                    String?
+  sectors                   String[]
+  numberOfStaff             Int?
+  numberOfVolunteers        Int?
+  annualBudget              String?
+  socials                   Json                     @default("[]")
+  otherLinks                Json                     @default("[]")
+  userId                    String                   @unique
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  hasHumanitarianExperience Boolean                  @default(true)
+  isInterestedInTraining    Boolean                  @default(true)
+  isLocalOrNational         Boolean                  @default(true)
+  devPlanPriorityAreas      DevPlanPriorityArea[]
+  odaAssessments            ODAAssessment[]
+  user                      User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities                OrganizationActivity[]
+  assessments               OrganizationAssessment[]
+  donors                    OrganizationDonor[]
+  members                   OrganizationMember[]
+  spotlightEntries          SpotlightEntry[]
+  spotlightHistory          SpotlightHistory[]
+
+  @@index([state])
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  orgRole        String       @default("member")
+  status         String       @default("active")
+  invitedById    String?
+  joinedAt       DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model OrganizationActivity {
+  id             String       @id @default(uuid())
+  organizationId String
+  sector         String
+  who            String
+  where          String
+  when           Int
+  activity       String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model OrganizationDonor {
+  id             String       @id @default(uuid())
+  organizationId String
+  donor          String
+  amount         String
+  duration       String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model OrganizationAssessment {
+  id             String       @id @default(uuid())
+  organizationId String
+  assessmentBody String
+  month          Int
+  year           Int
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model AdminPermission {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  permissions String[]
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  entity    String
+  entityId  String
+  details   Json?
+  adminId   String
+  createdAt DateTime @default(now())
+  admin     User     @relation(fields: [adminId], references: [id])
+}
+
+model ODAPillar {
+  id                   String                @id @default(uuid())
+  name                 String                @unique
+  order                Int
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  devPlanPriorityAreas DevPlanPriorityArea[]
+  buildingBlocks       ODABuildingBlock[]
+}
+
+model ODABuildingBlock {
+  id                   String                @id @default(uuid())
+  name                 String                @unique
+  order                Int
+  maxScore             Int                   @default(100)
+  pillarId             String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  devPlanPriorityAreas DevPlanPriorityArea[]
+  blockResponses       ODABlockResponse[]
+  pillar               ODAPillar             @relation(fields: [pillarId], references: [id], onDelete: Cascade)
+  questions            ODAQuestion[]
+
+  @@index([pillarId])
+}
+
+model ODAQuestion {
+  id                   String                @id @default(uuid())
+  text                 String
+  order                Int
+  buildingBlockId      String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  devPlanPriorityAreas DevPlanPriorityArea[]
+  buildingBlock        ODABuildingBlock      @relation(fields: [buildingBlockId], references: [id], onDelete: Cascade)
+
+  @@index([buildingBlockId])
+}
+
+model ODAAssessment {
+  id             String             @id @default(uuid())
+  status         FormStatus         @default(IN_PROGRESS)
+  overallScore   Float?
+  aiSummary      String?
+  startedAt      DateTime           @default(now())
+  completedAt    DateTime?
+  orgId          String
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  organization   Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  blockResponses ODABlockResponse[]
+
+  @@index([orgId])
+  @@index([status])
+}
+
+model ODABlockResponse {
+  id              String           @id @default(uuid())
+  status          ODABlockStatus   @default(IN_PROGRESS)
+  blockScore      Float?
+  answers         Json             @default("[]")
+  assessmentId    String
+  buildingBlockId String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  assessment      ODAAssessment    @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  buildingBlock   ODABuildingBlock @relation(fields: [buildingBlockId], references: [id])
+
+  @@unique([assessmentId, buildingBlockId])
+  @@index([assessmentId])
+}
+
+model Badge {
+  id             String        @id @default(uuid())
+  name           String        @unique
+  imageUrl       String
+  externalSource Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  achievements   Achievement[] @relation("AchievementBadge")
+  resources      Resource[]
+  users          User[]        @relation("BadgeToUser")
+}
+
+model Category {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  parentId  String?
+  imageUrl  String?
+  parent    Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  children  Category[] @relation("SubCategories")
+  resources Resource[]
+}
+
+model Tag {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  resources Resource[] @relation("ResourceToTag")
+}
+
+model Resource {
+  id          String               @id @default(uuid())
+  title       String
+  description String
+  contentUrl  String?
+  rawText     String?
+  type        ResourceType
+  author      String?
+  language    String?
+  region      String?
+  sector      String?
+  fileSize    Int?
+  points      Int                  @default(0)
+  badgeId     String?
+  categoryId  String
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  imageUrl    String?
+  downloads   DownloadLog[]
+  badge       Badge?               @relation(fields: [badgeId], references: [id])
+  category    Category             @relation(fields: [categoryId], references: [id])
+  completions ResourceCompletion[]
+  links       ResourceLink[]
+  views       ResourceView[]
+  tags        Tag[]                @relation("ResourceToTag")
+
+  @@index([categoryId])
+  @@index([type])
+  @@index([language])
+  @@index([sector])
+  @@index([region])
+  @@index([createdAt])
+  @@index([badgeId])
+}
+
+model ResourceLink {
+  id         String   @id @default(uuid())
+  title      String
+  url        String
+  order      Int      @default(0)
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId])
+}
+
+model ResourceView {
+  id         String   @id @default(uuid())
+  userId     String
+  resourceId String
+  viewedAt   DateTime @default(now())
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user       User     @relation("ResourceViews", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resourceId])
+  @@index([userId])
+  @@index([resourceId])
+}
+
+model ResourceCompletion {
+  id           String   @id @default(uuid())
+  userId       String
+  resourceId   String
+  pointsEarned Int      @default(0)
+  completedAt  DateTime @default(now())
+  resource     Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user         User     @relation("ResourceCompletions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resourceId])
+  @@index([userId])
+  @@index([resourceId])
+}
+
+model DownloadLog {
+  id         String   @id @default(uuid())
+  userId     String
+  resourceId String
+  timestamp  DateTime @default(now())
+  resource   Resource @relation(fields: [resourceId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([resourceId])
+}
+
+model Event {
+  id                 String              @id @default(uuid())
+  title              String
+  description        String
+  startTime          DateTime
+  endTime            DateTime
+  coverImageUrl      String?
+  jitsiRoomId        String              @unique
+  externalMeetingUrl String?
+  capacity           Int?
+  tags               String[]
+  isPast             Boolean             @default(false)
+  isCancelled        Boolean             @default(false)
+  cancellationReason String?
+  archiveUrl         String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  createdById        String
+  isPublic           Boolean             @default(true)
+  createdBy          User                @relation("EventCreator", fields: [createdById], references: [id])
+  registrations      EventRegistration[]
+
+  @@index([startTime])
+  @@index([isPast])
+  @@index([isCancelled])
+  @@index([createdById])
+  @@index([isPublic])
+}
+
+model EventRegistration {
+  id         String   @id @default(uuid())
+  eventId    String
+  userId     String?
+  createdAt  DateTime @default(now())
+  guestEmail String?
+  guestName  String?
+  event      Event    @relation(fields: [eventId], references: [id])
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@unique([userId, eventId])
+  @@unique([guestEmail, eventId])
+  @@index([eventId])
+  @@index([guestEmail])
+}
+
+model MentorRequest {
+  id              String              @id @default(uuid())
+  ngoUserId       String
+  mentorId        String
+  status          MentorRequestStatus @default(PENDING)
+  hoursPerWeek    String?
+  mentorshipAreas String[]
+  commMethods     String[]
+  orgChallenges   String?
+  background      String?
+  acceptedTerms   Boolean             @default(false)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  mentor          User                @relation("MentorAssignments", fields: [mentorId], references: [id])
+  ngoUser         User                @relation("MentorRequests", fields: [ngoUserId], references: [id])
+
+  @@index([ngoUserId])
+  @@index([mentorId])
+}
+
+model DevPlanPriorityArea {
+  id              String             @id @default(uuid())
+  orgId           String
+  pillarId        String
+  buildingBlockId String
+  indicatorId     String
+  score           Float?
+  strength        String?
+  weakness        String?
+  opportunity     String?
+  threat          String?
+  priority        Int
+  act             String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  actionPlan      DevPlanActionPlan?
+  evaluation      DevPlanEvaluation?
+  buildingBlock   ODABuildingBlock   @relation(fields: [buildingBlockId], references: [id])
+  indicator       ODAQuestion        @relation(fields: [indicatorId], references: [id])
+  organization    Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  pillar          ODAPillar          @relation(fields: [pillarId], references: [id])
+
+  @@index([orgId])
+  @@index([pillarId])
+  @@index([buildingBlockId])
+  @@index([indicatorId])
+}
+
+model DevPlanActionPlan {
+  id                String              @id @default(uuid())
+  priorityAreaId    String              @unique
+  objective         String?
+  kpi               String?
+  actionSteps       String?
+  responsiblePerson String?
+  timeline          DateTime?
+  support           String?
+  resourcePlan      String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  priorityArea      DevPlanPriorityArea @relation(fields: [priorityAreaId], references: [id], onDelete: Cascade)
+}
+
+model DevPlanEvaluation {
+  id                String              @id @default(uuid())
+  priorityAreaId    String              @unique
+  whatWasDone       String?
+  wereObjectivesMet String?
+  whatDidWeLearn    String?
+  nextSteps         String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  priorityArea      DevPlanPriorityArea @relation(fields: [priorityAreaId], references: [id], onDelete: Cascade)
+}
+
+model Community {
+  id          String                @id @default(uuid())
+  name        String                @unique
+  description String?
+  imageUrl    String?
+  isActive    Boolean               @default(true)
+  createdById String
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  createdBy   User                  @relation("CommunityCreator", fields: [createdById], references: [id])
+  memberships CommunityMembership[]
+  mentions    CommunityMention[]
+  topics      CommunityTopic[]
+
+  @@index([isActive])
+}
+
+model CommunityMembership {
+  id          String    @id @default(uuid())
+  userId      String
+  communityId String
+  joinedAt    DateTime  @default(now())
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user        User      @relation("CommunityMemberships", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, communityId])
+  @@index([userId])
+  @@index([communityId])
+}
+
+model CommunityTopic {
+  id          String             @id @default(uuid())
+  title       String
+  body        String
+  isBlocked   Boolean            @default(false)
+  likeCount   Int                @default(0)
+  communityId String
+  authorId    String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  viewCount   Int                @default(0)
+  comments    CommunityComment[]
+  likes       CommunityLike[]
+  mentions    CommunityMention[]
+  reports     CommunityReport[]
+  author      User               @relation("TopicAuthor", fields: [authorId], references: [id])
+  community   Community          @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  views       TopicView[]
+
+  @@index([communityId])
+  @@index([authorId])
+  @@index([isBlocked])
+  @@index([viewCount])
+}
+
+model TopicView {
+  id        String         @id @default(uuid())
+  userId    String
+  topicId   String
+  createdAt DateTime       @default(now())
+  topic     CommunityTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user      User           @relation("TopicViews", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId])
+  @@index([topicId])
+}
+
+model CommunityComment {
+  id        String             @id @default(uuid())
+  body      String
+  likeCount Int                @default(0)
+  topicId   String
+  authorId  String
+  parentId  String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  author    User               @relation("CommentAuthor", fields: [authorId], references: [id])
+  parent    CommunityComment?  @relation("Replies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies   CommunityComment[] @relation("Replies")
+  topic     CommunityTopic     @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  likes     CommunityLike[]
+  mentions  CommunityMention[]
+
+  isQuote   Boolean                  @default(false)
+  quoteId   String?
+  quote     CommunityComment?        @relation("CommentQuotes", fields: [quoteId], references: [id], onDelete: SetNull)
+  quotedBy  CommunityComment[]       @relation("CommentQuotes")
+  isBlocked Boolean                  @default(false)
+  reports   CommunityCommentReport[]
+
+  @@index([topicId])
+  @@index([authorId])
+  @@index([parentId])
+  @@index([isBlocked])
+  @@index([quoteId])
+}
+
+model CommunityLike {
+  id        String            @id @default(uuid())
+  userId    String
+  topicId   String?
+  commentId String?
+  createdAt DateTime          @default(now())
+  comment   CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  topic     CommunityTopic?   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user      User              @relation("CommunityLikes", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@unique([userId, commentId])
+  @@index([userId])
+}
+
+model CommunityReport {
+  id           String         @id @default(uuid())
+  reason       String?
+  reportedById String
+  topicId      String
+  createdAt    DateTime       @default(now())
+  reportedBy   User           @relation("CommunityReports", fields: [reportedById], references: [id], onDelete: Cascade)
+  topic        CommunityTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([topicId, reportedById])
+  @@index([topicId])
+  @@index([reportedById])
+}
+
+model CommunityCommentReport {
+  id           String           @id @default(uuid())
+  reason       String?          @db.Text
+  reportedById String
+  reportedBy   User             @relation("CommentReports", fields: [reportedById], references: [id], onDelete: Cascade)
+  commentId    String
+  comment      CommunityComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+
+  @@unique([commentId, reportedById])
+  @@index([commentId])
+  @@index([reportedById])
+}
+
+model CommunityMention {
+  id              String            @id @default(uuid())
+  mentionedUserId String
+  topicId         String?
+  commentId       String?
+  createdAt       DateTime          @default(now())
+  communityId     String?
+  comment         CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  community       Community?        @relation(fields: [communityId], references: [id])
+  mentionedUser   User              @relation("CommunityMentions", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+  topic           CommunityTopic?   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([mentionedUserId])
+  @@index([communityId])
+}
+
+model NewsPost {
+  id           String         @id @default(uuid())
+  title        String
+  slug         String         @unique
+  type         String
+  body         String
+  excerpt      String?
+  thumbnailUrl String?
+  attachments  Json           @default("[]")
+  status       NewsPostStatus @default(DRAFT)
+  publishedAt  DateTime?
+  tags         String[]
+  viewCount    Int            @default(0)
+  authorId     String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  author       User           @relation("NewsAuthor", fields: [authorId], references: [id])
+
+  @@index([status])
+  @@index([type])
+  @@index([authorId])
+  @@index([publishedAt])
+  @@index([viewCount])
+}
+
+model SpotlightSettings {
+  id                String        @id @default("singleton")
+  defaultPeriodDays Int           @default(2)
+  mode              SpotlightMode @default(AUTO)
+  updatedAt         DateTime      @updatedAt
+}
+
+model SpotlightEntry {
+  id        String       @id @default(uuid())
+  orgId     String
+  startAt   DateTime
+  endAt     DateTime
+  isActive  Boolean      @default(false)
+  wasAuto   Boolean      @default(false)
+  order     Int?
+  createdAt DateTime     @default(now())
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([isActive])
+  @@index([startAt])
+  @@index([endAt])
+}
+
+model SpotlightHistory {
+  id        String       @id @default(uuid())
+  orgId     String
+  startAt   DateTime
+  endAt     DateTime
+  wasAuto   Boolean
+  createdAt DateTime     @default(now())
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([startAt])
+}
+
+model Achievement {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  description String
+  points      Int      @default(0)
+  badgeId     String?
+  earnedAt    DateTime @default(now())
+  badge       Badge?   @relation("AchievementBadge", fields: [badgeId], references: [id])
+  user        User     @relation("UserAchievements", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([earnedAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  link      String?
+  meta      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+}
+
 enum Role {
   SUPER_ADMIN
   CONTENT_ADMIN
@@ -34,6 +785,7 @@ enum ResourceType {
   DOCUMENT
   VIDEO
   ARTICLE
+  MULTILINK
 }
 
 enum MentorRequestStatus {
@@ -43,362 +795,38 @@ enum MentorRequestStatus {
   COMPLETED
 }
 
-model User {
-  id                     String         @id @default(uuid())
-  email                  String         @unique
-  passwordHash           String
-  fullName               String
-  role                   Role           @default(GUEST)
-  status                 ApprovalStatus @default(PENDING)
-  isEmailVerified        Boolean        @default(false)
-  otp                    String?
-  otpExpiresAt           DateTime?
-  resetPasswordToken     String?        @unique
-  resetPasswordExpiresAt DateTime?
-  avatarUrl              String?
-  phoneNumber            String?
-  pointsCount            Int            @default(0)
-
-  organization            Organization?
-  organizationMemberships OrganizationMember[]
-  expertProfile           ExpertProfile?
-  adminPermission         AdminPermission?
-  forumThreads            ForumThread[]
-  posts                   Post[]
-  badges                  Badge[]
-  events                  EventRegistration[]
-  downloads               DownloadLog[]
-  actionsPerformed        AuditLog[]
-  mentorRequests          MentorRequest[]      @relation("MentorRequests")
-  mentorAssignments       MentorRequest[]      @relation("MentorAssignments")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([role])
-  @@index([status])
-  @@index([resetPasswordToken])
+enum ODABlockStatus {
+  IN_PROGRESS
+  SUBMITTED
 }
 
-model ExpertProfile {
-  id     String @id @default(uuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  title                       String?
-  yearsOfExperience           Int?
-  about                       String? @db.Text
-  employer                    String?
-  otherExperience             String? @db.Text
-  mentoringPhilosophy         String? @db.Text
-  previousMentoringExperience String? @db.Text
-  capacityOfMentees           String?
-
-  education               Json     @default("[]")
-  areasOfExpertise        String[]
-  servicesOffered         String[]
-  referees                Json     @default("[]")
-  preferredContactMethods String[]
-  socials                 Json     @default("[]")
-  otherLinks              Json     @default("[]")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum NewsPostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }
 
-model Organization {
-  id          String  @id @default(uuid())
-  name        String
-  acronym     String?
-  cacNumber   String  @unique
-  phoneNumber String
-  publicEmail String?
-  state       String
-  lga         String
-  address     String?
-  description String? @db.Text
-  logoUrl     String?
-
-  mission String?  @db.Text
-  vision  String?  @db.Text
-  sectors String[]
-
-  numberOfStaff      Int?
-  numberOfVolunteers Int?
-  annualBudget       String?
-
-  socials    Json @default("[]")
-  otherLinks Json @default("[]")
-
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  members OrganizationMember[]
-
-  activities  OrganizationActivity[]
-  donors      OrganizationDonor[]
-  assessments OrganizationAssessment[]
-  odaForms    ODAForm[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([state])
+enum SpotlightMode {
+  AUTO
+  MANUAL
 }
 
-model OrganizationMember {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  orgRole     String   @default("member")
-  // Membership status — active | suspended | removed
-  status      String   @default("active")
-  invitedById String?
-  joinedAt    DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // A user can only have one membership record per organization
-  @@unique([userId, organizationId])
-  @@index([organizationId])
-  @@index([userId])
-}
-
-model OrganizationActivity {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  sector   String
-  who      String
-  where    String
-  when     Int
-  activity String @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([organizationId])
-}
-
-model OrganizationDonor {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  donor    String
-  amount   String
-  duration String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([organizationId])
-}
-
-model OrganizationAssessment {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  assessmentBody String
-  month          Int
-  year           Int
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([organizationId])
-}
-
-model AdminPermission {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // Stores an array of permission strings e.g. ["event:read", "event:write"]
-  permissions String[]
-  updatedAt   DateTime @updatedAt
-}
-
-model AuditLog {
-  id        String   @id @default(uuid())
-  action    String // e.g., "USER_DELETED", "RESOURCE_UPLOADED"
-  entity    String // e.g., "User", "Resource"
-  entityId  String
-  details   Json?
-  adminId   String
-  admin     User     @relation(fields: [adminId], references: [id])
-  createdAt DateTime @default(now())
-}
-
-model ODAForm {
-  id             String     @id @default(uuid())
-  status         FormStatus @default(IN_PROGRESS)
-  buildingBlock  String // e.g., "Governance"
-  indicatorScore Int? // The 1-4 score suggested by AI
-  evidenceUrl    String? // PDF uploaded by NGO
-  aiAnalysis     String?    @db.Text // The "Growth Pathway" report
-
-  organization Organization @relation(fields: [orgId], references: [id])
-  orgId        String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-}
-
-model Badge {
-  id             String  @id @default(uuid())
-  name           String  @unique
-  imageUrl       String
-  externalSource Boolean @default(false)
-
-  users     User[]
-  resources Resource[]
-
-  createdAt DateTime @default(now())
-}
-
-model Category {
-  id   String @id @default(uuid())
-  name String @unique
-
-  parentId  String?
-  parent    Category?  @relation("SubCategories", fields: [parentId], references: [id])
-  children  Category[] @relation("SubCategories")
-  resources Resource[]
-}
-
-model Tag {
-  id        String     @id @default(uuid())
-  name      String     @unique
-  resources Resource[]
-}
-
-model Resource {
-  id          String       @id @default(uuid())
-  title       String
-  description String       @db.Text
-  contentUrl  String?
-  rawText     String?      @db.Text
-  type        ResourceType
-  author      String?
-  language    String?
-  region      String?
-  sector      String?
-  fileSize    Int?
-  points      Int          @default(0)
-
-  badgeId String?
-  badge   Badge?  @relation(fields: [badgeId], references: [id])
-
-  categoryId String
-  category   Category      @relation(fields: [categoryId], references: [id])
-  tags       Tag[]
-  downloads  DownloadLog[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([categoryId])
-  @@index([type])
-  @@index([language])
-  @@index([sector])
-  @@index([region])
-  @@index([createdAt])
-  @@index([badgeId])
-}
-
-model DownloadLog {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  resourceId String
-  resource   Resource @relation(fields: [resourceId], references: [id])
-  timestamp  DateTime @default(now())
-
-  @@index([userId])
-  @@index([resourceId])
-}
-
-model Event {
-  id                 String   @id @default(uuid())
-  title              String
-  description        String   @db.Text
-  startTime          DateTime
-  endTime            DateTime
-  coverImageUrl      String? // Azure Blob URL
-  jitsiRoomId        String   @unique
-  externalMeetingUrl String? // Overrides Jitsi if set (Zoom, Teams, etc.)
-  capacity           Int? // null = unlimited
-  tags               String[] // Thematic tags for discovery
-  isPast             Boolean  @default(false)
-  isCancelled        Boolean  @default(false)
-  cancellationReason String?
-  archiveUrl         String? // Azure Media Services recording URL
-
-  registrations EventRegistration[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([startTime])
-  @@index([isPast])
-  @@index([isCancelled])
-}
-
-model EventRegistration {
-  id        String   @id @default(uuid())
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id])
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now())
-
-  @@unique([userId, eventId]) // Prevents double registration
-}
-
-model ForumThread {
-  id        String   @id @default(uuid())
-  title     String
-  content   String   @db.Text
-  isPrivate Boolean  @default(false)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  posts     Post[]
-  createdAt DateTime @default(now())
-}
-
-model Post {
-  id        String      @id @default(uuid())
-  content   String      @db.Text
-  threadId  String
-  thread    ForumThread @relation(fields: [threadId], references: [id])
-  authorId  String
-  author    User        @relation(fields: [authorId], references: [id])
-  createdAt DateTime    @default(now())
-}
-
-model MentorRequest {
-  id String @id @default(uuid())
-
-  ngoUserId String
-  ngoUser   User   @relation("MentorRequests", fields: [ngoUserId], references: [id])
-
-  mentorId String
-  mentor   User   @relation("MentorAssignments", fields: [mentorId], references: [id])
-
-  status          MentorRequestStatus @default(PENDING)
-  hoursPerWeek    String?
-  mentorshipAreas String[]
-  commMethods     String[]
-  orgChallenges   String?             @db.Text
-  background      String?             @db.Text
-  acceptedTerms   Boolean             @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([ngoUserId])
-  @@index([mentorId])
+enum NotificationType {
+  ACCOUNT_APPROVED
+  ACCOUNT_REJECTED
+  EVENT_REGISTRATION_CONFIRMED
+  EVENT_UPDATED
+  EVENT_CANCELLED
+  EVENT_REMINDER
+  MENTOR_REQUEST_RECEIVED
+  MENTOR_REQUEST_APPROVED
+  MENTOR_REQUEST_DECLINED
+  MENTOR_SESSION_COMPLETED
+  COMMUNITY_TOPIC_COMMENT
+  COMMUNITY_MENTION
+  COMMUNITY_TOPIC_LIKED
+  RESOURCE_COMPLETED
+  ACHIEVEMENT_EARNED
+  ODA_ASSESSMENT_COMPLETED
+  SYSTEM_ANNOUNCEMENT
 }

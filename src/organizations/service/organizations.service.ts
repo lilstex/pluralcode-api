@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
 import {
   UpdateOrganizationDto,
@@ -23,13 +22,49 @@ import {
   generateSecureToken,
   otpExpiresAt,
 } from 'src/util/helper';
+import { RewardsService } from 'src/reward/service/reward.service';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROFILE COMPLETION HELPER
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ORG_SCALAR_FIELDS = [
+  'name',
+  'acronym',
+  'phoneNumber',
+  'publicEmail',
+  'state',
+  'lga',
+  'address',
+  'description',
+  'logoUrl',
+  'mission',
+  'vision',
+  'numberOfStaff',
+  'numberOfVolunteers',
+  'annualBudget',
+] as const;
+
+function calcOrgCompletion(org: any): number {
+  const totalFields = ORG_SCALAR_FIELDS.length + 2; // +sectors +socials
+  const filled =
+    ORG_SCALAR_FIELDS.filter((k) => {
+      const v = org[k];
+      return v !== null && v !== undefined && v !== '';
+    }).length +
+    (Array.isArray(org.sectors) && org.sectors.length > 0 ? 1 : 0) +
+    (Array.isArray(org.socials) && (org.socials as any[]).length > 0 ? 1 : 0);
+  return Math.round((filled / totalFields) * 100);
+}
+
+const ORG_COMPLETE_THRESHOLD = 80;
+const ORG_COMPLETE_TITLE = 'Organization Profile Completed';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED INCLUDE / SELECT CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Full include used for single-org responses.
-// Avoid top-level "as const" — Prisma orderBy expects mutable arrays.
 const ORG_FULL_INCLUDE = {
   activities: { orderBy: { when: 'desc' as const } },
   donors: { orderBy: { createdAt: 'desc' as const } },
@@ -75,7 +110,7 @@ const ORG_SUMMARY_SELECT = {
   mission: true,
   numberOfStaff: true,
   numberOfVolunteers: true,
-  website: true,
+  vision: true,
   createdAt: true,
 } as const;
 
@@ -101,6 +136,7 @@ export class OrganizationService {
     private readonly azureBlob: AzureBlobService,
     private readonly emailService: EmailService,
     private readonly config: ConfigService,
+    private readonly rewards: RewardsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -129,7 +165,7 @@ export class OrganizationService {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Organization retrieved.',
-        data: org,
+        data: { ...org, profileCompletion: calcOrgCompletion(org) },
       };
     } catch (error) {
       this.logger.error('getMyOrganization error', error);
@@ -163,7 +199,7 @@ export class OrganizationService {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Organization retrieved.',
-        data: org,
+        data: { ...org, profileCompletion: calcOrgCompletion(org) },
       };
     } catch (error) {
       this.logger.error('getOrganizationById error', error);
@@ -279,19 +315,53 @@ export class OrganizationService {
           }),
           ...(dto.socials !== undefined && { socials: dto.socials }),
           ...(dto.otherLinks !== undefined && { otherLinks: dto.otherLinks }),
-          ...(dto.website !== undefined && { website: dto.website }),
           ...(dto.description !== undefined && {
             description: dto.description,
+          }),
+          ...(dto.isLocalOrNational !== undefined && {
+            isLocalOrNational: dto.isLocalOrNational,
+          }),
+          ...(dto.hasHumanitarianExperience !== undefined && {
+            hasHumanitarianExperience: dto.hasHumanitarianExperience,
+          }),
+          ...(dto.isInterestedInTraining !== undefined && {
+            isInterestedInTraining: dto.isInterestedInTraining,
           }),
         },
         include: ORG_FULL_INCLUDE,
       });
 
+      const completion = calcOrgCompletion(updated);
+      let rewardResult: any = undefined;
+
+      if (completion >= ORG_COMPLETE_THRESHOLD) {
+        const alreadyAwarded = await this.rewards.hasAchievement(
+          userId,
+          ORG_COMPLETE_TITLE,
+        );
+        if (!alreadyAwarded) {
+          rewardResult = await this.rewards.award({
+            userId,
+            points: 10,
+            title: ORG_COMPLETE_TITLE,
+            description: 'Awarded for completing your organization profile.',
+            useFirstBadge: true,
+          });
+        }
+      }
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Organization updated.',
-        data: updated,
+        data: { ...updated, profileCompletion: completion },
+        ...(rewardResult && {
+          reward: {
+            pointsEarned: rewardResult.pointsEarned,
+            totalPoints: rewardResult.totalPoints,
+            badgeAwarded: rewardResult.badgeAwarded,
+          },
+        }),
       };
     } catch (error) {
       this.logger.error('updateMyOrganization error', error);
@@ -302,10 +372,6 @@ export class OrganizationService {
       };
     }
   }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // CORE — UPDATE (admin)
-  // ─────────────────────────────────────────────────────────────────────────────
 
   async updateOrganizationByAdmin(
     adminId: string,
@@ -350,9 +416,17 @@ export class OrganizationService {
           }),
           ...(dto.socials !== undefined && { socials: dto.socials }),
           ...(dto.otherLinks !== undefined && { otherLinks: dto.otherLinks }),
-          ...(dto.website !== undefined && { website: dto.website }),
           ...(dto.description !== undefined && {
             description: dto.description,
+          }),
+          ...(dto.isLocalOrNational !== undefined && {
+            isLocalOrNational: dto.isLocalOrNational,
+          }),
+          ...(dto.hasHumanitarianExperience !== undefined && {
+            hasHumanitarianExperience: dto.hasHumanitarianExperience,
+          }),
+          ...(dto.isInterestedInTraining !== undefined && {
+            isInterestedInTraining: dto.isInterestedInTraining,
           }),
         },
         include: ORG_FULL_INCLUDE,
@@ -448,8 +522,8 @@ export class OrganizationService {
         };
       }
 
-      if (org.logoUrl) await this.azureBlob.delete(org.logoUrl, 'avatars');
-      const logoUrl = await this.azureBlob.upload(file, 'avatars');
+      if (org.logoUrl) await this.azureBlob.delete(org.logoUrl, 'org-logos');
+      const logoUrl = await this.azureBlob.upload(file, 'org-logos');
       await this.prisma.organization.update({
         where: { userId },
         data: { logoUrl },
@@ -488,8 +562,8 @@ export class OrganizationService {
         };
       }
 
-      if (org.logoUrl) await this.azureBlob.delete(org.logoUrl, 'avatars');
-      const logoUrl = await this.azureBlob.upload(file, 'avatars');
+      if (org.logoUrl) await this.azureBlob.delete(org.logoUrl, 'org-logos');
+      const logoUrl = await this.azureBlob.upload(file, 'org-logos');
       await this.prisma.organization.update({
         where: { id: orgId },
         data: { logoUrl },
@@ -834,6 +908,8 @@ export class OrganizationService {
             // GUEST accounts are auto-approved so they can access the platform immediately
             status: 'APPROVED',
             isEmailVerified: false,
+            otp,
+            otpExpiresAt: otpExpiry,
           },
         });
 
@@ -996,6 +1072,149 @@ export class OrganizationService {
       };
     } catch (error) {
       this.logger.error('updateActivity error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async getMyActivities(
+    userId: string,
+    query: {
+      sector?: string;
+      when?: number;
+      search?: string;
+      page?: number;
+      limit?: number;
+    },
+  ) {
+    try {
+      const org = await this.prisma.organization.findUnique({
+        where: { userId },
+      });
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization not found.',
+        };
+      }
+
+      const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(query.limit ?? '20'), 10) || 20),
+      );
+      const skip = (page - 1) * limit;
+
+      const where: any = { organizationId: org.id };
+      if (query.sector)
+        where.sector = { contains: query.sector, mode: 'insensitive' };
+      if (query.when) where.when = Number(query.when);
+      if (query.search) {
+        where.OR = [
+          { activity: { contains: query.search, mode: 'insensitive' } },
+          { who: { contains: query.search, mode: 'insensitive' } },
+          { where: { contains: query.search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [activities, total] = await this.prisma.$transaction([
+        this.prisma.organizationActivity.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { when: 'desc' },
+        }),
+        this.prisma.organizationActivity.count({ where }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Activities retrieved.',
+        data: {
+          activities,
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      this.logger.error('getMyActivities error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async listAllActivities(query: {
+    sector?: string;
+    when?: number;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    try {
+      const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(query.limit ?? '20'), 10) || 20),
+      );
+      const skip = (page - 1) * limit;
+
+      const where: any = {};
+      if (query.sector)
+        where.sector = { contains: query.sector, mode: 'insensitive' };
+      if (query.when) where.when = Number(query.when);
+      if (query.search) {
+        where.OR = [
+          { activity: { contains: query.search, mode: 'insensitive' } },
+          { who: { contains: query.search, mode: 'insensitive' } },
+          { where: { contains: query.search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [activities, total] = await this.prisma.$transaction([
+        this.prisma.organizationActivity.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { when: 'desc' },
+          include: {
+            organization: {
+              select: {
+                id: true,
+                name: true,
+                acronym: true,
+                logoUrl: true,
+                state: true,
+              },
+            },
+          },
+        }),
+        this.prisma.organizationActivity.count({ where }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Activities retrieved.',
+        data: {
+          activities,
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      this.logger.error('listAllActivities error', error);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -1187,6 +1406,42 @@ export class OrganizationService {
     }
   }
 
+  async getMyAssessments(userId: string) {
+    try {
+      const org = await this.prisma.organization.findUnique({
+        where: { userId },
+      });
+
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization not found.',
+        };
+      }
+
+      const assessments = await this.prisma.organizationAssessment.findMany({
+        where: {
+          organizationId: org.id,
+        },
+        orderBy: [{ year: 'desc' }, { month: 'desc' }],
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        data: assessments,
+      };
+    } catch (error) {
+      this.logger.error('getMyAssessments error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
   async updateAssessment(
     userId: string,
     assessmentId: string,
@@ -1251,6 +1506,147 @@ export class OrganizationService {
       };
     } catch (error) {
       this.logger.error('deleteAssessment error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // DASHBOARD
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Returns a summary dashboard for the authenticated NGO_MEMBER's organization:
+   *   - Profile completion %
+   *   - Activity count
+   *   - ODA assessment count
+   *   - Points earned by the owner
+   *   - Badge count earned by the owner
+   *   - Up to 10 upcoming (non-cancelled) events
+   *   - Up to 10 most recent program activities
+   */
+  async getDashboard(userId: string) {
+    try {
+      // ── 1. Load org + owner + counts in parallel ──────────────────────────
+      const org = await this.prisma.organization.findUnique({
+        where: { userId },
+        include: {
+          _count: {
+            select: {
+              activities: true,
+              odaAssessments: true,
+            },
+          },
+          user: {
+            select: {
+              pointsCount: true,
+              badges: { select: { id: true } },
+            },
+          },
+        },
+      });
+
+      if (!org) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Organization profile not found.',
+        };
+      }
+
+      // ── 2. Profile completion ─────────────────────────────────────────────
+      // Each field contributes 1 point; completion = filled / total × 100
+      const COMPLETION_FIELDS: Array<{ key: keyof typeof org; label: string }> =
+        [
+          { key: 'name', label: 'Name' },
+          { key: 'acronym', label: 'Acronym' },
+          { key: 'phoneNumber', label: 'Phone' },
+          { key: 'publicEmail', label: 'Public email' },
+          { key: 'state', label: 'State' },
+          { key: 'lga', label: 'LGA' },
+          { key: 'address', label: 'Address' },
+          { key: 'description', label: 'Description' },
+          { key: 'logoUrl', label: 'Logo' },
+          { key: 'mission', label: 'Mission' },
+          { key: 'vision', label: 'Vision' },
+          { key: 'numberOfStaff', label: 'Staff count' },
+          { key: 'numberOfVolunteers', label: 'Volunteer count' },
+          { key: 'annualBudget', label: 'Annual budget' },
+        ];
+
+      const sectorsFilled =
+        Array.isArray(org.sectors) && org.sectors.length > 0;
+      const socialsFilled =
+        Array.isArray(org.socials) && (org.socials as any[]).length > 0;
+
+      const filledCount =
+        COMPLETION_FIELDS.filter(({ key }) => {
+          const v = org[key];
+          return v !== null && v !== undefined && v !== '';
+        }).length +
+        (sectorsFilled ? 1 : 0) +
+        (socialsFilled ? 1 : 0);
+
+      const totalFields = COMPLETION_FIELDS.length + 2; // +sectors +socials
+      const profileCompletion = Math.round((filledCount / totalFields) * 100);
+
+      // ── 3. Upcoming events (next 10, soonest first) ───────────────────────
+      const upcomingEvents = await this.prisma.event.findMany({
+        where: {
+          isPast: false,
+          isCancelled: false,
+          startTime: { gt: new Date() },
+        },
+        orderBy: { startTime: 'asc' },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          startTime: true,
+          endTime: true,
+          coverImageUrl: true,
+          externalMeetingUrl: true,
+          capacity: true,
+          tags: true,
+        },
+      });
+
+      // ── 4. Recent activities (latest 10) ─────────────────────────────────
+      const recentActivities = await this.prisma.organizationActivity.findMany({
+        where: { organizationId: org.id },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          sector: true,
+          who: true,
+          where: true,
+          when: true,
+          activity: true,
+          createdAt: true,
+        },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Dashboard retrieved.',
+        data: {
+          profileCompletion,
+          activityCount: org._count.activities,
+          assessmentCount: org._count.odaAssessments,
+          pointsEarned: org.user.pointsCount,
+          badgeCount: org.user.badges.length,
+          upcomingEvents,
+          recentActivities,
+        },
+      };
+    } catch (error) {
+      this.logger.error('getDashboard error', error);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,

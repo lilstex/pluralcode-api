@@ -11,6 +11,7 @@ import {
   Min,
   Matches,
   ValidateIf,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Role, ApprovalStatus } from '@prisma/client';
@@ -107,6 +108,39 @@ export class CreateUserDto {
   @IsArray()
   @IsString({ each: true })
   areasOfExpertise?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Is your organization a local/national organization in Nigeria?',
+    example: true,
+  })
+  @ValidateIf((o) => o.role === Role.NGO_MEMBER)
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isLocalOrNational?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Does your organization have experience working in humanitarian contexts?',
+    example: true,
+  })
+  @ValidateIf((o) => o.role === Role.NGO_MEMBER)
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  hasHumanitarianExperience?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Is your organization interested in registering for training and mentorship programs?',
+    example: true,
+  })
+  @ValidateIf((o) => o.role === Role.NGO_MEMBER)
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isInterestedInTraining?: boolean;
 }
 
 export class LoginDto {
@@ -305,13 +339,77 @@ export class UpsertExpertProfileDto {
   })
   @IsOptional()
   otherLinks?: any[];
-}
 
+  @ApiPropertyOptional({
+    example: [
+      'Project development and implementation',
+      'Resource mobilization',
+    ],
+    description: 'Areas the expert wants to apply their expertise',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  areaToApply?: string[];
+
+  @ApiPropertyOptional({
+    example: 'Negotiable — approx. $100/hr for mentorship sessions.',
+    description: 'Fee / rate information',
+  })
+  @IsOptional()
+  @IsString()
+  fees?: string;
+
+  @ApiPropertyOptional({
+    example:
+      'An international development leader with 15+ years of experience...',
+    description: 'Short professional pitch or bio paragraph',
+  })
+  @IsOptional()
+  @IsString()
+  companyPitch?: string;
+
+  @ApiPropertyOptional({
+    example: '20 hours per month',
+    description: 'Hours available per week or month (free text)',
+  })
+  @IsOptional()
+  @IsString()
+  hoursPerWeek?: string;
+
+  @ApiPropertyOptional({ example: 'Nigeria' })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional({ example: 'FCT - Abuja' })
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional({
+    example:
+      'Leadership, Governance, and Accountability; Effective communication...',
+    description: 'Free-text description of other areas of expertise or topics',
+  })
+  @IsOptional()
+  @IsString()
+  otherAreasOfTopics?: string;
+
+  @ApiPropertyOptional({
+    example: 'University of Jos\nUniversity of Antwerp',
+    description: 'Institution(s) attended — may be multiline',
+  })
+  @IsOptional()
+  @IsString()
+  institutionAttended?: string;
+}
 // ─────────────────────────────────────────────
 // ORGANIZATION DTOs
 // ─────────────────────────────────────────────
 
-export class UpdateOrganizationDto {
+export class UpdateUserOrganizationDto {
   @ApiPropertyOptional({ example: 'Save The Children Nigeria' })
   @IsOptional()
   @IsString()
@@ -406,11 +504,6 @@ export class UpdateOrganizationDto {
   @IsOptional()
   otherLinks?: any[];
 
-  @ApiPropertyOptional({ example: 'https://savethechildren.org.ng' })
-  @IsOptional()
-  @IsString()
-  website?: string;
-
   @ApiPropertyOptional({ example: 'We work across Nigeria to...' })
   @IsOptional()
   @IsString()
@@ -444,11 +537,29 @@ export class ExpertProfileResponseDto {
   @ApiPropertyOptional() capacityOfMentees?: string;
   @ApiProperty() education: any[];
   @ApiProperty() areasOfExpertise: string[];
+  @ApiProperty({
+    type: [String],
+    description: 'Areas the expert wants to apply their expertise',
+  })
+  areaToApply: string[];
   @ApiProperty() servicesOffered: string[];
   @ApiProperty() referees: any[];
   @ApiProperty() preferredContactMethods: string[];
   @ApiProperty() socials: any[];
   @ApiProperty() otherLinks: any[];
+  @ApiPropertyOptional({ description: 'Fee / rate information' }) fees?: string;
+  @ApiPropertyOptional({ description: 'Short professional pitch or bio' })
+  companyPitch?: string;
+  @ApiPropertyOptional({ description: 'Hours available per week or month' })
+  hoursPerWeek?: string;
+  @ApiPropertyOptional() country?: string;
+  @ApiPropertyOptional() state?: string;
+  @ApiPropertyOptional({
+    description: 'Other areas of expertise or topics (free text)',
+  })
+  otherAreasOfTopics?: string;
+  @ApiPropertyOptional({ description: 'Institution(s) attended' })
+  institutionAttended?: string;
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }

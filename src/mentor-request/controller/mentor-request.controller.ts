@@ -77,7 +77,7 @@ export class MentorRequestController {
     @CurrentUser() user: any,
     @Query() query: ListMentorRequestsQueryDto,
   ) {
-    return this.mentorRequestService.getMyRequests(user.id, query);
+    return this.mentorRequestService.getMyRequestsAsNgo(user.id, query);
   }
 
   @Get('my/:id')

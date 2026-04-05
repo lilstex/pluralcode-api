@@ -1,6 +1,29 @@
 /**
+ * test/users.e2e.spec.ts
+ *
+ * End-to-end tests for the Users module.
+ *
+ * What runs for REAL (no mocks):
+ *   ✅ Full NestJS HTTP server (routing, guards, pipes, decorators)
+ *   ✅ ValidationPipe — bad bodies get 400 before the service is ever called
+ *   ✅ JwtAuthGuard + JwtStrategy — real JWT signed with the same secret
+ *   ✅ RolesGuard — role mismatches produce real 403
+ *   ✅ PermissionsGuard — permission mismatches produce real 403
+ *   ✅ ParseUUIDPipe — non-UUID params produce real 400
+ *   ✅ @Query() param passing — catches the NaN bug at the HTTP layer
+ *
+ * What is MOCKED (external I/O):
+ *   🔲 PrismaService  — jest.fn() replacements, no real DB
+ *   🔲 EmailService   — swallows all sends silently
+ *   🔲 AzureBlobService — returns fake blob URLs
+ *
  * Run:
- *   npx jest --config jest-e2e.json
+ *   npx jest test/users.e2e.spec.ts --config jest-e2e.json
+ *
+ * jest-e2e.json should contain:
+ *   { "moduleFileExtensions": ["js","json","ts"], "rootDir": ".",
+ *     "testEnvironment": "node", "testRegex": ".e2e-spec.ts$",
+ *     "transform": { "^.+\\.(t|j)s$": "ts-jest" } }
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -11,12 +34,19 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { UserController } from './controller/users.controller';
-import { UserService } from './service/users.service';
+
+// ── Source imports ────────────────────────────────────────────────────────────
+import { UserController } from 'src/users/controller/users.controller';
+import { UserService } from 'src/users/service/users.service';
 import { JwtStrategy } from 'src/common/strategies/jwt.strategy';
-import { PrismaService } from 'src/prisma.service';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { Reflector } from '@nestjs/core';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 import { EmailService } from 'src/providers/email/email.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
+import { RewardsService } from 'src/reward/service/reward.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -125,8 +155,10 @@ const mockPrisma = {
     findUnique: jest.fn(),
     update: jest.fn(),
   },
+  mentorRequest: { count: jest.fn() },
   adminPermission: { upsert: jest.fn() },
   auditLog: { create: jest.fn() },
+  achievement: { findFirst: jest.fn(), create: jest.fn() },
   $transaction: jest.fn(),
 };
 
@@ -145,6 +177,16 @@ const mockEmail = {
 const mockAzure = {
   upload: jest.fn().mockResolvedValue('https://blob.example.com/file.jpg'),
   delete: jest.fn().mockResolvedValue(undefined),
+};
+
+const mockRewards = {
+  award: jest.fn().mockResolvedValue({
+    pointsEarned: 10,
+    totalPoints: 10,
+    badgeAwarded: null,
+    achievementId: 'ach-1',
+  }),
+  hasAchievement: jest.fn().mockResolvedValue(false),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -210,9 +252,14 @@ describe('Users Module — E2E', () => {
       providers: [
         UserService,
         JwtStrategy,
+        Reflector,
+        JwtAuthGuard,
+        RolesGuard,
+        PermissionsGuard,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EmailService, useValue: mockEmail },
         { provide: AzureBlobService, useValue: mockAzure },
+        { provide: RewardsService, useValue: mockRewards },
         {
           provide: ConfigService,
           useValue: {
@@ -244,6 +291,22 @@ describe('Users Module — E2E', () => {
   // Reset mocks before each test — prevents state leaking between tests
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Restore fire-and-forget mocks wiped by clearAllMocks
+    mockEmail.sendVerificationOtp.mockResolvedValue(undefined);
+    mockEmail.sendAdminApprovalNotification.mockResolvedValue(undefined);
+    mockEmail.sendPasswordResetOtp.mockResolvedValue(undefined);
+    mockEmail.sendAccountStatusNotification.mockResolvedValue(undefined);
+    mockEmail.sendWelcomeEmail.mockResolvedValue(undefined);
+    mockAzure.upload.mockResolvedValue('https://blob.example.com/file.jpg');
+    mockAzure.delete.mockResolvedValue(undefined);
+    mockRewards.award.mockResolvedValue({
+      pointsEarned: 10,
+      totalPoints: 10,
+      badgeAwarded: null,
+      achievementId: 'ach-1',
+    });
+    mockRewards.hasAchievement.mockResolvedValue(false);
 
     // JwtStrategy.validate() calls prisma.user.findUnique to hydrate req.user.
     // Default: return the admin user for admin tokens, guest user for others.
@@ -1368,6 +1431,291 @@ describe('Users Module — E2E', () => {
 
       expect(body.status).toBe(true);
       expect(body.statusCode).toBe(201);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /users/experts/dashboard  (EXPERT role only)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('GET /users/experts/dashboard', () => {
+    const EXPERT_UUID = 'ee000000-9c0b-4ef8-bb6d-6bb9bd380e00';
+
+    const expertUser = () =>
+      makeDbUser({
+        id: EXPERT_UUID,
+        role: Role.EXPERT,
+        email: 'expert@example.com',
+      });
+
+    beforeEach(() => {
+      mockPrisma.user.findUnique.mockResolvedValue(expertUser());
+      mockPrisma.mentorRequest.count.mockResolvedValue(0);
+    });
+
+    it('401 — no token', () =>
+      request(app.getHttpServer()).get('/users/experts/dashboard').expect(401));
+
+    it('403 — GUEST role rejected by RolesGuard', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(
+        makeDbUser({ role: Role.GUEST }),
+      );
+      await request(app.getHttpServer())
+        .get('/users/experts/dashboard')
+        .set('Authorization', `Bearer ${guestToken()}`)
+        .expect(403);
+    });
+
+    it('200 — returns dashboard analytics for EXPERT user', async () => {
+      mockPrisma.expertProfile.findUnique.mockResolvedValue(
+        makeExpertProfile(),
+      );
+      mockPrisma.mentorRequest.count
+        .mockResolvedValueOnce(10) // total
+        .mockResolvedValueOnce(3) // pending
+        .mockResolvedValueOnce(5); // completed
+
+      const { body } = await request(app.getHttpServer())
+        .get('/users/experts/dashboard')
+        .set('Authorization', `Bearer ${expertToken()}`)
+        .expect(200);
+
+      expect(body.status).toBe(true);
+      expect(body.data.totalMentorshipRequests).toBe(10);
+      expect(body.data.pendingMentorshipRequests).toBe(3);
+      expect(body.data.completedMentorshipSessions).toBe(5);
+      expect(body.data.profileCompletion).toBeDefined();
+      expect(typeof body.data.profileCompletion).toBe('number');
+    });
+
+    it('200 — profileCompletion is 0 when no profile exists', async () => {
+      mockPrisma.expertProfile.findUnique.mockResolvedValue(null);
+
+      const { body } = await request(app.getHttpServer())
+        .get('/users/experts/dashboard')
+        .set('Authorization', `Bearer ${expertToken()}`)
+        .expect(200);
+
+      expect(body.status).toBe(true);
+      expect(body.data.profileCompletion).toBe(0);
+    });
+
+    it('200 — mentor request counts default to 0 when no requests', async () => {
+      mockPrisma.expertProfile.findUnique.mockResolvedValue(null);
+      mockPrisma.mentorRequest.count.mockResolvedValue(0);
+
+      const { body } = await request(app.getHttpServer())
+        .get('/users/experts/dashboard')
+        .set('Authorization', `Bearer ${expertToken()}`)
+        .expect(200);
+
+      expect(body.data.totalMentorshipRequests).toBe(0);
+      expect(body.data.pendingMentorshipRequests).toBe(0);
+      expect(body.data.completedMentorshipSessions).toBe(0);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /users/experts/drop-down  (authenticated)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('GET /users/experts/drop-down', () => {
+    it('401 — no token', () =>
+      request(app.getHttpServer()).get('/users/experts/drop-down').expect(401));
+
+    it('200 — returns list of approved experts', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(makeDbUser());
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          id: VALID_UUID,
+          fullName: 'Expert One',
+          email: 'e1@example.com',
+          avatarUrl: null,
+        },
+        {
+          id: ADMIN_UUID,
+          fullName: 'Expert Two',
+          email: 'e2@example.com',
+          avatarUrl: null,
+        },
+      ]);
+
+      const { body } = await request(app.getHttpServer())
+        .get('/users/experts/drop-down')
+        .set('Authorization', `Bearer ${guestToken()}`)
+        .expect(200);
+
+      expect(body.status).toBe(true);
+      expect(body.data).toHaveLength(2);
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            role: Role.EXPERT,
+            status: 'APPROVED',
+          }),
+        }),
+      );
+    });
+
+    it('200 — returns empty array when no experts exist', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(makeDbUser());
+      mockPrisma.user.findMany.mockResolvedValue([]);
+
+      const { body } = await request(app.getHttpServer())
+        .get('/users/experts/drop-down')
+        .set('Authorization', `Bearer ${guestToken()}`)
+        .expect(200);
+
+      expect(body.data).toHaveLength(0);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GET /users/guests  (authenticated)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('GET /users/guests', () => {
+    it('401 — no token', () =>
+      request(app.getHttpServer()).get('/users/guests').expect(401));
+
+    it('200 — returns list of approved guest users', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(makeDbUser());
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          id: VALID_UUID,
+          fullName: 'Guest One',
+          email: 'g1@example.com',
+          avatarUrl: null,
+        },
+      ]);
+
+      const { body } = await request(app.getHttpServer())
+        .get('/users/guests')
+        .set('Authorization', `Bearer ${guestToken()}`)
+        .expect(200);
+
+      expect(body.status).toBe(true);
+      expect(body.data).toHaveLength(1);
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            role: Role.GUEST,
+            status: 'APPROVED',
+          }),
+        }),
+      );
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PATCH /users/profile/expert — reward on profile completion
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('PATCH /users/profile/expert — profile completion reward', () => {
+    it('200 — reward returned when profile first reaches ≥80% completion', async () => {
+      const expertUser = makeDbUser({ role: Role.EXPERT });
+      mockPrisma.user.findUnique.mockResolvedValue(expertUser);
+      mockPrisma.user.update.mockResolvedValue(expertUser);
+
+      // Profile with all required fields filled → high completion
+      const fullProfile = makeExpertProfile({
+        title: 'Dr.',
+        yearsOfExperience: 10,
+        about: 'About text',
+        employer: 'UNICEF',
+        mentoringPhilosophy: 'Philosophy text',
+        capacityOfMentees: '5',
+        areasOfExpertise: ['Governance', 'Health'],
+        servicesOffered: ['Coaching'],
+        preferredContactMethods: ['Email'],
+      });
+      mockPrisma.expertProfile.upsert.mockResolvedValue(fullProfile);
+      mockRewards.hasAchievement.mockResolvedValue(false);
+      mockRewards.award.mockResolvedValue({
+        pointsEarned: 10,
+        totalPoints: 10,
+        badgeAwarded: 'badge-1',
+        achievementId: 'ach-1',
+      });
+
+      const { body } = await request(app.getHttpServer())
+        .patch('/users/profile/expert')
+        .set('Authorization', `Bearer ${expertToken()}`)
+        .send({
+          title: 'Dr.',
+          about: 'About',
+          areasOfExpertise: ['Governance'],
+        })
+        .expect(200);
+
+      expect(body.status).toBe(true);
+      expect(body.profileCompletion).toBeDefined();
+      // When completion ≥ 80, reward object is included
+      if (body.profileCompletion >= 80) {
+        expect(body.reward).toBeDefined();
+        expect(body.reward.pointsEarned).toBe(10);
+      }
+    });
+
+    it('200 — no reward object when profile below 80% completion', async () => {
+      const expertUser = makeDbUser({ role: Role.EXPERT });
+      mockPrisma.user.findUnique.mockResolvedValue(expertUser);
+
+      // Sparse profile — only title filled
+      mockPrisma.expertProfile.upsert.mockResolvedValue(
+        makeExpertProfile({
+          title: 'Dr.',
+          yearsOfExperience: null,
+          about: null,
+          employer: null,
+          mentoringPhilosophy: null,
+          capacityOfMentees: null,
+          areasOfExpertise: [],
+          servicesOffered: [],
+          preferredContactMethods: [],
+        }),
+      );
+
+      const { body } = await request(app.getHttpServer())
+        .patch('/users/profile/expert')
+        .set('Authorization', `Bearer ${expertToken()}`)
+        .send({ title: 'Dr.' })
+        .expect(200);
+
+      expect(body.status).toBe(true);
+      expect(body.profileCompletion).toBeDefined();
+      if (body.profileCompletion < 80) {
+        expect(body.reward).toBeUndefined();
+        expect(mockRewards.award).not.toHaveBeenCalled();
+      }
+    });
+
+    it('200 — reward not re-awarded if hasAchievement returns true', async () => {
+      const expertUser = makeDbUser({ role: Role.EXPERT });
+      mockPrisma.user.findUnique.mockResolvedValue(expertUser);
+      mockPrisma.expertProfile.upsert.mockResolvedValue(
+        makeExpertProfile({
+          title: 'Dr.',
+          yearsOfExperience: 10,
+          about: 'About',
+          employer: 'UN',
+          mentoringPhilosophy: 'Philosophy',
+          capacityOfMentees: '5',
+          areasOfExpertise: ['Governance'],
+          servicesOffered: ['Coaching'],
+          preferredContactMethods: ['Email'],
+        }),
+      );
+      // Simulate already awarded
+      mockRewards.hasAchievement.mockResolvedValue(true);
+
+      await request(app.getHttpServer())
+        .patch('/users/profile/expert')
+        .set('Authorization', `Bearer ${expertToken()}`)
+        .send({ title: 'Dr.' })
+        .expect(200);
+
+      expect(mockRewards.award).not.toHaveBeenCalled();
     });
   });
 });

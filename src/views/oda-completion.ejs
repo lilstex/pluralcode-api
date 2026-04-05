@@ -1,0 +1,64 @@
+<%
+  var title = 'Your ODA Assessment Report is Ready — ' + orgName;
+  var body = `
+    <h1>Your ODA Report is Ready</h1>
+    <p>Hi <strong>${fullName}</strong>,</p>
+    <p>
+      The Organisational Development Assessment (ODA) for
+      <strong>${orgName}</strong> has been fully processed.
+      Your personalised report — including scores across all five pillars and
+      a detailed capacity summary — is now available on your dashboard.
+    </p>
+
+    <div class="alert alert-success">
+      &#x2713;&nbsp; Your assessment has been <strong>completed</strong>.
+      View your full report and recommendations below.
+    </div>
+
+    <div class="btn-wrapper">
+      <a href="${dashboardUrl}" class="btn">View My ODA Report &rarr;</a>
+    </div>
+
+    <hr class="divider" />
+
+    <p style="font-size:14px; color:#1a2b3c; font-weight:600; margin-bottom:8px;">
+      What's in your report?
+    </p>
+    <table class="info-table">
+      <tr>
+        <td class="label">Overall Score</td>
+        <td>Your aggregate capacity score across all 14 building blocks</td>
+      </tr>
+      <tr>
+        <td class="label">Pillar Breakdown</td>
+        <td>Scores for Leadership, Direction, Internal &amp; External Operations, and Programming</td>
+      </tr>
+      <tr>
+        <td class="label">Strengths</td>
+        <td>Areas where your organisation is performing well</td>
+      </tr>
+      <tr>
+        <td class="label">Development Areas</td>
+        <td>Priority gaps identified for capacity growth</td>
+      </tr>
+      <tr>
+        <td class="label">Resources</td>
+        <td>Curated knowledge library materials matched to your gaps</td>
+      </tr>
+    </table>
+
+    <div class="alert alert-info">
+      &#128274;&nbsp; <strong>Confidentiality notice:</strong> Your ODA results are
+      private and visible only to your organisation's administrator and the PLRCAP team.
+    </div>
+
+    <hr class="divider" />
+
+    <p style="font-size:13px; color:#718096;">
+      Organisation: <strong>${orgName}</strong><br />
+      Questions about your results? Reach us at
+      <a href="mailto:support@plrcap.org" style="color:#2e86c1;">support@plrcap.org</a>
+    </p>
+  `;
+%>
+<%- include('_layout', { title, body }) %>

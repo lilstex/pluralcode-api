@@ -23,8 +23,8 @@ export class EmailService {
   private readonly fromAddress: string;
 
   constructor(private readonly config: ConfigService) {
-    // this.viewsPath = path.join(__dirname, '../../../views');
-    this.viewsPath = path.join(process.cwd(), 'views');
+    this.viewsPath = path.join(__dirname, '../../../views');
+    // this.viewsPath = path.join(process.cwd(), 'views');
     this.fromAddress =
       this.config.get<string>('EMAIL_FROM') ??
       'PLRCAP Hub <noreply@plrcap.org>';
@@ -278,5 +278,41 @@ export class EmailService {
         ? `Your mentorship request was accepted by ${params.mentorName}`
         : `Update on your mentorship request from ${params.mentorName}`;
     return this.send({ to: params.ngoEmail, subject, html });
+  }
+
+  /**
+   * Sent to the NGO owner when the internal scoring engine finishes and the
+   * assessment status transitions to COMPLETED.
+   */
+  async sendODACompletionNotification(params: {
+    fullName: string;
+    email: string;
+    orgName: string;
+    dashboardUrl: string;
+  }) {
+    const html = await this.renderTemplate('oda-completion', params);
+    return this.send({
+      to: params.email,
+      subject: `Your ODA Assessment Report is Ready — ${params.orgName}`,
+      html,
+    });
+  }
+
+  /**
+   * Sent to all SUPER_ADMIN users when an NGO submits a completed assessment.
+   * Call once per admin email
+   */
+  async sendODANewSubmissionAlert(params: {
+    adminEmail: string;
+    orgName: string;
+    overallScore: number;
+    adminDashboardUrl: string;
+  }) {
+    const html = await this.renderTemplate('oda-submission-alert', params);
+    return this.send({
+      to: params.adminEmail,
+      subject: `New ODA Submission — ${params.orgName}`,
+      html,
+    });
   }
 }

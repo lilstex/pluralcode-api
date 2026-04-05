@@ -1,5 +1,5 @@
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma-module/prisma.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
 import { JitsiService } from 'src/providers/jitsi/jitsi.service';
 import { EmailService } from 'src/providers/email/email.service';
@@ -9,7 +9,12 @@ import {
   EventQueryDto,
   CancelEventDto,
   EventStatus,
+  GuestRegisterEventDto,
 } from '../dto/events.dto';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { NotificationsService } from 'src/notifications/service/notifications.service';
+import { NotificationType } from '@prisma/client';
+import { YouTubeService } from 'src/providers/youtube/youtube.service';
 
 @Injectable()
 export class EventService {
@@ -20,6 +25,8 @@ export class EventService {
     private readonly azureBlob: AzureBlobService,
     private readonly jitsi: JitsiService,
     private readonly emailService: EmailService,
+    private readonly notifications: NotificationsService,
+    private readonly youtube: YouTubeService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -41,20 +48,28 @@ export class EventService {
 
   private buildEventResponse(event: any, jitsiService: JitsiService) {
     const { _count, registrations, ...rest } = event;
+    const meetingUrl =
+      event.externalMeetingUrl ?? jitsiService.getMeetingUrl(event.jitsiRoomId);
     return {
       ...rest,
-      meetingUrl:
-        event.externalMeetingUrl ??
-        jitsiService.getMeetingUrl(event.jitsiRoomId),
+      meetingUrl,
       status: this.resolveStatus(event),
       registrationCount: _count?.registrations ?? registrations?.length ?? 0,
     };
   }
 
-  /**
-   * Generates an ICS calendar file string for an event.
-   * Compatible with Google Calendar, Outlook, and Apple Calendar.
-   */
+  /** Admins (SUPER_ADMIN, EVENT_ADMIN) or the event creator can manage an event */
+  private isOwnerOrAdmin(
+    event: any,
+    userId: string,
+    userRole: string,
+  ): boolean {
+    return (
+      ['SUPER_ADMIN', 'EVENT_ADMIN'].includes(userRole) ||
+      event.createdById === userId
+    );
+  }
+
   private generateIcs(event: {
     id: string;
     title: string;
@@ -65,7 +80,6 @@ export class EventService {
   }): string {
     const fmt = (d: Date) =>
       d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-
     const escape = (s: string) =>
       s
         .replace(/\\/g, '\\\\')
@@ -97,7 +111,7 @@ export class EventService {
   // CREATE
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async createEvent(adminId: string, dto: CreateEventDto) {
+  async createEvent(creatorId: string, dto: CreateEventDto) {
     try {
       const start = new Date(dto.startTime);
       const end = new Date(dto.endTime);
@@ -109,7 +123,6 @@ export class EventService {
           message: 'End time must be after start time.',
         };
       }
-
       if (start <= new Date()) {
         return {
           status: false,
@@ -127,9 +140,14 @@ export class EventService {
           startTime: start,
           endTime: end,
           jitsiRoomId,
+          // externalMeetingUrl is only set when the creator supplies a third-party
+          // URL (Zoom, Google Meet, etc.) via dto.externalMeetingUrl.
+          // For platform-hosted Jitsi events the URL is derived on-demand from jitsiRoomId.
+          externalMeetingUrl: dto.externalMeetingUrl ?? null,
           capacity: dto.capacity ?? null,
           tags: dto.tags ?? [],
-          externalMeetingUrl: dto.externalMeetingUrl ?? null,
+          isPublic: dto.isPublic ?? true,
+          createdById: creatorId,
         },
         include: { _count: { select: { registrations: true } } },
       });
@@ -140,7 +158,7 @@ export class EventService {
           entity: 'Event',
           entityId: event.id,
           details: { title: event.title, startTime: event.startTime } as any,
-          adminId,
+          adminId: creatorId,
         },
       });
 
@@ -164,7 +182,7 @@ export class EventService {
   // LIST & GET
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async listEvents(query: EventQueryDto) {
+  async listEvents(query: EventQueryDto, userId?: string) {
     try {
       const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
       const limit = Math.min(
@@ -172,8 +190,10 @@ export class EventService {
         Math.max(1, parseInt(String(query.limit ?? '20'), 10) || 20),
       );
       const skip = (page - 1) * limit;
-
       const where: any = {};
+
+      // Unauthenticated users only see public events
+      if (!userId) where.isPublic = true;
 
       if (query.search) {
         where.OR = [
@@ -181,18 +201,12 @@ export class EventService {
           { description: { contains: query.search, mode: 'insensitive' } },
         ];
       }
-
-      if (query.tag) {
-        where.tags = { has: query.tag };
-      }
-
+      if (query.tag) where.tags = { has: query.tag };
       if (query.dateFrom || query.dateTo) {
         where.startTime = {};
         if (query.dateFrom) where.startTime.gte = new Date(query.dateFrom);
         if (query.dateTo) where.startTime.lte = new Date(query.dateTo);
       }
-
-      // Map status filter to DB fields
       if (query.status) {
         const now = new Date();
         switch (query.status) {
@@ -226,12 +240,41 @@ export class EventService {
         this.prisma.event.count({ where }),
       ]);
 
+      // For authenticated users — resolve which events they've registered for
+      // and which ones they own, in a single batch query each
+      let registeredSet = new Set<string>();
+      let ownedSet = new Set<string>();
+
+      if (userId && events.length > 0) {
+        const eventIds = events.map((e) => e.id);
+
+        const [registrations] = await Promise.all([
+          this.prisma.eventRegistration.findMany({
+            where: { userId, eventId: { in: eventIds } },
+            select: { eventId: true },
+          }),
+        ]);
+
+        registeredSet = new Set(registrations.map((r) => r.eventId));
+        ownedSet = new Set(
+          events.filter((e) => e.createdById === userId).map((e) => e.id),
+        );
+      }
+
+      const formatted = events.map((e) => ({
+        ...this.buildEventResponse(e, this.jitsi),
+        ...(userId !== undefined && {
+          isRegistered: registeredSet.has(e.id),
+          isOwned: ownedSet.has(e.id),
+        }),
+      }));
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Events retrieved.',
         data: {
-          events: events.map((e) => this.buildEventResponse(e, this.jitsi)),
+          events: formatted,
           total,
           page,
           limit,
@@ -263,15 +306,12 @@ export class EventService {
           },
         },
       });
-
-      if (!event) {
+      if (!event)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
         };
-      }
-
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -289,20 +329,103 @@ export class EventService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // MY CREATED EVENTS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async getMyCreatedEvents(
+    userId: string,
+    query: { page?: number; limit?: number; status?: EventStatus },
+  ) {
+    try {
+      const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, parseInt(String(query.limit ?? '20'), 10) || 20),
+      );
+      const skip = (page - 1) * limit;
+      const where: any = { createdById: userId };
+
+      if (query.status) {
+        const now = new Date();
+        switch (query.status) {
+          case EventStatus.UPCOMING:
+            where.isPast = false;
+            where.isCancelled = false;
+            where.startTime = { gt: now };
+            break;
+          case EventStatus.LIVE:
+            where.startTime = { lte: now };
+            where.endTime = { gte: now };
+            where.isCancelled = false;
+            break;
+          case EventStatus.PAST:
+            where.isPast = true;
+            break;
+          case EventStatus.CANCELLED:
+            where.isCancelled = true;
+            break;
+        }
+      }
+
+      const [events, total] = await this.prisma.$transaction([
+        this.prisma.event.findMany({
+          where,
+          skip,
+          take: limit,
+          include: { _count: { select: { registrations: true } } },
+          orderBy: { startTime: 'desc' },
+        }),
+        this.prisma.event.count({ where }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Your created events retrieved.',
+        data: {
+          events: events.map((e) => this.buildEventResponse(e, this.jitsi)),
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      this.logger.error('getMyCreatedEvents error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // UPDATE
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async updateEvent(adminId: string, id: string, dto: UpdateEventDto) {
+  async updateEvent(
+    userId: string,
+    userRole: string,
+    id: string,
+    dto: UpdateEventDto,
+  ) {
     try {
       const event = await this.prisma.event.findUnique({ where: { id } });
-      if (!event) {
+      if (!event)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
         };
-      }
 
+      if (!this.isOwnerOrAdmin(event, userId, userRole)) {
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message: 'You do not have permission to update this event.',
+        };
+      }
       if (event.isCancelled) {
         return {
           status: false,
@@ -335,11 +458,10 @@ export class EventService {
           entity: 'Event',
           entityId: id,
           details: { ...dto } as any,
-          adminId,
+          adminId: userId,
         },
       });
 
-      // If times changed, notify registered attendees
       if (dto.startTime || dto.endTime) {
         this.notifyAttendeesOfUpdate(updated).catch((err) =>
           this.logger.error('notifyAttendeesOfUpdate failed', err),
@@ -366,32 +488,40 @@ export class EventService {
   // CANCEL
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async cancelEvent(adminId: string, id: string, dto: CancelEventDto) {
+  async cancelEvent(
+    userId: string,
+    userRole: string,
+    id: string,
+    dto: CancelEventDto,
+  ) {
     try {
       const event = await this.prisma.event.findUnique({ where: { id } });
-      if (!event) {
+      if (!event)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
         };
-      }
 
-      if (event.isCancelled) {
+      if (!this.isOwnerOrAdmin(event, userId, userRole)) {
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message: 'You do not have permission to cancel this event.',
+        };
+      }
+      if (event.isCancelled)
         return {
           status: false,
           statusCode: HttpStatus.BAD_REQUEST,
           message: 'Event is already cancelled.',
         };
-      }
-
-      if (event.isPast) {
+      if (event.isPast)
         return {
           status: false,
           statusCode: HttpStatus.BAD_REQUEST,
           message: 'Cannot cancel a past event.',
         };
-      }
 
       await this.prisma.$transaction([
         this.prisma.event.update({
@@ -404,12 +534,11 @@ export class EventService {
             entity: 'Event',
             entityId: id,
             details: { reason: dto.reason } as any,
-            adminId,
+            adminId: userId,
           },
         }),
       ]);
 
-      // Notify all registered attendees
       this.notifyAttendeesCancellation(event, dto.reason).catch((err) =>
         this.logger.error('notifyAttendeesCancellation failed', err),
       );
@@ -433,21 +562,26 @@ export class EventService {
   // DELETE
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async deleteEvent(adminId: string, id: string) {
+  async deleteEvent(userId: string, userRole: string, id: string) {
     try {
       const event = await this.prisma.event.findUnique({ where: { id } });
-      if (!event) {
+      if (!event)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
         };
+
+      if (!this.isOwnerOrAdmin(event, userId, userRole)) {
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message: 'You do not have permission to delete this event.',
+        };
       }
 
-      // Delete cover image from Azure if present
-      if (event.coverImageUrl) {
+      if (event.coverImageUrl)
         await this.azureBlob.delete(event.coverImageUrl, 'avatars');
-      }
 
       await this.prisma.$transaction([
         this.prisma.eventRegistration.deleteMany({ where: { eventId: id } }),
@@ -458,7 +592,7 @@ export class EventService {
             entity: 'Event',
             entityId: id,
             details: { title: event.title } as any,
-            adminId,
+            adminId: userId,
           },
         }),
       ]);
@@ -483,7 +617,8 @@ export class EventService {
   // ─────────────────────────────────────────────────────────────────────────────
 
   async uploadCoverImage(
-    adminId: string,
+    userId: string,
+    userRole: string,
     eventId: string,
     file: Express.Multer.File,
   ) {
@@ -491,31 +626,34 @@ export class EventService {
       const event = await this.prisma.event.findUnique({
         where: { id: eventId },
       });
-      if (!event) {
+      if (!event)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
         };
+
+      if (!this.isOwnerOrAdmin(event, userId, userRole)) {
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message: 'You do not have permission to update this event.',
+        };
       }
 
-      if (event.coverImageUrl) {
+      if (event.coverImageUrl)
         await this.azureBlob.delete(event.coverImageUrl, 'avatars');
-      }
-
       const coverImageUrl = await this.azureBlob.upload(file, 'avatars');
-
       await this.prisma.event.update({
         where: { id: eventId },
         data: { coverImageUrl },
       });
-
       await this.prisma.auditLog.create({
         data: {
           action: 'EVENT_COVER_UPDATED',
           entity: 'Event',
           entityId: eventId,
-          adminId,
+          adminId: userId,
         },
       });
 
@@ -536,11 +674,12 @@ export class EventService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // MARK PAST / SET ARCHIVE URL (called by admin after event ends)
+  // ARCHIVE
   // ─────────────────────────────────────────────────────────────────────────────
 
   async markPastAndArchive(
-    adminId: string,
+    userId: string,
+    userRole: string,
     eventId: string,
     archiveUrl?: string,
   ) {
@@ -548,29 +687,32 @@ export class EventService {
       const event = await this.prisma.event.findUnique({
         where: { id: eventId },
       });
-      if (!event) {
+      if (!event)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
         };
+
+      if (!this.isOwnerOrAdmin(event, userId, userRole)) {
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message: 'You do not have permission to archive this event.',
+        };
       }
 
       await this.prisma.event.update({
         where: { id: eventId },
-        data: {
-          isPast: true,
-          archiveUrl: archiveUrl ?? null,
-        },
+        data: { isPast: true, archiveUrl: archiveUrl ?? null },
       });
-
       await this.prisma.auditLog.create({
         data: {
           action: 'EVENT_ARCHIVED',
           entity: 'Event',
           entityId: eventId,
           details: { archiveUrl } as any,
-          adminId,
+          adminId: userId,
         },
       });
 
@@ -600,31 +742,32 @@ export class EventService {
         include: { _count: { select: { registrations: true } } },
       });
 
-      if (!event) {
+      if (!event)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
         };
-      }
-
-      if (event.isCancelled) {
+      if (!event.isPublic)
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message:
+            'This is a private event. You must be logged in to register.',
+        };
+      if (event.isCancelled)
         return {
           status: false,
           statusCode: HttpStatus.BAD_REQUEST,
           message: 'This event has been cancelled.',
         };
-      }
-
-      if (event.isPast) {
+      if (event.isPast)
         return {
           status: false,
           statusCode: HttpStatus.BAD_REQUEST,
           message: 'This event has already ended.',
         };
-      }
 
-      // Capacity check
       if (event.capacity && event._count.registrations >= event.capacity) {
         return {
           status: false,
@@ -633,35 +776,48 @@ export class EventService {
         };
       }
 
-      // Duplicate check
       const existing = await this.prisma.eventRegistration.findUnique({
         where: { userId_eventId: { userId, eventId } },
       });
-
-      if (existing) {
+      if (existing)
         return {
           status: false,
           statusCode: HttpStatus.CONFLICT,
           message: 'You are already registered for this event.',
         };
-      }
 
       const registration = await this.prisma.eventRegistration.create({
         data: { userId, eventId },
         include: { user: { select: { fullName: true, email: true } } },
       });
 
-      // Send confirmation email + ICS attachment (fire-and-forget)
-      const meetingUrl =
+      // ICS attachment: embed the raw meeting URL so calendar apps (Outlook,
+      // Google Calendar) display a proper LOCATION / clickable link.
+      // For Jitsi events the raw URL has no JWT — that is intentional, the ICS
+      // is informational only and the user must join through the frontend.
+      const rawMeetingUrl =
         event.externalMeetingUrl ?? this.jitsi.getMeetingUrl(event.jitsiRoomId);
+
       const icsContent = this.generateIcs({
         id: event.id,
         title: event.title,
         description: event.description,
         startTime: event.startTime,
         endTime: event.endTime,
-        meetingUrl,
+        meetingUrl: rawMeetingUrl,
       });
+
+      // Confirmation email "Join Meeting" button:
+      //   • External meeting (Zoom, Meet etc.) → link directly, no JWT needed.
+      //   • Platform Jitsi event → frontend event page. The frontend calls
+      //     GET /events/:id/jitsi-token on the day to get a fresh JWT and
+      //     opens the tokenized URL. We never pre-mint tokens into emails because:
+      //       - Token lives in the inbox for potentially weeks before the event
+      //       - Token expiry breaks if the event is rescheduled
+      //       - Issued tokens cannot be revoked
+      const emailJoinUrl =
+        event.externalMeetingUrl ??
+        `${process.env.FRONTEND_URL}/events/${event.id}`;
 
       this.emailService
         .sendEventRegistrationConfirmation({
@@ -670,12 +826,23 @@ export class EventService {
           eventTitle: event.title,
           startTime: event.startTime,
           endTime: event.endTime,
-          meetingUrl,
+          meetingUrl: emailJoinUrl,
           icsContent,
         })
         .catch((err) =>
           this.logger.error('sendEventRegistrationConfirmation failed', err),
         );
+
+      this.notifications
+        .create({
+          userId,
+          type: NotificationType.EVENT_REGISTRATION_CONFIRMED,
+          title: 'Registration Confirmed',
+          body: `You have successfully registered for "${event.title}".`,
+          link: `/events/${event.id}`,
+          meta: { eventTitle: event.title, startTime: event.startTime },
+        })
+        .catch((err) => this.logger.error('notification failed', err));
 
       return {
         status: true,
@@ -694,30 +861,134 @@ export class EventService {
     }
   }
 
+  async guestRegisterForEvent(eventId: string, dto: GuestRegisterEventDto) {
+    try {
+      const event = await this.prisma.event.findUnique({
+        where: { id: eventId },
+        include: { _count: { select: { registrations: true } } },
+      });
+
+      if (!event)
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Event not found.',
+        };
+      if (!event.isPublic)
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message:
+            'This is a private event. Guest registration is not allowed.',
+        };
+      if (event.isCancelled)
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'This event has been cancelled.',
+        };
+      if (event.isPast)
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'This event has already ended.',
+        };
+
+      if (event.capacity && event._count.registrations >= event.capacity) {
+        return {
+          status: false,
+          statusCode: HttpStatus.CONFLICT,
+          message: 'This event is fully booked.',
+        };
+      }
+
+      // Check for duplicate guest email registration
+      const existing = await this.prisma.eventRegistration.findUnique({
+        where: { guestEmail_eventId: { guestEmail: dto.guestEmail, eventId } },
+      });
+      if (existing)
+        return {
+          status: false,
+          statusCode: HttpStatus.CONFLICT,
+          message: 'This email address is already registered for this event.',
+        };
+
+      const registration = await this.prisma.eventRegistration.create({
+        data: { eventId, guestName: dto.guestName, guestEmail: dto.guestEmail },
+      });
+
+      // Email confirmation with ICS
+      const rawMeetingUrl =
+        event.externalMeetingUrl ??
+        `${process.env.FRONTEND_URL}/events?eventId=${event.id}&email=${dto.guestEmail}`;
+
+      const icsContent = this.generateIcs({
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        meetingUrl: rawMeetingUrl,
+      });
+
+      const emailJoinUrl =
+        event.externalMeetingUrl ??
+        `${process.env.FRONTEND_URL}/events/${event.id}`;
+
+      this.emailService
+        .sendEventRegistrationConfirmation({
+          fullName: dto.guestName,
+          email: dto.guestEmail,
+          eventTitle: event.title,
+          startTime: event.startTime,
+          endTime: event.endTime,
+          meetingUrl: emailJoinUrl,
+          icsContent,
+        })
+        .catch((err) => this.logger.error('guestRegister email failed', err));
+
+      return {
+        status: true,
+        statusCode: HttpStatus.CREATED,
+        message:
+          'Guest registration successful. A confirmation has been sent to your email.',
+        data: {
+          registrationId: registration.id,
+          eventId,
+          guestEmail: dto.guestEmail,
+        },
+      };
+    } catch (error) {
+      this.logger.error('guestRegisterForEvent error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
   async unregisterFromEvent(userId: string, eventId: string) {
     try {
       const registration = await this.prisma.eventRegistration.findUnique({
         where: { userId_eventId: { userId, eventId } },
       });
-
-      if (!registration) {
+      if (!registration)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Registration not found.',
         };
-      }
 
       const event = await this.prisma.event.findUnique({
         where: { id: eventId },
       });
-      if (event?.isPast) {
+      if (event?.isPast)
         return {
           status: false,
           statusCode: HttpStatus.BAD_REQUEST,
           message: 'Cannot unregister from a past event.',
         };
-      }
 
       await this.prisma.eventRegistration.delete({
         where: { userId_eventId: { userId, eventId } },
@@ -756,27 +1027,23 @@ export class EventService {
           skip,
           take: limit,
           include: {
-            event: {
-              include: { _count: { select: { registrations: true } } },
-            },
+            event: { include: { _count: { select: { registrations: true } } } },
           },
           orderBy: { createdAt: 'desc' },
         }),
         this.prisma.eventRegistration.count({ where: { userId } }),
       ]);
 
-      const data = registrations.map((r) => ({
-        registrationId: r.id,
-        registeredAt: r.createdAt,
-        event: this.buildEventResponse(r.event, this.jitsi),
-      }));
-
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Registrations retrieved.',
         data: {
-          registrations: data,
+          registrations: registrations.map((r) => ({
+            registrationId: r.id,
+            registeredAt: r.createdAt,
+            event: this.buildEventResponse(r.event, this.jitsi),
+          })),
           total,
           page,
           limit,
@@ -812,13 +1079,12 @@ export class EventService {
       const event = await this.prisma.event.findUnique({
         where: { id: eventId },
       });
-      if (!event) {
+      if (!event)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
         };
-      }
 
       const [registrations, total] = await this.prisma.$transaction([
         this.prisma.eventRegistration.findMany({
@@ -874,14 +1140,12 @@ export class EventService {
       const registration = await this.prisma.eventRegistration.findUnique({
         where: { userId_eventId: { userId, eventId } },
       });
-
-      if (!registration) {
+      if (!registration)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Registration not found.',
         };
-      }
 
       await this.prisma.$transaction([
         this.prisma.eventRegistration.delete({
@@ -922,30 +1186,27 @@ export class EventService {
       const event = await this.prisma.event.findUnique({
         where: { id: eventId },
       });
-      if (!event) {
+      if (!event)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
         };
-      }
-
-      if (event.isCancelled) {
+      if (event.isCancelled)
         return {
           status: false,
           statusCode: HttpStatus.BAD_REQUEST,
           message: 'This event has been cancelled.',
         };
-      }
 
-      // Only registered users can get a token (unless they are admins)
       const isAdmin = ['SUPER_ADMIN', 'EVENT_ADMIN'].includes(userRole);
+      const isEventCreator = event.createdById === userId;
 
-      if (!isAdmin) {
+      // Admins and the event creator bypass the registration check
+      if (!isAdmin && !isEventCreator) {
         const registration = await this.prisma.eventRegistration.findUnique({
           where: { userId_eventId: { userId, eventId } },
         });
-
         if (!registration) {
           return {
             status: false,
@@ -959,16 +1220,15 @@ export class EventService {
         where: { id: userId },
         select: { id: true, fullName: true, email: true, avatarUrl: true },
       });
-
-      if (!user) {
+      if (!user)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'User not found.',
         };
-      }
 
-      const isModerator = isAdmin;
+      // Moderator = admin OR event creator
+      const isModerator = isAdmin || isEventCreator;
 
       const token = this.jitsi.generateToken(
         event.jitsiRoomId,
@@ -982,6 +1242,12 @@ export class EventService {
         event.endTime,
       );
 
+      // For external meetings the URL is a third-party link (Zoom etc.) — no JWT appended.
+      // For Jitsi rooms we append the JWT so the user enters directly without a lobby prompt.
+      const meetingUrl =
+        event.externalMeetingUrl ??
+        `${this.jitsi.getMeetingUrl(event.jitsiRoomId)}?jwt=${token}`;
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
@@ -989,9 +1255,8 @@ export class EventService {
         data: {
           token,
           roomId: event.jitsiRoomId,
-          meetingUrl:
-            event.externalMeetingUrl ??
-            this.jitsi.getMeetingUrl(event.jitsiRoomId),
+          meetingUrl, // open this URL directly — JWT already embedded for Jitsi events
+          isModerator,
           expiresAt: event.endTime.toISOString(),
         },
       };
@@ -1017,26 +1282,21 @@ export class EventService {
           where: { userId_eventId: { userId, eventId } },
         }),
       ]);
-
-      if (!event) {
+      if (!event)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
         };
-      }
-
-      if (!registration) {
+      if (!registration)
         return {
           status: false,
           statusCode: HttpStatus.FORBIDDEN,
           message: 'You are not registered for this event.',
         };
-      }
 
       const meetingUrl =
         event.externalMeetingUrl ?? this.jitsi.getMeetingUrl(event.jitsiRoomId);
-
       const ics = this.generateIcs({
         id: event.id,
         title: event.title,
@@ -1062,14 +1322,189 @@ export class EventService {
     }
   }
 
+  /**
+   * Webhook handler called by Jitsi when a meeting ends and a recording
+   * is available for download.
+   *
+   * Jitsi sends a POST to /events/jitsi/webhook with a JSON body.
+   * DevOps must configure the Jitsi server to call this endpoint.
+   * See docs/DEVOPS.md for the full Jitsi webhook configuration.
+   *
+   * Expected payload shape (simplified — varies by Jitsi version):
+   * {
+   *   "event":      "RECORDING_AVAILABLE",
+   *   "roomName":   "<jitsiRoomId>",
+   *   "recordingUrl": "https://..."
+   * }
+   */
+  async handleJitsiWebhook(payload: Record<string, any>) {
+    try {
+      const { event: eventType, roomName, recordingUrl } = payload;
+
+      if (eventType !== 'RECORDING_AVAILABLE' || !roomName || !recordingUrl) {
+        this.logger.warn(
+          'Jitsi webhook: unrecognised or incomplete payload',
+          payload,
+        );
+        return { status: false, message: 'Unrecognised webhook payload.' };
+      }
+
+      // Look up the event by Jitsi room ID
+      const event = await this.prisma.event.findUnique({
+        where: { jitsiRoomId: roomName },
+      });
+
+      if (!event) {
+        this.logger.warn(
+          `Jitsi webhook: no event found for roomName=${roomName}`,
+        );
+        return {
+          status: false,
+          message: `No event found for room ${roomName}.`,
+        };
+      }
+
+      this.logger.log(
+        `Jitsi webhook: recording available for event "${event.title}" — auto-uploading to YouTube`,
+      );
+
+      const privacyStatus =
+        (process.env.YOUTUBE_DEFAULT_PRIVACY as any) ?? 'unlisted';
+
+      const description =
+        `Recording of the PLRCAP event: "${event.title}"\n` +
+        `Date: ${event.startTime.toLocaleDateString('en-GB')}\n\n` +
+        `${event.description}`;
+
+      const result = await this.youtube.uploadRecording({
+        title: event.title,
+        description,
+        privacyStatus,
+        source: recordingUrl,
+      });
+
+      await this.prisma.event.update({
+        where: { id: event.id },
+        data: { archiveUrl: result.videoUrl, isPast: true },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'EVENT_RECORDING_AUTO_UPLOADED',
+          entity: 'Event',
+          entityId: event.id,
+          details: {
+            videoId: result.videoId,
+            videoUrl: result.videoUrl,
+            roomName,
+          } as any,
+          adminId: 'SYSTEM',
+        },
+      });
+
+      this.logger.log(
+        `Auto-upload complete for "${event.title}": ${result.videoUrl}`,
+      );
+      return {
+        status: true,
+        message: 'Recording uploaded.',
+        videoUrl: result.videoUrl,
+      };
+    } catch (error) {
+      this.logger.error('handleJitsiWebhook error', error);
+      return {
+        status: false,
+        message: `Webhook processing failed: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Manually trigger a YouTube upload for a completed event recording.
+   * The recordingSource can be a public URL (e.g. Jitsi recording download link)
+   * or an absolute file path on the server.
+   *
+   * Privacy defaults to 'unlisted' so only people with the link can view it.
+   * Admin can override by passing privacyStatus explicitly.
+   */
+  async uploadRecordingToYouTube(
+    userId: string,
+    userRole: string,
+    eventId: string,
+    recordingSource: string,
+    privacyStatus: 'public' | 'unlisted' | 'private' = 'unlisted',
+  ) {
+    try {
+      const event = await this.prisma.event.findUnique({
+        where: { id: eventId },
+      });
+      if (!event)
+        return { status: false, statusCode: 404, message: 'Event not found.' };
+
+      if (!this.isOwnerOrAdmin(event, userId, userRole)) {
+        return {
+          status: false,
+          statusCode: 403,
+          message: 'You do not have permission to upload this recording.',
+        };
+      }
+
+      const description =
+        `Recording of the PLRCAP event: "${event.title}"\n` +
+        `Date: ${event.startTime.toLocaleDateString('en-GB')}\n\n` +
+        `${event.description}`;
+
+      const result = await this.youtube.uploadRecording({
+        title: event.title,
+        description,
+        privacyStatus,
+        source: recordingSource,
+      });
+
+      // Save the YouTube URL as the archiveUrl
+      await this.prisma.event.update({
+        where: { id: eventId },
+        data: { archiveUrl: result.videoUrl, isPast: true },
+      });
+
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'EVENT_RECORDING_UPLOADED',
+          entity: 'Event',
+          entityId: eventId,
+          details: {
+            videoId: result.videoId,
+            videoUrl: result.videoUrl,
+            privacyStatus,
+          } as any,
+          adminId: userId,
+        },
+      });
+
+      return {
+        status: true,
+        statusCode: 200,
+        message: 'Recording uploaded to YouTube successfully.',
+        data: { videoId: result.videoId, videoUrl: result.videoUrl },
+      };
+    } catch (error) {
+      this.logger.error('uploadRecordingToYouTube error', error);
+      return {
+        status: false,
+        statusCode: 500,
+        message: `Upload failed: ${error.message}`,
+      };
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
-  // PRIVATE: EMAIL NOTIFICATION HELPERS
+  // PRIVATE: EMAIL HELPERS
   // ─────────────────────────────────────────────────────────────────────────────
 
   private async notifyAttendeesOfUpdate(event: any) {
     const registrations = await this.prisma.eventRegistration.findMany({
       where: { eventId: event.id },
-      include: { user: { select: { fullName: true, email: true } } },
+      include: { user: { select: { id: true, fullName: true, email: true } } },
     });
 
     await Promise.allSettled(
@@ -1082,10 +1517,26 @@ export class EventService {
           endTime: event.endTime,
           meetingUrl:
             event.externalMeetingUrl ??
-            this.jitsi.getMeetingUrl(event.jitsiRoomId),
+            `${process.env.FRONTEND_URL}/events?eventId=${event.id}&email=${r.user.email}`,
         }),
       ),
     );
+    this.notifications
+      .createMany(
+        registrations.map((r) => ({
+          userId: r.user.id,
+          type: NotificationType.EVENT_UPDATED,
+          title: 'Event Updated',
+          body: `"${event.title}" has been updated. Check the new details.`,
+          link: `/events/${event.id}`,
+          meta: {
+            eventTitle: event.title,
+            startTime: event.startTime,
+            endTime: event.endTime,
+          },
+        })),
+      )
+      .catch((err) => this.logger.error('notification fan-out failed', err));
   }
 
   private async notifyAttendeesCancellation(event: any, reason?: string) {
@@ -1093,7 +1544,6 @@ export class EventService {
       where: { eventId: event.id },
       include: { user: { select: { fullName: true, email: true } } },
     });
-
     await Promise.allSettled(
       registrations.map((r) =>
         this.emailService.sendEventCancellationNotification({
@@ -1104,5 +1554,45 @@ export class EventService {
         }),
       ),
     );
+
+    // Fan-out to all attendees after cancellation:
+    const attendeeIds = registrations.map((r) => r.userId);
+    this.notifications
+      .createMany(
+        attendeeIds.map((uid) => ({
+          userId: uid,
+          type: NotificationType.EVENT_CANCELLED,
+          title: 'Event Cancelled',
+          body: `"${event.title}" has been cancelled. ${reason ?? ''}`.trim(),
+          link: `/events`,
+          meta: { eventTitle: event.title, reason: reason },
+        })),
+      )
+      .catch((err) => this.logger.error('notification fan-out failed', err));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // SCHEDULED: Mark past events
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Runs every day at 01:00 AM server time.
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  async markExpiredEventsAsPast(): Promise<void> {
+    try {
+      const now = new Date();
+
+      await this.prisma.event.updateMany({
+        where: {
+          isPast: false,
+          isCancelled: false,
+          endTime: { lt: now },
+        },
+        data: { isPast: true },
+      });
+    } catch (error) {
+      this.logger.error('markExpiredEventsAsPast failed', error);
+    }
   }
 }
