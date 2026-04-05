@@ -8,46 +8,47 @@ datasource db {
 }
 
 model User {
-  id                      String                @id @default(uuid())
-  email                   String                @unique
+  id                      String                   @id @default(uuid())
+  email                   String                   @unique
   passwordHash            String
   fullName                String
-  role                    Role                  @default(GUEST)
-  status                  ApprovalStatus        @default(PENDING)
-  isEmailVerified         Boolean               @default(false)
+  role                    Role                     @default(GUEST)
+  status                  ApprovalStatus           @default(PENDING)
+  isEmailVerified         Boolean                  @default(false)
   otp                     String?
   otpExpiresAt            DateTime?
-  resetPasswordToken      String?               @unique
+  resetPasswordToken      String?                  @unique
   resetPasswordExpiresAt  DateTime?
   avatarUrl               String?
   phoneNumber             String?
-  pointsCount             Int                   @default(0)
-  createdAt               DateTime              @default(now())
-  updatedAt               DateTime              @updatedAt
-  achievements            Achievement[]         @relation("UserAchievements")
+  pointsCount             Int                      @default(0)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  achievements            Achievement[]            @relation("UserAchievements")
   adminPermission         AdminPermission?
   actionsPerformed        AuditLog[]
-  communitiesCreated      Community[]           @relation("CommunityCreator")
-  commentsAuthored        CommunityComment[]    @relation("CommentAuthor")
-  communityLikes          CommunityLike[]       @relation("CommunityLikes")
-  communityMemberships    CommunityMembership[] @relation("CommunityMemberships")
-  communityMentions       CommunityMention[]    @relation("CommunityMentions")
-  communityReports        CommunityReport[]     @relation("CommunityReports")
-  topicsAuthored          CommunityTopic[]      @relation("TopicAuthor")
+  communitiesCreated      Community[]              @relation("CommunityCreator")
+  commentsAuthored        CommunityComment[]       @relation("CommentAuthor")
+  communityLikes          CommunityLike[]          @relation("CommunityLikes")
+  communityMemberships    CommunityMembership[]    @relation("CommunityMemberships")
+  communityMentions       CommunityMention[]       @relation("CommunityMentions")
+  communityReports        CommunityReport[]        @relation("CommunityReports")
+  communityCommentReports CommunityCommentReport[] @relation("CommentReports")
+  topicsAuthored          CommunityTopic[]         @relation("TopicAuthor")
   downloads               DownloadLog[]
-  eventsCreated           Event[]               @relation("EventCreator")
+  eventsCreated           Event[]                  @relation("EventCreator")
   events                  EventRegistration[]
   expertProfile           ExpertProfile?
-  mentorAssignments       MentorRequest[]       @relation("MentorAssignments")
-  mentorRequests          MentorRequest[]       @relation("MentorRequests")
-  newsPosts               NewsPost[]            @relation("NewsAuthor")
+  mentorAssignments       MentorRequest[]          @relation("MentorAssignments")
+  mentorRequests          MentorRequest[]          @relation("MentorRequests")
+  newsPosts               NewsPost[]               @relation("NewsAuthor")
   notifications           Notification[]
   organization            Organization?
   organizationMemberships OrganizationMember[]
-  resourceCompletions     ResourceCompletion[]  @relation("ResourceCompletions")
-  resourceViews           ResourceView[]        @relation("ResourceViews")
-  topicViews              TopicView[]           @relation("TopicViews")
-  badges                  Badge[]               @relation("BadgeToUser")
+  resourceCompletions     ResourceCompletion[]     @relation("ResourceCompletions")
+  resourceViews           ResourceView[]           @relation("ResourceViews")
+  topicViews              TopicView[]              @relation("TopicViews")
+  badges                  Badge[]                  @relation("BadgeToUser")
 
   @@index([role])
   @@index([status])
@@ -589,9 +590,18 @@ model CommunityComment {
   likes     CommunityLike[]
   mentions  CommunityMention[]
 
+  isQuote   Boolean                  @default(false)
+  quoteId   String?
+  quote     CommunityComment?        @relation("CommentQuotes", fields: [quoteId], references: [id], onDelete: SetNull)
+  quotedBy  CommunityComment[]       @relation("CommentQuotes")
+  isBlocked Boolean                  @default(false)
+  reports   CommunityCommentReport[]
+
   @@index([topicId])
   @@index([authorId])
   @@index([parentId])
+  @@index([isBlocked])
+  @@index([quoteId])
 }
 
 model CommunityLike {
@@ -620,6 +630,20 @@ model CommunityReport {
 
   @@unique([topicId, reportedById])
   @@index([topicId])
+  @@index([reportedById])
+}
+
+model CommunityCommentReport {
+  id           String           @id @default(uuid())
+  reason       String?          @db.Text
+  reportedById String
+  reportedBy   User             @relation("CommentReports", fields: [reportedById], references: [id], onDelete: Cascade)
+  commentId    String
+  comment      CommunityComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+
+  @@unique([commentId, reportedById])
+  @@index([commentId])
   @@index([reportedById])
 }
 

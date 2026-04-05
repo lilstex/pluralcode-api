@@ -12,6 +12,8 @@ import {
   CreateCommentDto,
   UpdateCommentDto,
   TopicFilter,
+  ReportCommentDto,
+  BlockCommentDto,
 } from '../dto/community.dto';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
 import { NotificationsService } from 'src/notifications/service/notifications.service';
@@ -31,6 +33,27 @@ const AUTHOR_SELECT = {
 
 const COMMUNITY_COUNTS = {
   _count: { select: { memberships: true, topics: true } },
+} as const;
+
+// Shared select for quoted comment: lightweight, no deep nesting
+const QUOTE_SELECT = {
+  id: true,
+  body: true,
+  createdAt: true,
+  author: { select: AUTHOR_SELECT },
+} as const;
+
+const COMMENT_INCLUDE = {
+  author: { select: AUTHOR_SELECT },
+  quote: { select: QUOTE_SELECT }, // the comment being quoted (if any)
+  replies: {
+    where: { isBlocked: false },
+    orderBy: { createdAt: 'asc' as const },
+    include: {
+      author: { select: AUTHOR_SELECT },
+      quote: { select: QUOTE_SELECT },
+    },
+  },
 } as const;
 
 const TOPIC_INCLUDE = {
@@ -1274,17 +1297,37 @@ export class CommunityService {
         }
       }
 
+      // Validate quoted comment belongs to the same topic
+      if (dto.quoteId) {
+        const quoted = await this.prisma.communityComment.findUnique({
+          where: { id: dto.quoteId },
+        });
+        if (!quoted || quoted.topicId !== topicId) {
+          return {
+            status: false,
+            statusCode: HttpStatus.BAD_REQUEST,
+            message: 'Quoted comment not found on this topic.',
+          };
+        }
+        if (quoted.isBlocked) {
+          return {
+            status: false,
+            statusCode: HttpStatus.BAD_REQUEST,
+            message: 'Cannot quote a blocked comment.',
+          };
+        }
+      }
+
       const comment = await this.prisma.communityComment.create({
         data: {
           body: dto.body,
           topicId,
           authorId: userId,
           parentId: dto.parentId ?? null,
+          quoteId: dto.quoteId ?? null,
+          isQuote: !!dto.quoteId,
         },
-        include: {
-          author: { select: AUTHOR_SELECT },
-          replies: { include: { author: { select: AUTHOR_SELECT } } },
-        },
+        include: COMMENT_INCLUDE,
       });
 
       // Mentions: use explicit UUID array from frontend typeahead
@@ -1386,16 +1429,58 @@ export class CommunityService {
         };
       }
 
+      // Validate quoteId if being changed
+      let isQuote = comment.isQuote;
+      let resolvedQuoteId: string | null = comment.quoteId;
+
+      if (dto.quoteId !== undefined) {
+        if (dto.quoteId === null) {
+          // User is explicitly removing the quote
+          isQuote = false;
+          resolvedQuoteId = null;
+        } else {
+          // User is setting or changing the quoted comment
+          const quoted = await this.prisma.communityComment.findUnique({
+            where: { id: dto.quoteId },
+          });
+          if (!quoted || quoted.topicId !== topicId) {
+            return {
+              status: false,
+              statusCode: HttpStatus.BAD_REQUEST,
+              message: 'Quoted comment not found on this topic.',
+            };
+          }
+          if (quoted.isBlocked) {
+            return {
+              status: false,
+              statusCode: HttpStatus.BAD_REQUEST,
+              message: 'Cannot quote a blocked comment.',
+            };
+          }
+          if (dto.quoteId === commentId) {
+            return {
+              status: false,
+              statusCode: HttpStatus.BAD_REQUEST,
+              message: 'A comment cannot quote itself.',
+            };
+          }
+          isQuote = true;
+          resolvedQuoteId = dto.quoteId;
+        }
+      }
+
+      // Persist the update
       const updated = await this.prisma.communityComment.update({
         where: { id: commentId },
-        data: { body: dto.body },
-        include: {
-          author: { select: AUTHOR_SELECT },
-          replies: { include: { author: { select: AUTHOR_SELECT } } },
+        data: {
+          ...(dto.body !== undefined && { body: dto.body }),
+          isQuote,
+          quoteId: resolvedQuoteId,
         },
+        include: COMMENT_INCLUDE,
       });
 
-      // Replace mentions with updated list
+      // Replace mentions
       await this.prisma.communityMention.deleteMany({ where: { commentId } });
       const toMention = (dto.mentionedUserIds ?? []).filter(
         (id) => id !== userId,
@@ -1466,6 +1551,236 @@ export class CommunityService {
       };
     } catch (err) {
       this.logger.error('deleteComment error', err);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // COMMENT REPORTS & BLOCKING
+  // ─────────────────────────────────────────────────────────────────────────────
+  async reportComment(
+    userId: string,
+    communityId: string,
+    topicId: string,
+    commentId: string,
+    dto: ReportCommentDto,
+  ) {
+    try {
+      if (!(await this.isMember(userId, communityId)))
+        return this.notMemberError();
+
+      const comment = await this.prisma.communityComment.findUnique({
+        where: { id: commentId },
+      });
+      if (!comment || comment.topicId !== topicId || comment.isBlocked) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Comment not found.',
+        };
+      }
+
+      const existing = await this.prisma.communityCommentReport.findUnique({
+        where: { commentId_reportedById: { commentId, reportedById: userId } },
+      });
+      if (existing) {
+        return {
+          status: false,
+          statusCode: HttpStatus.CONFLICT,
+          message: 'You have already reported this comment.',
+        };
+      }
+
+      const report = await this.prisma.communityCommentReport.create({
+        data: { commentId, reportedById: userId, reason: dto.reason ?? null },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.CREATED,
+        message: 'Comment reported.',
+        data: report,
+      };
+    } catch (err) {
+      this.logger.error('reportComment error', err);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async listReportedComments(query: {
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    try {
+      const { page, limit, skip } = this.safePaginate(query.page, query.limit);
+      const where: any = {};
+
+      if (query.search) {
+        where.OR = [
+          {
+            comment: { body: { contains: query.search, mode: 'insensitive' } },
+          },
+          {
+            reportedBy: {
+              fullName: { contains: query.search, mode: 'insensitive' },
+            },
+          },
+        ];
+      }
+
+      const [reports, total] = await this.prisma.$transaction([
+        this.prisma.communityCommentReport.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            comment: {
+              select: {
+                id: true,
+                body: true,
+                isBlocked: true,
+                topicId: true,
+                authorId: true,
+                author: { select: AUTHOR_SELECT },
+                createdAt: true,
+              },
+            },
+            reportedBy: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        }),
+        this.prisma.communityCommentReport.count({ where }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Reported comments retrieved.',
+        data: { reports, total, page, limit, pages: Math.ceil(total / limit) },
+      };
+    } catch (err) {
+      this.logger.error('listReportedComments error', err);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async blockComment(
+    communityId: string,
+    topicId: string,
+    commentId: string,
+    dto: BlockCommentDto,
+  ) {
+    try {
+      const comment = await this.prisma.communityComment.findUnique({
+        where: { id: commentId },
+      });
+      if (!comment || comment.topicId !== topicId) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Comment not found.',
+        };
+      }
+
+      const updated = await this.prisma.communityComment.update({
+        where: { id: commentId },
+        data: { isBlocked: dto.isBlocked },
+      });
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: dto.isBlocked ? 'Comment blocked.' : 'Comment unblocked.',
+        data: updated,
+      };
+    } catch (err) {
+      this.logger.error('blockComment error', err);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async listBlockedComments(
+    communityId: string,
+    query: { page?: number; limit?: number },
+  ) {
+    try {
+      const { page, limit, skip } = this.safePaginate(query.page, query.limit);
+
+      const community = await this.prisma.community.findUnique({
+        where: { id: communityId },
+      });
+      if (!community) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Community not found.',
+        };
+      }
+
+      const [comments, total] = await this.prisma.$transaction([
+        this.prisma.communityComment.findMany({
+          where: { isBlocked: true, topic: { communityId } },
+          skip,
+          take: limit,
+          orderBy: { updatedAt: 'desc' },
+          select: {
+            id: true,
+            body: true,
+            isBlocked: true,
+            createdAt: true,
+            updatedAt: true,
+            author: { select: AUTHOR_SELECT },
+            topic: { select: { id: true, title: true, communityId: true } },
+            _count: { select: { reports: true } },
+          },
+        }),
+        this.prisma.communityComment.count({
+          where: { isBlocked: true, topic: { communityId } },
+        }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Blocked comments retrieved.',
+        data: {
+          comments: comments.map((c) => ({
+            ...c,
+            reportCount: c._count.reports,
+            _count: undefined,
+          })),
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (err) {
+      this.logger.error('listBlockedComments error', err);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,

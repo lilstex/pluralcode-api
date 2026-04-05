@@ -50,6 +50,8 @@ import {
   CommunityAnalyticsDto,
   AllTopicResponseDto,
   TopicFilter,
+  BlockCommentDto,
+  ReportCommentDto,
 } from '../dto/community.dto';
 import { CommunityService } from '../service/community.service';
 
@@ -157,6 +159,26 @@ export class CommunityController {
   @ApiQuery({ name: 'limit', required: false })
   listReportedTopics(@Query() query: CommunityQueryDto) {
     return this.communityService.listReportedTopics(query);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.CONTENT_ADMIN)
+  @ApiBearerAuth()
+  @Get('admin/comment-reports')
+  @ApiOperation({
+    summary: 'Admin: List all reported comments (paginated)',
+    description:
+      'Returns every comment report with the comment body and reporter details. Supports search across comment body and reporter name.',
+  })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  listReportedComments(
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.communityService.listReportedComments({ search, page, limit });
   }
 
   @Get('activity/feed')
@@ -450,6 +472,83 @@ export class CommunityController {
       topicId,
       commentId,
     );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // COMMENT REPORTS & BLOCKING
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post(':communityId/topics/:topicId/comments/:commentId/report')
+  @ApiParam({ name: 'communityId', description: 'Community UUID' })
+  @ApiParam({ name: 'topicId', description: 'Topic UUID' })
+  @ApiParam({ name: 'commentId', description: 'Comment UUID' })
+  @ApiOperation({
+    summary: 'Report a comment (member only, once per user per comment)',
+    description:
+      'Creates a report record for admin review. A user can only report a comment once.',
+  })
+  reportComment(
+    @CurrentUser() user: any,
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('topicId', ParseUUIDPipe) topicId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+    @Body() dto: ReportCommentDto,
+  ) {
+    return this.communityService.reportComment(
+      user.id,
+      communityId,
+      topicId,
+      commentId,
+      dto,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.CONTENT_ADMIN)
+  @ApiBearerAuth()
+  @Patch(':communityId/topics/:topicId/comments/:commentId/block')
+  @HttpCode(HttpStatus.OK)
+  @ApiParam({ name: 'communityId', description: 'Community UUID' })
+  @ApiParam({ name: 'topicId', description: 'Topic UUID' })
+  @ApiParam({ name: 'commentId', description: 'Comment UUID' })
+  @ApiOperation({ summary: 'Admin: Block or unblock a comment' })
+  blockComment(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Param('topicId', ParseUUIDPipe) topicId: string,
+    @Param('commentId', ParseUUIDPipe) commentId: string,
+    @Body() dto: BlockCommentDto,
+  ) {
+    return this.communityService.blockComment(
+      communityId,
+      topicId,
+      commentId,
+      dto,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.CONTENT_ADMIN)
+  @ApiBearerAuth()
+  @Get(':communityId/admin/blocked-comments')
+  @ApiParam({ name: 'communityId', description: 'Community UUID' })
+  @ApiOperation({
+    summary: 'Admin: List all blocked comments in a community (paginated)',
+    description:
+      'Returns blocked comments with their report count, author, and parent topic.',
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  listBlockedComments(
+    @Param('communityId', ParseUUIDPipe) communityId: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.communityService.listBlockedComments(communityId, {
+      page,
+      limit,
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

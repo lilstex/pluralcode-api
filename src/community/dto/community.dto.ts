@@ -156,6 +156,15 @@ export class CreateCommentDto {
 
   @ApiPropertyOptional({
     description:
+      'UUID of the comment being quoted. When provided, isQuote is set to true automatically.',
+    example: 'uuid-of-comment-being-quoted',
+  })
+  @IsOptional()
+  @IsUUID()
+  quoteId?: string;
+
+  @ApiPropertyOptional({
+    description:
       'UUIDs of users mentioned in this comment (from the @mention typeahead)',
     type: [String],
     example: ['uuid-1', 'uuid-2'],
@@ -167,10 +176,19 @@ export class CreateCommentDto {
 }
 
 export class UpdateCommentDto {
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  body: string;
+  body?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'UUID of the comment being quoted. When provided, isQuote is set to true automatically.',
+    example: 'uuid-of-comment-being-quoted',
+  })
+  @IsOptional()
+  @IsUUID()
+  quoteId?: string;
 
   @ApiPropertyOptional({
     description:
@@ -181,6 +199,25 @@ export class UpdateCommentDto {
   @IsArray()
   @IsUUID('4', { each: true })
   mentionedUserIds?: string[];
+}
+
+// ─────────────────────────────────────────────
+// COMMENT REPORT / BLOCK
+// ─────────────────────────────────────────────
+
+export class ReportCommentDto {
+  @ApiPropertyOptional({ example: 'This comment contains abusive language.' })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class BlockCommentDto {
+  @ApiProperty({
+    description: 'true to block the comment, false to unblock it',
+  })
+  @IsBoolean()
+  isBlocked: boolean;
 }
 
 // ─────────────────────────────────────────────
@@ -206,12 +243,24 @@ export class CommunityResponseDto {
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }
+
+export class QuotedCommentDto {
+  @ApiProperty() id: string;
+  @ApiProperty() body: string;
+  @ApiProperty({ type: CommunityAuthorDto }) author: CommunityAuthorDto;
+  @ApiProperty() createdAt: Date;
+}
+
 export class CommentResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() body: string;
   @ApiProperty() likeCount: number;
-  @ApiProperty({ type: CommunityAuthorDto }) author: CommunityAuthorDto;
+  @ApiProperty() isBlocked: boolean;
+  @ApiProperty() isQuote: boolean;
   @ApiPropertyOptional() parentId?: string;
+  @ApiPropertyOptional() quoteId?: string;
+  @ApiPropertyOptional({ type: QuotedCommentDto }) quote?: QuotedCommentDto;
+  @ApiProperty({ type: CommunityAuthorDto }) author: CommunityAuthorDto;
   @ApiProperty({ type: [Object] }) replies: CommentResponseDto[];
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
