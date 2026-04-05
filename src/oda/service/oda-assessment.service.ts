@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { FormStatus } from '@prisma/client';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument from 'pdfkit';
 
 import {
   SaveBlockResponseDto,

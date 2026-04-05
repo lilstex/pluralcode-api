@@ -220,7 +220,7 @@ export class OdaScoringService {
 
     // ── Strengths ─────────────────────────────────────────────────────────
     lines.push('STRENGTHS');
-    lines.push('─────────');
+    lines.push('──────────────────');
     const strongBlocks = blockSummaries.filter((b) => b.avgScale >= 3);
 
     if (strongBlocks.length) {
@@ -246,7 +246,7 @@ export class OdaScoringService {
 
     // ── Areas for development ──────────────────────────────────────────────
     lines.push('AREAS FOR DEVELOPMENT');
-    lines.push('─────────────────────');
+    lines.push('──────────────────');
     lines.push(
       `The ${weakestPillar} pillar requires the most focused attention. ` +
         `The three lowest-scoring blocks are detailed below, including gaps identified ` +
@@ -279,7 +279,7 @@ export class OdaScoringService {
     // ── Recommended resources ──────────────────────────────────────────────
     if (resourceSuggestions.length) {
       lines.push('RECOMMENDED RESOURCES');
-      lines.push('─────────────────────');
+      lines.push('──────────────────');
       lines.push(
         `Based on the gaps identified above, the following resources from the PLRCAP library ` +
           `may support capacity building:`,
@@ -298,7 +298,7 @@ export class OdaScoringService {
 
     if (expertSuggestions.length) {
       lines.push('RECOMMENDED MENTORS & EXPERTS');
-      lines.push('─────────────────────────────');
+      lines.push('──────────────────');
       lines.push(
         `The following PLRCAP-registered experts have experience in the areas ` +
           `where this organisation needs the most support:`,
