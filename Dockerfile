@@ -5,7 +5,7 @@ WORKDIR /app
 # Install OpenSSL — required by Prisma on slim images
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-ENV NODE_OPTIONS=--max-old-space-size=2048
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 COPY package*.json ./
 COPY prisma ./prisma
@@ -17,7 +17,7 @@ RUN npm ci --legacy-peer-deps --no-audit --no-fund --ignore-scripts
 RUN npx prisma generate --schema=./prisma/schema/schema.prisma
 
 COPY . .
-RUN npm run build
+RUN node --max-old-space-size=4096 ./node_modules/.bin/nest build
 
 # Stage 2: Production
 FROM node:20-slim
