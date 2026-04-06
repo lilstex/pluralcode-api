@@ -71,10 +71,15 @@ export class CommunityGateway
   // ─────────────────────────────────────────────────────────────────────────
   // LIFECYCLE
   // ─────────────────────────────────────────────────────────────────────────
-
   async handleConnection(client: Socket) {
     const userId = this.extractUserId(client);
     this.socketMeta.set(client.id, { userId, communityIds: new Set() });
+
+    // JOIN PRIVATE ROOM
+    if (userId) {
+      await client.join(`user_${userId}`);
+    }
+
     this.logger.debug(
       `Socket connected: ${client.id}  userId=${userId ?? 'guest'}`,
     );
@@ -220,18 +225,14 @@ export class CommunityGateway
       mentionedBy: string;
     },
   ) {
-    // Find all sockets belonging to this user and emit directly
-    this.server.sockets.sockets.forEach((socket) => {
-      const meta = this.socketMeta.get(socket.id);
-      if (meta?.userId === mentionedUserId) {
-        socket.emit('mention:received', payload);
-      }
-    });
+    try {
+      this.server
+        .to(`user_${mentionedUserId}`)
+        .emit('mention:received', payload);
+    } catch (error) {
+      console.error('Error broadcasting mention:', error);
+    }
   }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // HELPERS
-  // ─────────────────────────────────────────────────────────────────────────
 
   private extractUserId(client: Socket): string | null {
     try {

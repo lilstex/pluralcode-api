@@ -1247,7 +1247,7 @@ export class UserService {
           type: NotificationType.ACCOUNT_APPROVED,
           title: 'Account Approved',
           body: 'Your account has been approved. You can now access all platform features.',
-          link: '/dashboard',
+          link: `${process.env.FRONTEND_URL}/dashboard`,
         })
         .catch((err) => this.logger.error('notification failed', err));
     }
@@ -1274,7 +1274,7 @@ export class UserService {
           body: reason
             ? `Your account application was not approved: ${reason}`
             : 'Your account application was not approved. Please contact support.',
-          link: '/support',
+          link: `${process.env.FRONTEND_URL}/support`,
         })
         .catch((err) => this.logger.error('notification failed', err));
     }

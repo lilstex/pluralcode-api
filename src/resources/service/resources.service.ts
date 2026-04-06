@@ -995,7 +995,7 @@ export class ResourceService {
             newBadges.length > 0
               ? `You completed "${resource.title}" and earned ${resource.points} points + the "${newBadges[0]}" badge!`
               : `You completed "${resource.title}" and earned ${resource.points} points!`,
-          link: `/resources/${resource.id}`,
+          link: `${process.env.FRONTEND_URL}/resources/${resource.id}`,
           meta: {
             resourceTitle: resource.title,
             pointsEarned: resource.points,

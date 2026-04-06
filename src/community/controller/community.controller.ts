@@ -96,7 +96,7 @@ export class CommunityController {
     return this.communityService.getMyMentions(user.id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtGuard)
   @ApiBearerAuth()
   @Get('analytics/general')
   @ApiOperation({
@@ -106,8 +106,9 @@ export class CommunityController {
       'user-specific counts (joined communities, topics started, replies posted/received).',
   })
   @ApiResponse({ status: 200, type: GeneralAnalyticsDto })
-  getGeneralAnalytics(@CurrentUser() user: any) {
-    return this.communityService.getGeneralAnalytics(user.id);
+  getGeneralAnalytics(@Req() req: Request) {
+    const userId = (req as any).user?.id;
+    return this.communityService.getGeneralAnalytics(userId);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

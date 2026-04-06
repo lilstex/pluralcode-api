@@ -205,7 +205,7 @@ export class MentorRequestService {
         type: NotificationType.MENTOR_REQUEST_RECEIVED,
         title: 'New Mentorship Request',
         body: `${ngoUser.organization.name} has sent you a mentorship request.`,
-        link: `/dashboard/mentor-requests`,
+        link: `${process.env.FRONTEND_URL}/dashboard/mentor-requests`,
         meta: { orgName: ngoUser.organization.name, requestId: request.id },
       })
       .catch((err) => this.logger.error('notification failed', err));
@@ -482,7 +482,7 @@ export class MentorRequestService {
         body: isApproved
           ? `${request.mentor.fullName} has accepted your mentorship request.`
           : `${request.mentor.fullName} has declined your mentorship request.`,
-        link: `/dashboard/mentorship`,
+        link: `${process.env.FRONTEND_URL}/dashboard/mentorship`,
         meta: { mentorName: request.mentor.fullName, requestId: request.id },
       })
       .catch((err) => this.logger.error('notification failed', err));
@@ -548,7 +548,7 @@ export class MentorRequestService {
           type: NotificationType.MENTOR_SESSION_COMPLETED,
           title: 'Mentorship Session Completed',
           body: 'Your mentorship session has been marked as completed. +10 points awarded!',
-          link: `/dashboard/mentorship`,
+          link: `${process.env.FRONTEND_URL}/dashboard/mentorship`,
           meta: { requestId: request.id },
         },
         {
@@ -556,7 +556,7 @@ export class MentorRequestService {
           type: NotificationType.MENTOR_SESSION_COMPLETED,
           title: 'Mentorship Session Completed',
           body: 'You have marked a mentorship session as completed.',
-          link: `/dashboard/mentor-requests`,
+          link: `${process.env.FRONTEND_URL}/dashboard/mentor-requests`,
           meta: { requestId: request.id },
         },
       ])

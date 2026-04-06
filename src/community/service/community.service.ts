@@ -1172,7 +1172,7 @@ export class CommunityService {
               type: NotificationType.COMMUNITY_TOPIC_LIKED,
               title: 'Someone liked your topic',
               body: `Your topic "${topic.title}" received a new like.`,
-              link: `/communities/${topic.communityId}/topics/${topic.id}`,
+              link: `${process.env.FRONTEND_URL}/community `,
               meta: { topicId: topic.id, topicTitle: topic.title },
             })
             .catch((err) => this.logger.error('notification failed', err));
@@ -1337,6 +1337,7 @@ export class CommunityService {
       if (filteredMentions.length > 0) {
         await this.saveMentions(filteredMentions, {
           communityId,
+          topicId,
           commentId: comment.id,
         });
       }
@@ -1349,7 +1350,7 @@ export class CommunityService {
             type: NotificationType.COMMUNITY_TOPIC_COMMENT,
             title: 'New comment on your topic',
             body: `Someone commented on your topic "${topic.title}".`,
-            link: `/communities/${communityId}/topics/${topicId}`,
+            link: `${process.env.FRONTEND_URL}/community `,
             meta: { topicId, topicTitle: topic.title, commentId: comment.id },
           })
           .catch((err) => this.logger.error('notification failed', err));
@@ -1364,7 +1365,7 @@ export class CommunityService {
               type: NotificationType.COMMUNITY_MENTION,
               title: 'You were mentioned in a comment',
               body: `You were mentioned in a comment on "${topic.title}".`,
-              link: `/communities/${communityId}/topics/${topicId}`,
+              link: `${process.env.FRONTEND_URL}/community `,
               meta: { topicId, topicTitle: topic.title, commentId: comment.id },
             })),
           )
@@ -1848,41 +1849,102 @@ export class CommunityService {
   // ANALYTICS
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async getGeneralAnalytics(userId: string) {
+  // async getGeneralAnalytics(userId?: string) {
+  //   try {
+  //     const [
+  //       totalCommunities,
+  //       myJoinedCommunities,
+  //       totalMembers,
+  //       totalTopics,
+  //       myTopicsCount,
+  //       myRepliesPosted,
+  //       myRepliesReceived,
+  //     ] = await this.prisma.$transaction([
+  //       this.prisma.community.count({ where: { isActive: true } }),
+  //       this.prisma.communityMembership.count({ where: { userId } }),
+  //       this.prisma.communityMembership.count(),
+  //       this.prisma.communityTopic.count({ where: { isBlocked: false } }),
+  //       this.prisma.communityTopic.count({ where: { authorId: userId } }),
+  //       this.prisma.communityComment.count({ where: { authorId: userId } }),
+  //       this.prisma.communityComment.count({
+  //         where: { topic: { authorId: userId } },
+  //       }),
+  //     ]);
+
+  //     return {
+  //       status: true,
+  //       statusCode: HttpStatus.OK,
+  //       message: 'General analytics retrieved.',
+  //       data: {
+  //         totalCommunities,
+  //         myJoinedCommunities,
+  //         totalMembers,
+  //         totalTopics,
+  //         myTopicsCount,
+  //         myRepliesPosted,
+  //         myRepliesReceived,
+  //       },
+  //     };
+  //   } catch (err) {
+  //     this.logger.error('getGeneralAnalytics error', err);
+  //     return {
+  //       status: false,
+  //       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+  //       message: 'Server error.',
+  //     };
+  //   }
+  // }
+
+  async getGeneralAnalytics(userId?: string) {
     try {
-      const [
-        totalCommunities,
-        myJoinedCommunities,
-        totalMembers,
-        totalTopics,
-        myTopicsCount,
-        myRepliesPosted,
-        myRepliesReceived,
-      ] = await this.prisma.$transaction([
-        this.prisma.community.count({ where: { isActive: true } }),
-        this.prisma.communityMembership.count({ where: { userId } }),
-        this.prisma.communityMembership.count(),
-        this.prisma.communityTopic.count({ where: { isBlocked: false } }),
-        this.prisma.communityTopic.count({ where: { authorId: userId } }),
-        this.prisma.communityComment.count({ where: { authorId: userId } }),
-        this.prisma.communityComment.count({
-          where: { topic: { authorId: userId } },
-        }),
-      ]);
+      const data = await this.prisma.$transaction(async (tx) => {
+        // 1. Always run general counts
+        const totalCommunities = await tx.community.count({
+          where: { isActive: true },
+        });
+        const totalMembers = await tx.communityMembership.count();
+        const totalTopics = await tx.communityTopic.count({
+          where: { isBlocked: false },
+        });
+
+        // 2. Run user-specific counts only if userId exists
+        let myJoinedCommunities = 0;
+        let myTopicsCount = 0;
+        let myRepliesPosted = 0;
+        let myRepliesReceived = 0;
+
+        if (userId) {
+          [
+            myJoinedCommunities,
+            myTopicsCount,
+            myRepliesPosted,
+            myRepliesReceived,
+          ] = await Promise.all([
+            tx.communityMembership.count({ where: { userId } }),
+            tx.communityTopic.count({ where: { authorId: userId } }),
+            tx.communityComment.count({ where: { authorId: userId } }),
+            tx.communityComment.count({
+              where: { topic: { authorId: userId } },
+            }),
+          ]);
+        }
+
+        return {
+          totalCommunities,
+          totalMembers,
+          totalTopics,
+          myJoinedCommunities,
+          myTopicsCount,
+          myRepliesPosted,
+          myRepliesReceived,
+        };
+      });
 
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'General analytics retrieved.',
-        data: {
-          totalCommunities,
-          myJoinedCommunities,
-          totalMembers,
-          totalTopics,
-          myTopicsCount,
-          myRepliesPosted,
-          myRepliesReceived,
-        },
+        data,
       };
     } catch (err) {
       this.logger.error('getGeneralAnalytics error', err);

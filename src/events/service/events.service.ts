@@ -839,7 +839,7 @@ export class EventService {
           type: NotificationType.EVENT_REGISTRATION_CONFIRMED,
           title: 'Registration Confirmed',
           body: `You have successfully registered for "${event.title}".`,
-          link: `/events/${event.id}`,
+          link: `${process.env.FRONTEND_URL}/resources/events`,
           meta: { eventTitle: event.title, startTime: event.startTime },
         })
         .catch((err) => this.logger.error('notification failed', err));
@@ -1528,7 +1528,7 @@ export class EventService {
           type: NotificationType.EVENT_UPDATED,
           title: 'Event Updated',
           body: `"${event.title}" has been updated. Check the new details.`,
-          link: `/events/${event.id}`,
+          link: `${process.env.FRONTEND_URL}/resources/events`,
           meta: {
             eventTitle: event.title,
             startTime: event.startTime,
@@ -1564,7 +1564,7 @@ export class EventService {
           type: NotificationType.EVENT_CANCELLED,
           title: 'Event Cancelled',
           body: `"${event.title}" has been cancelled. ${reason ?? ''}`.trim(),
-          link: `/events`,
+          link: `${process.env.FRONTEND_URL}/resources/events`,
           meta: { eventTitle: event.title, reason: reason },
         })),
       )
