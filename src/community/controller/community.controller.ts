@@ -194,8 +194,6 @@ export class CommunityController {
     return this.communityService.getActivityFeed();
   }
 
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @Get(':communityId')
   @ApiParam({ name: 'communityId', description: 'Community UUID' })
   @ApiOperation({ summary: 'Get a single community' })
@@ -348,26 +346,29 @@ export class CommunityController {
     return this.communityService.listAllTopicsGlobal(query);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtGuard)
   @ApiBearerAuth()
   @Get(':communityId/topics')
   @ApiParam({ name: 'communityId', description: 'Community UUID' })
   @ApiOperation({
     summary: 'List non-blocked topics in a community (paginated)',
+    description:
+      'Public endpoint. When authenticated, each topic includes a `hasLiked` flag.',
   })
   @ApiQuery({
     name: 'filter',
     enum: TopicFilter,
     required: false,
-    description: 'NEW (default) | RECENT | TRENDING',
+    description: 'NEW (default) | RECENT | TRENDING | MOST_VIEWED',
   })
   @ApiResponse({ status: 200, type: TopicResponseDto, isArray: true })
   listTopics(
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @Query() query: TopicQueryDto,
-    @CurrentUser() user: any,
+    @Req() req: Request,
   ) {
-    return this.communityService.listTopics(communityId, query, user.id);
+    const userId = (req as any).user?.id ?? null;
+    return this.communityService.listTopics(communityId, query, userId);
   }
 
   @UseGuards(JwtAuthGuard)
