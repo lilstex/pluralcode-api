@@ -632,19 +632,24 @@ export class CommunityController {
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtGuard)
   @ApiBearerAuth()
   @Get(':communityId/topics/:topicId')
   @ApiParam({ name: 'communityId', description: 'Community UUID' })
   @ApiParam({ name: 'topicId', description: 'Topic UUID' })
-  @ApiOperation({ summary: 'Get a single topic with all comments and replies' })
+  @ApiOperation({
+    summary: 'Get a single topic with all comments and replies',
+    description:
+      'Public endpoint. When authenticated, view count is tracked per user (one view per user per topic).',
+  })
   @ApiResponse({ status: 200, type: TopicResponseDto })
   getTopic(
     @Param('communityId', ParseUUIDPipe) communityId: string,
     @Param('topicId', ParseUUIDPipe) topicId: string,
-    @CurrentUser() user: any,
+    @Req() req: Request,
   ) {
-    return this.communityService.getTopic(communityId, topicId, user?.id);
+    const userId = (req as any).user?.id ?? null;
+    return this.communityService.getTopic(communityId, topicId, userId);
   }
 
   @UseGuards(JwtAuthGuard)

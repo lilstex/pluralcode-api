@@ -774,7 +774,8 @@ export class CommunityService {
       };
     }
   }
-  async getTopic(communityId: string, topicId: string, userId?: string) {
+
+  async getTopic(communityId: string, topicId: string, userId?: string | null) {
     try {
       const topic = await this.prisma.communityTopic.findUnique({
         where: { id: topicId },
@@ -789,22 +790,23 @@ export class CommunityService {
         };
       }
 
-      // Increment view count: fire-and-forget
-      this.prisma.topicView
-        .createMany({
-          data: [{ userId, topicId }],
-          skipDuplicates: true, // @@unique([userId, topicId]) enforces one row
-        })
-        .then(({ count }) => {
-          if (count === 1) {
-            // count=1 means a new row was inserted (first visit)
-            return this.prisma.communityTopic.update({
-              where: { id: topicId },
-              data: { viewCount: { increment: 1 } },
-            });
-          }
-          // count=0 means the row already existed — repeat visit, no increment
-        });
+      // View tracking — authenticated users only.
+      if (userId) {
+        this.prisma.topicView
+          .createMany({
+            data: [{ userId, topicId }],
+            skipDuplicates: true,
+          })
+          .then(({ count }) => {
+            if (count === 1) {
+              return this.prisma.communityTopic.update({
+                where: { id: topicId },
+                data: { viewCount: { increment: 1 } },
+              });
+            }
+          })
+          .catch((err) => this.logger.error('viewCount increment failed', err));
+      }
 
       return {
         status: true,
@@ -821,7 +823,6 @@ export class CommunityService {
       };
     }
   }
-
   async updateTopic(
     userId: string,
     communityId: string,
