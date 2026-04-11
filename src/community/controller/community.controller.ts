@@ -329,11 +329,15 @@ export class CommunityController {
   // TOPICS
   // ─────────────────────────────────────────────────────────────────────────────
 
+  @UseGuards(OptionalJwtGuard)
+  @ApiBearerAuth()
   @Get('topics/all/global')
   @ApiOperation({
     summary: 'List all non-blocked topics globally (paginated)',
     description:
-      'Fetches topics from all communities with community details included.',
+      'Fetches topics from all communities with community details included. ' +
+      'When authenticated, each topic includes a `hasLiked` flag. ' +
+      'TRENDING ranks by combined like count and comment count within the last 7 days.',
   })
   @ApiQuery({
     name: 'filter',
@@ -342,8 +346,9 @@ export class CommunityController {
     description: 'NEW (default) | RECENT | TRENDING',
   })
   @ApiResponse({ status: 200, type: AllTopicResponseDto, isArray: true })
-  listAllTopics(@Query() query: TopicQueryDto) {
-    return this.communityService.listAllTopicsGlobal(query);
+  listAllTopics(@Query() query: TopicQueryDto, @Req() req: Request) {
+    const userId = (req as any).user?.id ?? null;
+    return this.communityService.listAllTopicsGlobal(query, userId);
   }
 
   @UseGuards(OptionalJwtGuard)

@@ -140,7 +140,12 @@ export class CommunityService {
       case TopicFilter.RECENT:
         return { updatedAt: 'desc' };
       case TopicFilter.TRENDING:
-        return [{ likeCount: 'desc' }, { updatedAt: 'desc' }];
+        // Rank by engagement: likes first, then comment volume, then recency as tiebreaker
+        return [
+          { likeCount: 'desc' },
+          { comments: { _count: 'desc' } },
+          { updatedAt: 'desc' },
+        ];
       case TopicFilter.MOST_VIEWED:
         return { viewCount: 'desc' };
       case TopicFilter.NEW:
@@ -583,16 +588,19 @@ export class CommunityService {
   // TOPICS
   // ─────────────────────────────────────────────────────────────────────────────
 
-  async listAllTopicsGlobal(query: TopicQueryDto) {
+  async listAllTopicsGlobal(
+    query: TopicQueryDto,
+    userId: string | null = null,
+  ) {
     try {
       const { page, limit, skip } = this.safePaginate(query.page, query.limit);
 
       const where: any = { isBlocked: false };
 
-      // TRENDING: restrict to last 7 days so old viral topics don't dominate
+      // TRENDING: restrict to last 14 days so old viral topics don't dominate
       if (query.filter === TopicFilter.TRENDING) {
         where.createdAt = {
-          gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
         };
       }
 
@@ -611,20 +619,33 @@ export class CommunityService {
           orderBy: this.resolveTopicOrderBy(query.filter),
           include: {
             ...TOPIC_INCLUDE,
-            community: {
-              select: { id: true, name: true, imageUrl: true },
-            },
+            community: { select: { id: true, name: true, imageUrl: true } },
           },
         }),
         this.prisma.communityTopic.count({ where }),
       ]);
+
+      // Only fetch likes when the user is authenticated — same pattern as listTopics
+      const likedSet = new Set<string>();
+      if (userId && topics.length > 0) {
+        const topicIds = topics.map((t) => t.id);
+        const userLikes = await this.prisma.communityLike.findMany({
+          where: { userId, topicId: { in: topicIds } },
+          select: { topicId: true },
+        });
+        userLikes.forEach((l) => likedSet.add(l.topicId!));
+      }
 
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Global topics retrieved.',
         data: {
-          topics: topics.map((t) => this.formatTopic(t)),
+          topics: topics.map((t) => ({
+            ...this.formatTopic(t),
+            community: (t as any).community ?? null,
+            ...(userId !== null && { hasLiked: likedSet.has(t.id) }),
+          })),
           total,
           page,
           limit,
@@ -633,6 +654,87 @@ export class CommunityService {
       };
     } catch (err) {
       this.logger.error('listAllTopicsGlobal error', err);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async listTopics(
+    communityId: string,
+    query: TopicQueryDto,
+    userId: string | null,
+  ) {
+    try {
+      const community = await this.prisma.community.findUnique({
+        where: { id: communityId },
+      });
+      if (!community)
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Community not found.',
+        };
+
+      const { page, limit, skip } = this.safePaginate(query.page, query.limit);
+      const where: any = { communityId, isBlocked: false };
+
+      // TRENDING: restrict to last 14 days
+      if (query.filter === TopicFilter.TRENDING) {
+        where.createdAt = {
+          gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+        };
+      }
+
+      if (query.search) {
+        where.OR = [
+          { title: { contains: query.search, mode: 'insensitive' } },
+          { body: { contains: query.search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [topics, total] = await this.prisma.$transaction([
+        this.prisma.communityTopic.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: this.resolveTopicOrderBy(query.filter),
+          include: TOPIC_INCLUDE,
+        }),
+        this.prisma.communityTopic.count({ where }),
+      ]);
+
+      // Only fetch likes when the user is authenticated
+      const likedSet = new Set<string>();
+      if (userId && topics.length > 0) {
+        const topicIds = topics.map((t) => t.id);
+        const userLikes = await this.prisma.communityLike.findMany({
+          where: { userId, topicId: { in: topicIds } },
+          select: { topicId: true },
+        });
+        userLikes.forEach((l) => likedSet.add(l.topicId!));
+      }
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Topics retrieved.',
+        data: {
+          topics: topics.map((t) => ({
+            ...this.formatTopic(t),
+            // hasLiked is only included when the user is authenticated
+            ...(userId !== null && { hasLiked: likedSet.has(t.id) }),
+          })),
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (err) {
+      this.logger.error('listTopics error', err);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -694,87 +796,6 @@ export class CommunityService {
     }
   }
 
-  async listTopics(
-    communityId: string,
-    query: TopicQueryDto,
-    userId: string | null,
-  ) {
-    try {
-      const community = await this.prisma.community.findUnique({
-        where: { id: communityId },
-      });
-      if (!community)
-        return {
-          status: false,
-          statusCode: HttpStatus.NOT_FOUND,
-          message: 'Community not found.',
-        };
-
-      const { page, limit, skip } = this.safePaginate(query.page, query.limit);
-      const where: any = { communityId, isBlocked: false };
-
-      // TRENDING: restrict to last 7 days
-      if (query.filter === TopicFilter.TRENDING) {
-        where.createdAt = {
-          gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        };
-      }
-
-      if (query.search) {
-        where.OR = [
-          { title: { contains: query.search, mode: 'insensitive' } },
-          { body: { contains: query.search, mode: 'insensitive' } },
-        ];
-      }
-
-      const [topics, total] = await this.prisma.$transaction([
-        this.prisma.communityTopic.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: this.resolveTopicOrderBy(query.filter),
-          include: TOPIC_INCLUDE,
-        }),
-        this.prisma.communityTopic.count({ where }),
-      ]);
-
-      // Only fetch likes when the user is authenticated
-      const likedSet = new Set<string>();
-      if (userId && topics.length > 0) {
-        const topicIds = topics.map((t) => t.id);
-        const userLikes = await this.prisma.communityLike.findMany({
-          where: { userId, topicId: { in: topicIds } },
-          select: { topicId: true },
-        });
-        userLikes.forEach((l) => likedSet.add(l.topicId!));
-      }
-
-      return {
-        status: true,
-        statusCode: HttpStatus.OK,
-        message: 'Topics retrieved.',
-        data: {
-          topics: topics.map((t) => ({
-            ...this.formatTopic(t),
-            // hasLiked is only included when the user is authenticated
-            ...(userId !== null && { hasLiked: likedSet.has(t.id) }),
-          })),
-          total,
-          page,
-          limit,
-          pages: Math.ceil(total / limit),
-        },
-      };
-    } catch (err) {
-      this.logger.error('listTopics error', err);
-      return {
-        status: false,
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Server error.',
-      };
-    }
-  }
-
   async getTopic(communityId: string, topicId: string, userId?: string | null) {
     try {
       const topic = await this.prisma.communityTopic.findUnique({
@@ -823,6 +844,7 @@ export class CommunityService {
       };
     }
   }
+
   async updateTopic(
     userId: string,
     communityId: string,
