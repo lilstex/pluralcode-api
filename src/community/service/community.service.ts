@@ -829,11 +829,43 @@ export class CommunityService {
           .catch((err) => this.logger.error('viewCount increment failed', err));
       }
 
+      // Build the formatted topic — inject hasLiked on comments + replies
+      // when the caller is authenticated, using a single batch likes query.
+      const formatted = this.formatTopic(topic);
+
+      if (userId && topic.comments?.length) {
+        // Collect every comment ID and every nested reply ID in one pass
+        const allCommentIds: string[] = [];
+        for (const comment of topic.comments as any[]) {
+          allCommentIds.push(comment.id);
+          for (const reply of comment.replies ?? []) {
+            allCommentIds.push(reply.id);
+          }
+        }
+
+        // One query for all comment likes this user has cast in this topic
+        const likedComments = await this.prisma.communityLike.findMany({
+          where: { userId, commentId: { in: allCommentIds } },
+          select: { commentId: true },
+        });
+        const likedCommentSet = new Set(likedComments.map((l) => l.commentId!));
+
+        // Inject hasLiked onto each comment and each reply
+        formatted.comments = (topic.comments as any[]).map((comment) => ({
+          ...comment,
+          hasLiked: likedCommentSet.has(comment.id),
+          replies: (comment.replies ?? []).map((reply: any) => ({
+            ...reply,
+            hasLiked: likedCommentSet.has(reply.id),
+          })),
+        }));
+      }
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Topic retrieved.',
-        data: this.formatTopic(topic),
+        data: formatted,
       };
     } catch (err) {
       this.logger.error('getTopic error', err);
