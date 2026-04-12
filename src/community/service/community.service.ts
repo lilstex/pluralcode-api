@@ -1877,52 +1877,6 @@ export class CommunityService {
   // ANALYTICS
   // ─────────────────────────────────────────────────────────────────────────────
 
-  // async getGeneralAnalytics(userId?: string) {
-  //   try {
-  //     const [
-  //       totalCommunities,
-  //       myJoinedCommunities,
-  //       totalMembers,
-  //       totalTopics,
-  //       myTopicsCount,
-  //       myRepliesPosted,
-  //       myRepliesReceived,
-  //     ] = await this.prisma.$transaction([
-  //       this.prisma.community.count({ where: { isActive: true } }),
-  //       this.prisma.communityMembership.count({ where: { userId } }),
-  //       this.prisma.communityMembership.count(),
-  //       this.prisma.communityTopic.count({ where: { isBlocked: false } }),
-  //       this.prisma.communityTopic.count({ where: { authorId: userId } }),
-  //       this.prisma.communityComment.count({ where: { authorId: userId } }),
-  //       this.prisma.communityComment.count({
-  //         where: { topic: { authorId: userId } },
-  //       }),
-  //     ]);
-
-  //     return {
-  //       status: true,
-  //       statusCode: HttpStatus.OK,
-  //       message: 'General analytics retrieved.',
-  //       data: {
-  //         totalCommunities,
-  //         myJoinedCommunities,
-  //         totalMembers,
-  //         totalTopics,
-  //         myTopicsCount,
-  //         myRepliesPosted,
-  //         myRepliesReceived,
-  //       },
-  //     };
-  //   } catch (err) {
-  //     this.logger.error('getGeneralAnalytics error', err);
-  //     return {
-  //       status: false,
-  //       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-  //       message: 'Server error.',
-  //     };
-  //   }
-  // }
-
   async getGeneralAnalytics(userId?: string) {
     try {
       const data = await this.prisma.$transaction(async (tx) => {
@@ -1940,6 +1894,7 @@ export class CommunityService {
         let myTopicsCount = 0;
         let myRepliesPosted = 0;
         let myRepliesReceived = 0;
+        let myLikes = 0;
 
         if (userId) {
           [
@@ -1947,6 +1902,7 @@ export class CommunityService {
             myTopicsCount,
             myRepliesPosted,
             myRepliesReceived,
+            myLikes,
           ] = await Promise.all([
             tx.communityMembership.count({ where: { userId } }),
             tx.communityTopic.count({ where: { authorId: userId } }),
@@ -1954,6 +1910,11 @@ export class CommunityService {
             tx.communityComment.count({
               where: { topic: { authorId: userId } },
             }),
+            // All likes the user has given — across both topics and comments.
+            // A single CommunityLike row is either a topic like (topicId set,
+            // commentId null) or a comment like (commentId set, topicId null),
+            // so counting all rows for this userId covers both.
+            tx.communityLike.count({ where: { userId } }),
           ]);
         }
 
@@ -1965,6 +1926,7 @@ export class CommunityService {
           myTopicsCount,
           myRepliesPosted,
           myRepliesReceived,
+          myLikes,
         };
       });
 
