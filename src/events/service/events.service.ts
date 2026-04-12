@@ -817,7 +817,7 @@ export class EventService {
       //       - Issued tokens cannot be revoked
       const emailJoinUrl =
         event.externalMeetingUrl ??
-        `${process.env.FRONTEND_URL}/events/${event.id}`;
+        `${process.env.FRONTEND_URL}/events/meeting?eventId=${event.id}&email=${registration.user.email}`;
 
       this.emailService
         .sendEventRegistrationConfirmation({
