@@ -213,18 +213,93 @@ export class ResourceService {
     }
   }
 
-  async listCategories() {
+  async listCategories(search?: string) {
     try {
-      const categories = await this.prisma.category.findMany({
-        where: { parentId: null },
+      if (!search) {
+        // No search — return the full tree as before
+        const categories = await this.prisma.category.findMany({
+          where: { parentId: null },
+          include: { children: { include: { children: true } } },
+          orderBy: { name: 'asc' },
+        });
+        return {
+          status: true,
+          statusCode: HttpStatus.OK,
+          message: 'Categories retrieved.',
+          data: categories,
+        };
+      }
+
+      // ── Search mode ────────────────────────────────────────────────────────
+      // Find every category whose name matches, at any level.
+      const matched = await this.prisma.category.findMany({
+        where: { name: { contains: search, mode: 'insensitive' } },
+        select: {
+          id: true,
+          parentId: true,
+          name: true,
+          imageUrl: true,
+        },
+      });
+
+      if (!matched.length) {
+        return {
+          status: true,
+          statusCode: HttpStatus.OK,
+          message: 'Categories retrieved.',
+          data: [],
+        };
+      }
+
+      // Collect the root IDs we need to fetch:
+      //   - matched root categories (parentId = null) → include directly
+      //   - matched child categories → fetch their parent so the tree is intact
+      const rootIds = new Set<string>();
+      const childOnly = new Set<string>(); // matched IDs that are children
+
+      for (const cat of matched) {
+        if (!cat.parentId) {
+          rootIds.add(cat.id);
+        } else {
+          childOnly.add(cat.id);
+          rootIds.add(cat.parentId);
+        }
+      }
+
+      // Fetch those root categories with their full child tree
+      const roots = await this.prisma.category.findMany({
+        where: { id: { in: [...rootIds] } },
         include: { children: { include: { children: true } } },
         orderBy: { name: 'asc' },
       });
+
+      // If we're filtering by a child match, prune siblings that didn't match
+      // so the response only contains the relevant children inside each parent.
+      const data = roots.map((root) => {
+        // Root itself matched the search — return it with all its children
+        if (!childOnly.size || matched.some((m) => m.id === root.id)) {
+          return root;
+        }
+
+        // Root is here only as a parent container — filter its children to
+        // only those that matched the search term
+        return {
+          ...root,
+          children: root.children
+            .filter((child) => childOnly.has(child.id))
+            .map((child) => ({
+              ...child,
+              // Preserve grandchildren (children of the matched child) as-is
+              children: child.children ?? [],
+            })),
+        };
+      });
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Categories retrieved.',
-        data: categories,
+        data,
       };
     } catch (error) {
       this.logger.error('listCategories error', error);

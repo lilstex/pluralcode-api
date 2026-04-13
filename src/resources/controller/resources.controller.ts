@@ -86,8 +86,14 @@ export class ResourceController {
 
   @Get('categories')
   @ApiOperation({ summary: 'List all categories as a nested tree (public)' })
-  async listCategories() {
-    return this.resourceService.listCategories();
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description:
+      'Filter categories by name. Returns matching children nested inside their parent.',
+  })
+  async listCategories(@Query('search') search?: string) {
+    return this.resourceService.listCategories(search?.trim());
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
