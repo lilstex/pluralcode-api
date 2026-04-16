@@ -37,6 +37,7 @@ const MENTOR_REQUEST_INCLUDE = {
       email: true,
       organization: {
         select: {
+          id: true,
           name: true,
           state: true,
         },
