@@ -84,6 +84,7 @@ export class MentorRequestService {
         id: r.ngoUser.id,
         fullName: r.ngoUser.fullName,
         email: r.ngoUser.email,
+        orgId: r.ngoUser.organization?.id,
         orgName: r.ngoUser.organization?.name,
         orgState: r.ngoUser.organization?.state,
       },

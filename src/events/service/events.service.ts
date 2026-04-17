@@ -1117,6 +1117,8 @@ export class EventService {
           attendees: registrations.map((r) => ({
             registrationId: r.id,
             registeredAt: r.createdAt,
+            guestName: r.guestName,
+            guestEmail: r.guestEmail,
             ...r.user,
           })),
           total,
@@ -1181,7 +1183,116 @@ export class EventService {
   // JITSI TOKEN
   // ─────────────────────────────────────────────────────────────────────────────
 
+  // async getJitsiToken(userId: string, eventId: string, userRole: string) {
+  //   try {
+  //     const event = await this.prisma.event.findUnique({
+  //       where: { id: eventId },
+  //     });
+  //     if (!event)
+  //       return {
+  //         status: false,
+  //         statusCode: HttpStatus.NOT_FOUND,
+  //         message: 'Event not found.',
+  //       };
+  //     if (event.isCancelled)
+  //       return {
+  //         status: false,
+  //         statusCode: HttpStatus.BAD_REQUEST,
+  //         message: 'This event has been cancelled.',
+  //       };
+
+  //     const isAdmin = ['SUPER_ADMIN', 'EVENT_ADMIN'].includes(userRole);
+  //     const isEventCreator = event.createdById === userId;
+
+  //     // Admins and the event creator bypass the registration check
+  //     if (!isAdmin && !isEventCreator) {
+  //       const registration = await this.prisma.eventRegistration.findUnique({
+  //         where: { userId_eventId: { userId, eventId } },
+  //       });
+  //       if (!registration) {
+  //         return {
+  //           status: false,
+  //           statusCode: HttpStatus.FORBIDDEN,
+  //           message: 'You must register for this event before joining.',
+  //         };
+  //       }
+  //     }
+
+  //     const user = await this.prisma.user.findUnique({
+  //       where: { id: userId },
+  //       select: { id: true, fullName: true, email: true, avatarUrl: true },
+  //     });
+  //     if (!user)
+  //       return {
+  //         status: false,
+  //         statusCode: HttpStatus.NOT_FOUND,
+  //         message: 'User not found.',
+  //       };
+
+  //     // Moderator = admin OR event creator
+  //     const isModerator = isAdmin || isEventCreator;
+
+  //     const token = this.jitsi.generateToken(
+  //       event.jitsiRoomId,
+  //       {
+  //         userId: user.id,
+  //         fullName: user.fullName,
+  //         email: user.email,
+  //         avatarUrl: user.avatarUrl ?? undefined,
+  //         isModerator,
+  //       },
+  //       event.endTime,
+  //     );
+
+  //     // For external meetings the URL is a third-party link (Zoom etc.) — no JWT appended.
+  //     // For Jitsi rooms we append the JWT so the user enters directly without a lobby prompt.
+  //     const meetingUrl =
+  //       event.externalMeetingUrl ??
+  //       `${this.jitsi.getMeetingUrl(event.jitsiRoomId)}?jwt=${token}`;
+
+  //     return {
+  //       status: true,
+  //       statusCode: HttpStatus.OK,
+  //       message: 'Jitsi token generated.',
+  //       data: {
+  //         token,
+  //         roomId: event.jitsiRoomId,
+  //         meetingUrl, // open this URL directly — JWT already embedded for Jitsi events
+  //         isModerator,
+  //         expiresAt: event.endTime.toISOString(),
+  //       },
+  //     };
+  //   } catch (error) {
+  //     this.logger.error('getJitsiToken error', error);
+  //     return {
+  //       status: false,
+  //       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+  //       message: 'Server error.',
+  //     };
+  //   }
+  // }
+
+  // Authenticated app callers — thin wrapper that resolves email and delegates
   async getJitsiToken(userId: string, eventId: string, userRole: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (!user)
+      return {
+        status: false,
+        statusCode: HttpStatus.NOT_FOUND,
+        message: 'User not found.',
+      };
+    return this.getJitsiTokenByEmail(user.email, eventId, userRole);
+  }
+
+  // Primary resolver — handles platform users AND unauthenticated guests
+  async getJitsiTokenByEmail(
+    email: string,
+    eventId: string,
+    userRole?: string,
+  ) {
     try {
       const event = await this.prisma.event.findUnique({
         where: { id: eventId },
@@ -1199,51 +1310,95 @@ export class EventService {
           message: 'This event has been cancelled.',
         };
 
-      const isAdmin = ['SUPER_ADMIN', 'EVENT_ADMIN'].includes(userRole);
-      const isEventCreator = event.createdById === userId;
+      // ── Resolve caller identity ─────────────────────────────────────────────
+      // Try platform user first; guests won't have a user row at all.
+      const platformUser = await this.prisma.user.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatarUrl: true,
+          role: true,
+        },
+      });
 
-      // Admins and the event creator bypass the registration check
+      // Effective role: explicit arg (authenticated call) → DB role (known user via
+      // email link) → 'GUEST' (no platform account)
+      const effectiveRole = userRole ?? platformUser?.role ?? 'GUEST';
+      const isAdmin = ['SUPER_ADMIN', 'EVENT_ADMIN'].includes(effectiveRole);
+      const isEventCreator = platformUser
+        ? event.createdById === platformUser.id
+        : false;
+
+      // ── Registration check ──────────────────────────────────────────────────
+      // Admins and the event creator are always allowed in.
+      // Everyone else must have a registration row matched by userId OR guestEmail —
+      // covering both app registrations and email-link guest registrations.
       if (!isAdmin && !isEventCreator) {
-        const registration = await this.prisma.eventRegistration.findUnique({
-          where: { userId_eventId: { userId, eventId } },
+        const orClauses: any[] = [{ guestEmail: email, eventId }];
+        if (platformUser) orClauses.push({ userId: platformUser.id, eventId });
+
+        const registration = await this.prisma.eventRegistration.findFirst({
+          where: { OR: orClauses },
         });
-        if (!registration) {
+        if (!registration)
           return {
             status: false,
             statusCode: HttpStatus.FORBIDDEN,
             message: 'You must register for this event before joining.',
           };
-        }
       }
 
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, fullName: true, email: true, avatarUrl: true },
-      });
-      if (!user)
-        return {
-          status: false,
-          statusCode: HttpStatus.NOT_FOUND,
-          message: 'User not found.',
-        };
-
-      // Moderator = admin OR event creator
+      // ── Build Jitsi identity ────────────────────────────────────────────────
       const isModerator = isAdmin || isEventCreator;
+
+      let jitsiIdentity: {
+        userId: string;
+        fullName: string;
+        email: string;
+        avatarUrl?: string;
+        isModerator: boolean;
+      };
+
+      if (platformUser) {
+        jitsiIdentity = {
+          userId: platformUser.id,
+          fullName: platformUser.fullName,
+          email: platformUser.email,
+          avatarUrl: platformUser.avatarUrl ?? undefined,
+          isModerator,
+        };
+      } else {
+        // Guest — pull display name from their registration row
+        const guestReg = await this.prisma.eventRegistration.findUnique({
+          where: { guestEmail_eventId: { guestEmail: email, eventId } },
+          select: { guestName: true, guestEmail: true },
+        });
+        if (!guestReg)
+          return {
+            status: false,
+            statusCode: HttpStatus.FORBIDDEN,
+            message: 'No registration found for this email.',
+          };
+
+        jitsiIdentity = {
+          userId: `guest:${email}`, // synthetic — Jitsi requires a non-empty string
+          fullName: guestReg.guestName ?? email,
+          email: guestReg.guestEmail!,
+          avatarUrl: undefined,
+          isModerator: false, // guests are never moderators
+        };
+      }
 
       const token = this.jitsi.generateToken(
         event.jitsiRoomId,
-        {
-          userId: user.id,
-          fullName: user.fullName,
-          email: user.email,
-          avatarUrl: user.avatarUrl ?? undefined,
-          isModerator,
-        },
+        jitsiIdentity,
         event.endTime,
       );
 
-      // For external meetings the URL is a third-party link (Zoom etc.) — no JWT appended.
-      // For Jitsi rooms we append the JWT so the user enters directly without a lobby prompt.
+      // External meetings (Zoom etc.) → URL only, no JWT.
+      // Jitsi rooms → embed the JWT so the participant skips the lobby prompt.
       const meetingUrl =
         event.externalMeetingUrl ??
         `${this.jitsi.getMeetingUrl(event.jitsiRoomId)}?jwt=${token}`;
@@ -1255,13 +1410,13 @@ export class EventService {
         data: {
           token,
           roomId: event.jitsiRoomId,
-          meetingUrl, // open this URL directly — JWT already embedded for Jitsi events
+          meetingUrl,
           isModerator,
           expiresAt: event.endTime.toISOString(),
         },
       };
     } catch (error) {
-      this.logger.error('getJitsiToken error', error);
+      this.logger.error('getJitsiTokenByEmail error', error);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,

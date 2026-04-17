@@ -111,6 +111,12 @@ const ORG_SUMMARY_SELECT = {
   numberOfStaff: true,
   numberOfVolunteers: true,
   vision: true,
+  socials: true,
+  otherLinks: true,
+  hasHumanitarianExperience: true,
+  isInterestedInTraining: true,
+  isLocalOrNational: true,
+  annualBudget: true,
   createdAt: true,
 } as const;
 

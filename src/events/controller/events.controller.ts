@@ -110,19 +110,23 @@ export class EventController {
   @ApiOperation({
     summary: 'Get a Jitsi JWT token to join the event meeting room',
     description:
-      'Must be registered for the event (admins and event creators are exempt). ' +
-      'Returns token, meetingUrl, and tokenizedUrl (meetingUrl + ?jwt=token). ',
+      'For unauthenticated guests who registered by email, and for platform users ' +
+      'who received an invite email and want to join without opening the app. ' +
+      'Resolves identity by checking the platform users table first, then guest ' +
+      'registrations. The caller must have a registration row for this event.',
   })
   @ApiQuery({ name: 'eventId', required: true })
-  @ApiQuery({ name: 'email', required: true })
+  @ApiQuery({
+    name: 'email',
+    required: true,
+    description: 'Email used during registration',
+  })
   @ApiResponse({ status: 200, type: JitsiTokenResponseDto })
   async joinEventViaEmail(
     @Query('email') email: string,
     @Query('eventId') eventId: string,
   ) {
-    // Get user by email
-    const user = await this.userService.getUserByEmail(email);
-    return this.eventService.getJitsiToken(user.id, eventId, user.role);
+    return this.eventService.getJitsiTokenByEmail(email, eventId);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

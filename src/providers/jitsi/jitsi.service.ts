@@ -79,7 +79,7 @@ export class JitsiService {
       exp,
       context: {
         user: {
-          id: payload.userId,
+          id: payload.userId ?? '',
           name: payload.fullName,
           email: payload.email,
           avatar: payload.avatarUrl ?? '',
