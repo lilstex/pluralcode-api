@@ -23,25 +23,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private client: Redis;
 
   onModuleInit() {
-    const redisUrl = process.env.REDIS_URL;
-
-    if (redisUrl) {
-      // Use the Render connection string
-      this.client = new Redis(redisUrl, {
-        lazyConnect: true,
-        retryStrategy: (times) => Math.min(times * 100, 3000),
-      });
-    } else {
-      // Fallback to your local individual variables
-      this.client = new Redis({
-        host: process.env.REDIS_HOST ?? 'localhost',
-        port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
-        password: process.env.REDIS_PASSWORD ?? undefined,
-        db: parseInt(process.env.REDIS_DB ?? '0', 10),
-        lazyConnect: true,
-        retryStrategy: (times) => Math.min(times * 100, 3000),
-      });
-    }
+    this.client = new Redis({
+      host: process.env.REDIS_HOST ?? 'localhost',
+      port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
+      password: process.env.REDIS_PASSWORD ?? undefined,
+      db: parseInt(process.env.REDIS_DB ?? '0', 10),
+      lazyConnect: true,
+      retryStrategy: (times) => Math.min(times * 100, 3000),
+    });
 
     this.client.on('connect', () => this.logger.log('Redis connected'));
     this.client.on('error', (err) => this.logger.error('Redis error', err));
@@ -142,23 +131,42 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   // ── Presence: global ──────────────────────────────────────────────────────
 
   /**
-   * Returns the count and list of unique user IDs that are currently online
-   * across ALL communities.
+   * Track a socket connection in the global presence set.
+   * Key: global:online-users:{userId}  →  Redis Set of socketIds
+   * Called on every authenticated socket connection, regardless of communities.
+   */
+  async globalPresenceJoin(userId: string, socketId: string): Promise<void> {
+    const key = `global:online-users:${userId}`;
+    await this.client.sadd(key, socketId);
+    await this.client.expire(key, 1800); // 30 min TTL safety net
+  }
+
+  /**
+   * Remove a socket from the global presence set.
+   * The user is fully offline when their set becomes empty.
+   * Called on every socket disconnection.
+   */
+  async globalPresenceLeave(userId: string, socketId: string): Promise<void> {
+    const key = `global:online-users:${userId}`;
+    await this.client.srem(key, socketId);
+    // Clean up empty key immediately rather than waiting for TTL
+    const remaining = await this.client.scard(key);
+    if (remaining === 0) await this.client.del(key);
+  }
+
+  /**
+   * Returns the count and list of unique user IDs currently online
+   * across the entire platform — based on the global presence keys,
+   * not community-scoped keys.
    *
-   * Strategy: scan all `community:user-sockets:{userId}:{communityId}` keys,
-   * extract the userId segment, and keep only users whose set is non-empty
-   * (i.e. they have at least one live socket somewhere).
-   *
-   * Uses SCAN instead of KEYS so it does not block the Redis event loop on
-   * large keyspaces (safe for production).
+   * Uses SCAN (not KEYS) to avoid blocking the Redis event loop.
    */
   async getAllOnlineUsers(): Promise<{ count: number; userIds: string[] }> {
-    const pattern = 'community:user-sockets:*';
-    const userIds = new Set<string>();
+    const pattern = 'global:online-users:*';
+    const userIds: string[] = [];
     let cursor = '0';
 
     do {
-      // SCAN returns [nextCursor, [key, key, ...]]
       const [nextCursor, keys] = await this.client.scan(
         cursor,
         'MATCH',
@@ -168,24 +176,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       );
       cursor = nextCursor;
 
-      if (keys.length === 0) continue;
-
-      // Check each key in parallel — only count users with >= 1 live socket
-      await Promise.all(
-        keys.map(async (key) => {
-          const count = await this.client.scard(key);
-          if (count > 0) {
-            // Key format: community:user-sockets:{userId}:{communityId}
-            // parts[0]=community, parts[1]=user-sockets, parts[2]=userId, parts[3]=communityId
-            const parts = key.split(':');
-            const userId = parts[2];
-            if (userId) userIds.add(userId);
-          }
-        }),
-      );
+      for (const key of keys) {
+        // Key format: global:online-users:{userId}
+        const userId = key.replace('global:online-users:', '');
+        if (userId) userIds.push(userId);
+      }
     } while (cursor !== '0');
 
-    const result = [...userIds];
-    return { count: result.length, userIds: result };
+    return { count: userIds.length, userIds };
   }
 }

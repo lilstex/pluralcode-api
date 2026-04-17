@@ -71,18 +71,19 @@ export class CommunityGateway
   // ─────────────────────────────────────────────────────────────────────────
   // LIFECYCLE
   // ─────────────────────────────────────────────────────────────────────────
+
   async handleConnection(client: Socket) {
     const userId = this.extractUserId(client);
     this.socketMeta.set(client.id, { userId, communityIds: new Set() });
-
-    // JOIN PRIVATE ROOM
-    if (userId) {
-      await client.join(`user_${userId}`);
-    }
-
     this.logger.debug(
       `Socket connected: ${client.id}  userId=${userId ?? 'guest'}`,
     );
+
+    // Track globally — every authenticated socket marks the user online
+    // regardless of whether they ever join a community room.
+    if (userId) {
+      await this.redis.globalPresenceJoin(userId, client.id);
+    }
   }
 
   async handleDisconnect(client: Socket) {
@@ -91,8 +92,8 @@ export class CommunityGateway
 
     const { userId } = meta;
 
-    // Remove from Redis presence for every room this socket was in
     if (userId) {
+      // Remove from community-scoped presence for every room this socket was in
       const leftCommunities = await this.redis.presenceLeaveAll(
         userId,
         client.id,
@@ -106,6 +107,9 @@ export class CommunityGateway
           onlineCount,
         });
       }
+
+      // Remove from global presence — user is offline when their last socket drops
+      await this.redis.globalPresenceLeave(userId, client.id);
     }
 
     this.socketMeta.delete(client.id);
@@ -225,14 +229,18 @@ export class CommunityGateway
       mentionedBy: string;
     },
   ) {
-    try {
-      this.server
-        .to(`user_${mentionedUserId}`)
-        .emit('mention:received', payload);
-    } catch (error) {
-      console.error('Error broadcasting mention:', error);
-    }
+    // Find all sockets belonging to this user and emit directly
+    this.server.sockets.sockets.forEach((socket) => {
+      const meta = this.socketMeta.get(socket.id);
+      if (meta?.userId === mentionedUserId) {
+        socket.emit('mention:received', payload);
+      }
+    });
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
 
   private extractUserId(client: Socket): string | null {
     try {
