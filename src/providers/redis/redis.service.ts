@@ -138,4 +138,54 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async getOnlineSockets(communityId: string): Promise<string[]> {
     return this.client.smembers(`community:presence:${communityId}`);
   }
+
+  // ── Presence: global ──────────────────────────────────────────────────────
+
+  /**
+   * Returns the count and list of unique user IDs that are currently online
+   * across ALL communities.
+   *
+   * Strategy: scan all `community:user-sockets:{userId}:{communityId}` keys,
+   * extract the userId segment, and keep only users whose set is non-empty
+   * (i.e. they have at least one live socket somewhere).
+   *
+   * Uses SCAN instead of KEYS so it does not block the Redis event loop on
+   * large keyspaces (safe for production).
+   */
+  async getAllOnlineUsers(): Promise<{ count: number; userIds: string[] }> {
+    const pattern = 'community:user-sockets:*';
+    const userIds = new Set<string>();
+    let cursor = '0';
+
+    do {
+      // SCAN returns [nextCursor, [key, key, ...]]
+      const [nextCursor, keys] = await this.client.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        100,
+      );
+      cursor = nextCursor;
+
+      if (keys.length === 0) continue;
+
+      // Check each key in parallel — only count users with >= 1 live socket
+      await Promise.all(
+        keys.map(async (key) => {
+          const count = await this.client.scard(key);
+          if (count > 0) {
+            // Key format: community:user-sockets:{userId}:{communityId}
+            // parts[0]=community, parts[1]=user-sockets, parts[2]=userId, parts[3]=communityId
+            const parts = key.split(':');
+            const userId = parts[2];
+            if (userId) userIds.add(userId);
+          }
+        }),
+      );
+    } while (cursor !== '0');
+
+    const result = [...userIds];
+    return { count: result.length, userIds: result };
+  }
 }

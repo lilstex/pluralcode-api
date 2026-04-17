@@ -1909,64 +1909,131 @@ export class CommunityService {
   // ANALYTICS
   // ─────────────────────────────────────────────────────────────────────────────
 
+  // async getGeneralAnalytics(userId?: string) {
+  //   try {
+  //     const data = await this.prisma.$transaction(async (tx) => {
+  //       // 1. Always run general counts
+  //       const totalCommunities = await tx.community.count({
+  //         where: { isActive: true },
+  //       });
+  //       const totalMembers = await tx.communityMembership.count();
+  //       const totalTopics = await tx.communityTopic.count({
+  //         where: { isBlocked: false },
+  //       });
+
+  //       // 2. Run user-specific counts only if userId exists
+  //       let myJoinedCommunities = 0;
+  //       let myTopicsCount = 0;
+  //       let myRepliesPosted = 0;
+  //       let myRepliesReceived = 0;
+  //       let myLikes = 0;
+  //       let onlineUsers = 0;
+
+  //       if (userId) {
+  //         [
+  //           myJoinedCommunities,
+  //           myTopicsCount,
+  //           myRepliesPosted,
+  //           myRepliesReceived,
+  //           myLikes,
+  //           onlineUsers,
+  //         ] = await Promise.all([
+  //           tx.communityMembership.count({ where: { userId } }),
+  //           tx.communityTopic.count({ where: { authorId: userId } }),
+  //           tx.communityComment.count({ where: { authorId: userId } }),
+  //           tx.communityComment.count({
+  //             where: { topic: { authorId: userId } },
+  //           }),
+  //           // All likes the user has given — across both topics and comments.
+  //           // A single CommunityLike row is either a topic like (topicId set,
+  //           // commentId null) or a comment like (commentId set, topicId null),
+  //           // so counting all rows for this userId covers both.
+  //           tx.communityLike.count({ where: { userId } }),
+  //           await this.redis.getAllOnlineUsers(),
+  //         ]);
+  //       }
+
+  //       return {
+  //         totalCommunities,
+  //         totalMembers,
+  //         totalTopics,
+  //         myJoinedCommunities,
+  //         myTopicsCount,
+  //         myRepliesPosted,
+  //         myRepliesReceived,
+  //         myLikes,
+  //         onlineUsers,
+  //       };
+  //     });
+
+  //     return {
+  //       status: true,
+  //       statusCode: HttpStatus.OK,
+  //       message: 'General analytics retrieved.',
+  //       data,
+  //     };
+  //   } catch (err) {
+  //     this.logger.error('getGeneralAnalytics error', err);
+  //     return {
+  //       status: false,
+  //       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+  //       message: 'Server error.',
+  //     };
+  //   }
+  // }
+
   async getGeneralAnalytics(userId?: string) {
     try {
-      const data = await this.prisma.$transaction(async (tx) => {
-        // 1. Always run general counts
-        const totalCommunities = await tx.community.count({
-          where: { isActive: true },
-        });
-        const totalMembers = await tx.communityMembership.count();
-        const totalTopics = await tx.communityTopic.count({
-          where: { isBlocked: false },
-        });
+      // All reads — no $transaction needed (avoids the 5s interactive tx timeout).
+      // Global counts and Redis run concurrently; user-specific counts only when userId present.
 
-        // 2. Run user-specific counts only if userId exists
-        let myJoinedCommunities = 0;
-        let myTopicsCount = 0;
-        let myRepliesPosted = 0;
-        let myRepliesReceived = 0;
-        let myLikes = 0;
+      const [totalCommunities, totalMembers, totalTopics, onlineUsersResult] =
+        await Promise.all([
+          this.prisma.community.count({ where: { isActive: true } }),
+          this.prisma.communityMembership.count(),
+          this.prisma.communityTopic.count({ where: { isBlocked: false } }),
+          this.redis.getAllOnlineUsers(),
+        ]);
 
-        if (userId) {
-          [
-            myJoinedCommunities,
-            myTopicsCount,
-            myRepliesPosted,
-            myRepliesReceived,
-            myLikes,
-          ] = await Promise.all([
-            tx.communityMembership.count({ where: { userId } }),
-            tx.communityTopic.count({ where: { authorId: userId } }),
-            tx.communityComment.count({ where: { authorId: userId } }),
-            tx.communityComment.count({
-              where: { topic: { authorId: userId } },
-            }),
-            // All likes the user has given — across both topics and comments.
-            // A single CommunityLike row is either a topic like (topicId set,
-            // commentId null) or a comment like (commentId set, topicId null),
-            // so counting all rows for this userId covers both.
-            tx.communityLike.count({ where: { userId } }),
-          ]);
-        }
+      let myJoinedCommunities = 0;
+      let myTopicsCount = 0;
+      let myRepliesPosted = 0;
+      let myRepliesReceived = 0;
+      let myLikes = 0;
 
-        return {
-          totalCommunities,
-          totalMembers,
-          totalTopics,
+      if (userId) {
+        [
           myJoinedCommunities,
           myTopicsCount,
           myRepliesPosted,
           myRepliesReceived,
           myLikes,
-        };
-      });
+        ] = await Promise.all([
+          this.prisma.communityMembership.count({ where: { userId } }),
+          this.prisma.communityTopic.count({ where: { authorId: userId } }),
+          this.prisma.communityComment.count({ where: { authorId: userId } }),
+          this.prisma.communityComment.count({
+            where: { topic: { authorId: userId } },
+          }),
+          this.prisma.communityLike.count({ where: { userId } }),
+        ]);
+      }
 
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'General analytics retrieved.',
-        data,
+        data: {
+          totalCommunities,
+          totalMembers,
+          totalTopics,
+          onlineUsers: onlineUsersResult.count,
+          myJoinedCommunities,
+          myTopicsCount,
+          myRepliesPosted,
+          myRepliesReceived,
+          ...(userId && { myLikes }),
+        },
       };
     } catch (err) {
       this.logger.error('getGeneralAnalytics error', err);
