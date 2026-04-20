@@ -807,17 +807,12 @@ export class EventService {
         meetingUrl: rawMeetingUrl,
       });
 
-      // Confirmation email "Join Meeting" button:
-      //   • External meeting (Zoom, Meet etc.) → link directly, no JWT needed.
-      //   • Platform Jitsi event → frontend event page. The frontend calls
-      //     GET /events/:id/jitsi-token on the day to get a fresh JWT and
-      //     opens the tokenized URL. We never pre-mint tokens into emails because:
-      //       - Token lives in the inbox for potentially weeks before the event
-      //       - Token expiry breaks if the event is rescheduled
-      //       - Issued tokens cannot be revoked
+      const frontendUrl =
+        process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
       const emailJoinUrl =
         event.externalMeetingUrl ??
-        `${process.env.FRONTEND_URL}/events/meeting?eventId=${event.id}&email=${registration.user.email}`;
+        `${frontendUrl}/events/meeting?eventId=${event.id}&email=${registration.user.email}`;
 
       this.emailService
         .sendEventRegistrationConfirmation({
@@ -918,9 +913,12 @@ export class EventService {
       });
 
       // Email confirmation with ICS
+      const frontendUrl =
+        process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
       const rawMeetingUrl =
         event.externalMeetingUrl ??
-        `${process.env.FRONTEND_URL}/events?eventId=${event.id}&email=${dto.guestEmail}`;
+        `${frontendUrl}/events?eventId=${event.id}&email=${dto.guestEmail}`;
 
       const icsContent = this.generateIcs({
         id: event.id,
@@ -931,10 +929,6 @@ export class EventService {
         meetingUrl: rawMeetingUrl,
       });
 
-      const emailJoinUrl =
-        event.externalMeetingUrl ??
-        `${process.env.FRONTEND_URL}/events/${event.id}`;
-
       this.emailService
         .sendEventRegistrationConfirmation({
           fullName: dto.guestName,
@@ -942,7 +936,7 @@ export class EventService {
           eventTitle: event.title,
           startTime: event.startTime,
           endTime: event.endTime,
-          meetingUrl: emailJoinUrl,
+          meetingUrl: rawMeetingUrl,
           icsContent,
         })
         .catch((err) => this.logger.error('guestRegister email failed', err));
