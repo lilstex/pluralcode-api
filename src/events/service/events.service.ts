@@ -834,7 +834,7 @@ export class EventService {
           type: NotificationType.EVENT_REGISTRATION_CONFIRMED,
           title: 'Registration Confirmed',
           body: `You have successfully registered for "${event.title}".`,
-          link: `${process.env.FRONTEND_URL}/resources/events`,
+          link: `${frontendUrl}/resources/events`,
           meta: { eventTitle: event.title, startTime: event.startTime },
         })
         .catch((err) => this.logger.error('notification failed', err));
@@ -1656,6 +1656,9 @@ export class EventService {
       include: { user: { select: { id: true, fullName: true, email: true } } },
     });
 
+    const frontendUrl =
+      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
     await Promise.allSettled(
       registrations.map((r) =>
         this.emailService.sendEventUpdateNotification({
@@ -1666,7 +1669,7 @@ export class EventService {
           endTime: event.endTime,
           meetingUrl:
             event.externalMeetingUrl ??
-            `${process.env.FRONTEND_URL}/events?eventId=${event.id}&email=${r.user.email}`,
+            `${frontendUrl}/events?eventId=${event.id}&email=${r.user.email}`,
         }),
       ),
     );
@@ -1677,7 +1680,7 @@ export class EventService {
           type: NotificationType.EVENT_UPDATED,
           title: 'Event Updated',
           body: `"${event.title}" has been updated. Check the new details.`,
-          link: `${process.env.FRONTEND_URL}/resources/events`,
+          link: `${frontendUrl}/resources/events`,
           meta: {
             eventTitle: event.title,
             startTime: event.startTime,
@@ -1704,6 +1707,9 @@ export class EventService {
       ),
     );
 
+    const frontendUrl =
+      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
     // Fan-out to all attendees after cancellation:
     const attendeeIds = registrations.map((r) => r.userId);
     this.notifications
@@ -1713,7 +1719,7 @@ export class EventService {
           type: NotificationType.EVENT_CANCELLED,
           title: 'Event Cancelled',
           body: `"${event.title}" has been cancelled. ${reason ?? ''}`.trim(),
-          link: `${process.env.FRONTEND_URL}/resources/events`,
+          link: `${frontendUrl}/resources/events`,
           meta: { eventTitle: event.title, reason: reason },
         })),
       )

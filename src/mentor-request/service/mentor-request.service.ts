@@ -115,6 +115,9 @@ export class MentorRequestService {
       };
     }
 
+    const frontendUrl =
+      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
     // Target must be an EXPERT
     const mentor = await this.prisma.user.findUnique({
       where: { id: dto.mentorId },
@@ -195,7 +198,7 @@ export class MentorRequestService {
         mentorEmail: mentor.email,
         ngoName: ngoUser.organization.name,
         ngoUserName: ngoUser.fullName,
-        dashboardUrl: `${process.env.FRONTEND_URL}/dashboard/mentor-requests`,
+        dashboardUrl: `${frontendUrl}/dashboard/mentor-requests`,
       })
       .catch((err) =>
         this.logger.error('Failed to send mentor request email', err),
@@ -207,7 +210,7 @@ export class MentorRequestService {
         type: NotificationType.MENTOR_REQUEST_RECEIVED,
         title: 'New Mentorship Request',
         body: `${ngoUser.organization.name} has sent you a mentorship request.`,
-        link: `${process.env.FRONTEND_URL}/dashboard/mentor-requests`,
+        link: `${frontendUrl}/dashboard/mentor-requests`,
         meta: { orgName: ngoUser.organization.name, requestId: request.id },
       })
       .catch((err) => this.logger.error('notification failed', err));
@@ -457,6 +460,8 @@ export class MentorRequestService {
       include: MENTOR_REQUEST_INCLUDE,
     });
 
+    const frontendUrl =
+      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
     // Notify the NGO of the decision
     this.emailService
       .sendMentorRequestDecision({
@@ -465,7 +470,7 @@ export class MentorRequestService {
         mentorName: request.mentor.fullName,
         decision: dto.action,
         message: dto.message,
-        dashboardUrl: `${process.env.FRONTEND_URL}/dashboard/mentorship`,
+        dashboardUrl: `${frontendUrl}/dashboard/mentorship`,
       })
       .catch((err) =>
         this.logger.error('Failed to send mentor decision email', err),
@@ -484,7 +489,7 @@ export class MentorRequestService {
         body: isApproved
           ? `${request.mentor.fullName} has accepted your mentorship request.`
           : `${request.mentor.fullName} has declined your mentorship request.`,
-        link: `${process.env.FRONTEND_URL}/dashboard/mentorship`,
+        link: `${frontendUrl}/dashboard/mentorship`,
         meta: { mentorName: request.mentor.fullName, requestId: request.id },
       })
       .catch((err) => this.logger.error('notification failed', err));
@@ -514,6 +519,9 @@ export class MentorRequestService {
         message: 'Mentor request not found.',
       };
     }
+
+    const frontendUrl =
+      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
 
     if (request.status !== MentorRequestStatus.APPROVED) {
       return {
@@ -550,7 +558,7 @@ export class MentorRequestService {
           type: NotificationType.MENTOR_SESSION_COMPLETED,
           title: 'Mentorship Session Completed',
           body: 'Your mentorship session has been marked as completed. +10 points awarded!',
-          link: `${process.env.FRONTEND_URL}/dashboard/mentorship`,
+          link: `${frontendUrl}/dashboard/mentorship`,
           meta: { requestId: request.id },
         },
         {
@@ -558,7 +566,7 @@ export class MentorRequestService {
           type: NotificationType.MENTOR_SESSION_COMPLETED,
           title: 'Mentorship Session Completed',
           body: 'You have marked a mentorship session as completed.',
-          link: `${process.env.FRONTEND_URL}/dashboard/mentor-requests`,
+          link: `${frontendUrl}/dashboard/mentor-requests`,
           meta: { requestId: request.id },
         },
       ])

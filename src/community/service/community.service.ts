@@ -1224,6 +1224,9 @@ export class CommunityService {
         liked = true;
         likeCount = updated.likeCount;
 
+        const frontendUrl =
+          process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
         // Notify topic author — but not if they liked their own topic
         if (topic.authorId !== userId) {
           this.notifications
@@ -1232,7 +1235,7 @@ export class CommunityService {
               type: NotificationType.COMMUNITY_TOPIC_LIKED,
               title: 'Someone liked your topic',
               body: `Your topic "${topic.title}" received a new like.`,
-              link: `${process.env.FRONTEND_URL}/community `,
+              link: `${frontendUrl}/community `,
               meta: { topicId: topic.id, topicTitle: topic.title },
             })
             .catch((err) => this.logger.error('notification failed', err));
@@ -1390,6 +1393,9 @@ export class CommunityService {
         include: COMMENT_INCLUDE,
       });
 
+      const frontendUrl =
+        process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
       // Mentions: use explicit UUID array from frontend typeahead
       const filteredMentions = (dto.mentionedUserIds ?? []).filter(
         (id) => id !== userId,
@@ -1410,7 +1416,7 @@ export class CommunityService {
             type: NotificationType.COMMUNITY_TOPIC_COMMENT,
             title: 'New comment on your topic',
             body: `Someone commented on your topic "${topic.title}".`,
-            link: `${process.env.FRONTEND_URL}/community `,
+            link: `${frontendUrl}/community `,
             meta: { topicId, topicTitle: topic.title, commentId: comment.id },
           })
           .catch((err) => this.logger.error('notification failed', err));
@@ -1425,7 +1431,7 @@ export class CommunityService {
               type: NotificationType.COMMUNITY_MENTION,
               title: 'You were mentioned in a comment',
               body: `You were mentioned in a comment on "${topic.title}".`,
-              link: `${process.env.FRONTEND_URL}/community `,
+              link: `${frontendUrl}/community `,
               meta: { topicId, topicTitle: topic.title, commentId: comment.id },
             })),
           )

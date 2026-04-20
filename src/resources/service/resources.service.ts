@@ -1057,6 +1057,9 @@ export class ResourceService {
         badgeId: resource.badge?.id,
       });
 
+      const frontendUrl =
+        process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
       const newBadges: string[] = [];
       if (rewardResult?.badgeAwarded && resource.badge)
         newBadges.push(resource.badge.name);
@@ -1070,7 +1073,7 @@ export class ResourceService {
             newBadges.length > 0
               ? `You completed "${resource.title}" and earned ${resource.points} points + the "${newBadges[0]}" badge!`
               : `You completed "${resource.title}" and earned ${resource.points} points!`,
-          link: `${process.env.FRONTEND_URL}/resources/${resource.id}`,
+          link: `${frontendUrl}/resources/${resource.id}`,
           meta: {
             resourceTitle: resource.title,
             pointsEarned: resource.points,

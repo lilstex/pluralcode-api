@@ -481,7 +481,10 @@ export class UserService {
         },
       });
 
-      const resetUrl = `${this.config.get('FRONTEND_URL')}/reset-password?token=${resetToken}&email=${user.email}`;
+      const frontendUrl =
+        process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
+      const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}&email=${user.email}`;
 
       await this.emailService.sendPasswordResetOtp({
         fullName: user.fullName,
@@ -1239,6 +1242,9 @@ export class UserService {
       };
     }
 
+    const frontendUrl =
+      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
     const result = await this._updateUserStatus(adminId, userId, 'APPROVED');
     if (result.status) {
       this.notifications
@@ -1247,7 +1253,7 @@ export class UserService {
           type: NotificationType.ACCOUNT_APPROVED,
           title: 'Account Approved',
           body: 'Your account has been approved. You can now access all platform features.',
-          link: `${process.env.FRONTEND_URL}/dashboard`,
+          link: `${frontendUrl}/dashboard`,
         })
         .catch((err) => this.logger.error('notification failed', err));
     }
@@ -1265,6 +1271,10 @@ export class UserService {
       'REJECTED',
       reason,
     );
+
+    const frontendUrl =
+      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
     if (result.status && user) {
       this.notifications
         .create({
@@ -1274,7 +1284,7 @@ export class UserService {
           body: reason
             ? `Your account application was not approved: ${reason}`
             : 'Your account application was not approved. Please contact support.',
-          link: `${process.env.FRONTEND_URL}/support`,
+          link: `${frontendUrl}/support`,
         })
         .catch((err) => this.logger.error('notification failed', err));
     }

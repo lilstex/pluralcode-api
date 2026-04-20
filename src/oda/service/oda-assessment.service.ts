@@ -569,6 +569,9 @@ export class OdaAssessmentService {
         },
       });
 
+      const frontendUrl =
+        process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+
       // Notify the NGO owner
       const user = await this.prisma.user.findUnique({
         where: { id: ngoUserId },
@@ -580,7 +583,7 @@ export class OdaAssessmentService {
             fullName: user.fullName,
             email: user.email,
             orgName,
-            dashboardUrl: `${process.env.FRONTEND_URL}/dashboard/oda/${assessmentId}`,
+            dashboardUrl: `${frontendUrl}/dashboard/oda/${assessmentId}`,
           })
           .catch((err) =>
             this.logger.error('ODA completion email failed', err),
