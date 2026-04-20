@@ -2032,7 +2032,7 @@ export class CommunityService {
           myTopicsCount,
           myRepliesPosted,
           myRepliesReceived,
-          ...(userId && { myLikes }),
+          myLikes,
         },
       };
     } catch (err) {

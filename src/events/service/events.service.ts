@@ -918,7 +918,7 @@ export class EventService {
 
       const rawMeetingUrl =
         event.externalMeetingUrl ??
-        `${frontendUrl}/events?eventId=${event.id}&email=${dto.guestEmail}`;
+        `${frontendUrl}/events/meeting?eventId=${event.id}&email=${dto.guestEmail}`;
 
       const icsContent = this.generateIcs({
         id: event.id,
