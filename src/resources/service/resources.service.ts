@@ -893,21 +893,52 @@ export class ResourceService {
 
       const { rawText, ...safeResource } = resource as any;
 
-      let hasViewed = false,
-        hasCompleted = false;
+      let hasViewed = false;
+      let hasCompleted = false;
+      let completedLinkIds = new Set<string>();
 
       if (userId) {
-        const [view, completion] = await this.prisma.$transaction([
+        // Run all user-specific lookups in parallel — no transaction needed (reads only)
+        const promises: Promise<any>[] = [
           this.prisma.resourceView.findUnique({
             where: { userId_resourceId: { userId, resourceId: id } },
           }),
           this.prisma.resourceCompletion.findUnique({
             where: { userId_resourceId: { userId, resourceId: id } },
           }),
-        ]);
+        ];
+
+        // For MULTILINK resources, also fetch which individual links the user has completed
+        const isMultilink = (resource as any).type === 'MULTILINK';
+        if (isMultilink && safeResource.links?.length) {
+          const linkIds = safeResource.links.map((l: any) => l.id);
+          promises.push(
+            this.prisma.resourceLinkCompletion.findMany({
+              where: { userId, resourceLinkId: { in: linkIds } },
+              select: { resourceLinkId: true },
+            }),
+          );
+        }
+
+        const [view, completion, linkCompletions] = await Promise.all(promises);
+
         hasViewed = !!view;
         hasCompleted = !!completion;
+
+        if (linkCompletions) {
+          completedLinkIds = new Set(
+            linkCompletions.map((lc: any) => lc.resourceLinkId),
+          );
+        }
       }
+
+      // Inject isCompleted flag onto each link when userId is present
+      const links = safeResource.links?.map((link: any) => ({
+        ...link,
+        ...(userId !== undefined && {
+          isCompleted: completedLinkIds.has(link.id),
+        }),
+      }));
 
       return {
         status: true,
@@ -915,9 +946,10 @@ export class ResourceService {
         message: 'Resource retrieved.',
         data: {
           ...safeResource,
+          links,
           downloadCount: safeResource._count.downloads,
           _count: undefined,
-          contentUrl: safeResource.contentUrl ?? null,
+          contentUrl: isAuthenticated ? safeResource.contentUrl : null,
           requiresLogin: !isAuthenticated,
           hasViewed,
           hasCompleted,
@@ -1001,6 +1033,105 @@ export class ResourceService {
       };
     } catch (error) {
       this.logger.error('viewResource error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
+  async markLinkComplete(resourceId: string, linkId: string, userId: string) {
+    try {
+      // Validate the link belongs to the resource
+      const link = await this.prisma.resourceLink.findFirst({
+        where: { id: linkId, resourceId },
+        include: {
+          resource: { select: { id: true, type: true, title: true } },
+        },
+      });
+      if (!link)
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Link not found on this resource.',
+        };
+
+      if (link.resource.type !== 'MULTILINK')
+        return {
+          status: false,
+          statusCode: HttpStatus.BAD_REQUEST,
+          message: 'Link completion only applies to MULTILINK resources.',
+        };
+
+      // Check user has viewed the resource first
+      const view = await this.prisma.resourceView.findUnique({
+        where: { userId_resourceId: { userId, resourceId } },
+      });
+      if (!view)
+        return {
+          status: false,
+          statusCode: HttpStatus.FORBIDDEN,
+          message:
+            'You must view this resource before marking links as complete.',
+        };
+
+      // Idempotent — return ok if already completed
+      const existing = await this.prisma.resourceLinkCompletion.findUnique({
+        where: { userId_resourceLinkId: { userId, resourceLinkId: linkId } },
+      });
+      if (existing)
+        return {
+          status: true,
+          statusCode: HttpStatus.OK,
+          message: 'Link already marked as complete.',
+          data: { alreadyCompleted: true },
+        };
+
+      await this.prisma.resourceLinkCompletion.create({
+        data: { userId, resourceLinkId: linkId },
+      });
+
+      // Check if ALL links on this resource are now complete for this user
+      const [allLinks, completedLinks] = await Promise.all([
+        this.prisma.resourceLink.count({ where: { resourceId } }),
+        this.prisma.resourceLinkCompletion.count({
+          where: {
+            userId,
+            resourceLink: { resourceId },
+          },
+        }),
+      ]);
+
+      const allDone = allLinks > 0 && completedLinks >= allLinks;
+
+      // If all links done and overall completion not yet recorded — fire completeResource
+      if (allDone) {
+        const alreadyCompleted =
+          await this.prisma.resourceCompletion.findUnique({
+            where: { userId_resourceId: { userId, resourceId } },
+          });
+        if (!alreadyCompleted) {
+          // Delegate to completeResource which handles points, badge and notification
+          await this.completeResource(resourceId, userId);
+        }
+      }
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: allDone
+          ? 'Link completed — all links done, resource marked complete!'
+          : 'Link marked as complete.',
+        data: {
+          linkId,
+          allLinksCompleted: allDone,
+          completedCount: completedLinks,
+          totalLinks: allLinks,
+        },
+      };
+    } catch (error) {
+      this.logger.error('markLinkComplete error', error);
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,

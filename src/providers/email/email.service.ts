@@ -140,7 +140,7 @@ export class EmailService {
     const html = await this.renderTemplate('reset-password', params);
     return this.send({
       to: params.email,
-      subject: 'Your PLRCAP Hub Password Reset OTP',
+      subject: 'Your PLRCAP Hub Password Reset Link',
       html,
     });
   }
@@ -312,6 +312,48 @@ export class EmailService {
     return this.send({
       to: params.adminEmail,
       subject: `New ODA Submission — ${params.orgName}`,
+      html,
+    });
+  }
+
+  // ─── Contact Us ───────────────────────────────────────────────────────────────
+
+  /**
+   * Forward a new contact form submission to the support inbox.
+   * Recipient is determined by SUPPORT_EMAIL env var.
+   */
+  async sendContactNotification(message: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    subject: string;
+    message: string;
+    createdAt: Date;
+  }) {
+    const supportEmail = process.env.SUPPORT_EMAIL ?? process.env.SMTP_FROM;
+    if (!supportEmail) {
+      this.logger.warn(
+        'SUPPORT_EMAIL is not set — skipping contact notification',
+      );
+      return { status: false, message: 'SUPPORT_EMAIL not configured.' };
+    }
+    const html = await this.renderTemplate('contact-notification', message);
+    return this.send({
+      to: supportEmail,
+      subject: `[Contact Form] ${message.subject} — from ${message.name}`,
+      html,
+    });
+  }
+
+  /**
+   * Auto-reply confirmation sent to the person who submitted the contact form.
+   */
+  async sendContactAutoReply(params: { name: string; email: string }) {
+    const html = await this.renderTemplate('contact-received', params);
+    return this.send({
+      to: params.email,
+      subject: 'We received your message — PLRCAP NGO Hub',
       html,
     });
   }

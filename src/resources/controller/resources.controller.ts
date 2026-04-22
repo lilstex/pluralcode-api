@@ -522,6 +522,27 @@ export class ResourceController {
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @Post(':id/links/:linkId/complete')
+  @ApiOperation({
+    summary: 'Mark an individual link as complete (MULTILINK resources only)',
+    description:
+      'Records the user has completed a specific link. ' +
+      'When all links in the resource are completed, the overall resource ' +
+      'completion is automatically triggered (points + badge awarded).',
+  })
+  @ApiParam({ name: 'id', description: 'Resource UUID' })
+  @ApiParam({ name: 'linkId', description: 'ResourceLink UUID' })
+  @ApiResponse({ status: 200 })
+  async markLinkComplete(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('linkId', ParseUUIDPipe) linkId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.resourceService.markLinkComplete(id, linkId, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

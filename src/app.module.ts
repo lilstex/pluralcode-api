@@ -16,6 +16,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RedisModule } from './providers/redis/redis.module';
 import { PrismaModule } from './prisma-module/prisma.module';
+import { ContactModule } from './contact/contact.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { PrismaModule } from './prisma-module/prisma.module';
     NewsModule,
     NotificationsModule,
     RedisModule,
+    ContactModule,
   ],
   controllers: [AppController],
   providers: [AppService],

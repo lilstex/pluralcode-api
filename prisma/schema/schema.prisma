@@ -46,6 +46,7 @@ model User {
   organization            Organization?
   organizationMemberships OrganizationMember[]
   resourceCompletions     ResourceCompletion[]     @relation("ResourceCompletions")
+  resourceLinkCompletions ResourceLinkCompletion[] @relation("ResourceLinkCompletions")
   resourceViews           ResourceView[]           @relation("ResourceViews")
   topicViews              TopicView[]              @relation("TopicViews")
   badges                  Badge[]                  @relation("BadgeToUser")
@@ -337,14 +338,28 @@ model Resource {
 }
 
 model ResourceLink {
-  id         String   @id @default(uuid())
-  title      String
-  url        String
-  order      Int      @default(0)
-  resourceId String
-  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  id          String                   @id @default(uuid())
+  title       String
+  url         String
+  order       Int                      @default(0)
+  resourceId  String
+  resource    Resource                 @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  completions ResourceLinkCompletion[]
 
   @@index([resourceId])
+}
+
+model ResourceLinkCompletion {
+  id             String       @id @default(uuid())
+  userId         String
+  user           User         @relation("ResourceLinkCompletions", fields: [userId], references: [id], onDelete: Cascade)
+  resourceLinkId String
+  resourceLink   ResourceLink @relation(fields: [resourceLinkId], references: [id], onDelete: Cascade)
+  completedAt    DateTime     @default(now())
+
+  @@unique([userId, resourceLinkId])
+  @@index([userId])
+  @@index([resourceLinkId])
 }
 
 model ResourceView {
@@ -756,6 +771,32 @@ model Notification {
   @@index([userId])
   @@index([type])
   @@index([isRead])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTACT US
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ContactMessageStatus {
+  UNREAD
+  READ
+  REPLIED
+  ARCHIVED
+}
+
+model ContactMessage {
+  id        String               @id @default(uuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  status    ContactMessageStatus @default(UNREAD)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
 }
 
 enum Role {
