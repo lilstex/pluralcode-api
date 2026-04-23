@@ -9,6 +9,11 @@ import {
 } from '../dto/oda-structure.dto';
 import { PrismaService } from 'src/prisma-module/prisma.service';
 
+// Include options on every question fetch — used in all queries
+const QUESTION_INCLUDE = {
+  options: { orderBy: { order: 'asc' as const } },
+} as const;
+
 @Injectable()
 export class OdaStructureService {
   private readonly logger = new Logger(OdaStructureService.name);
@@ -26,12 +31,14 @@ export class OdaStructureService {
         buildingBlocks: {
           orderBy: { order: 'asc' },
           include: {
-            questions: { orderBy: { order: 'asc' } },
+            questions: {
+              orderBy: { order: 'asc' },
+              include: QUESTION_INCLUDE,
+            },
           },
         },
       },
     });
-
     return { status: true, statusCode: HttpStatus.OK, data: pillars };
   }
 
@@ -42,18 +49,14 @@ export class OdaStructureService {
         id: true,
         name: true,
         order: true,
-        _count: {
-          select: { buildingBlocks: true },
-        },
+        _count: { select: { buildingBlocks: true } },
         buildingBlocks: {
           orderBy: { order: 'asc' },
           select: {
             id: true,
             name: true,
             order: true,
-            _count: {
-              select: { questions: true },
-            },
+            _count: { select: { questions: true } },
           },
         },
       },
@@ -85,19 +88,17 @@ export class OdaStructureService {
     const exists = await this.prisma.oDAPillar.findUnique({
       where: { name: dto.name },
     });
-    if (exists) {
+    if (exists)
       return {
         status: false,
         statusCode: HttpStatus.CONFLICT,
         message: 'A pillar with this name already exists.',
       };
-    }
 
     const pillar = await this.prisma.oDAPillar.create({
       data: { name: dto.name, order: dto.order },
       include: { buildingBlocks: true },
     });
-
     return {
       status: true,
       statusCode: HttpStatus.CREATED,
@@ -108,25 +109,23 @@ export class OdaStructureService {
 
   async updatePillar(id: string, dto: UpdatePillarDto) {
     const pillar = await this.prisma.oDAPillar.findUnique({ where: { id } });
-    if (!pillar) {
+    if (!pillar)
       return {
         status: false,
         statusCode: HttpStatus.NOT_FOUND,
         message: 'Pillar not found.',
       };
-    }
 
     if (dto.name && dto.name !== pillar.name) {
       const conflict = await this.prisma.oDAPillar.findFirst({
         where: { name: dto.name, NOT: { id } },
       });
-      if (conflict) {
+      if (conflict)
         return {
           status: false,
           statusCode: HttpStatus.CONFLICT,
           message: 'A pillar with this name already exists.',
         };
-      }
     }
 
     const updated = await this.prisma.oDAPillar.update({
@@ -137,7 +136,6 @@ export class OdaStructureService {
       },
       include: { buildingBlocks: { orderBy: { order: 'asc' } } },
     });
-
     return {
       status: true,
       statusCode: HttpStatus.OK,
@@ -151,20 +149,18 @@ export class OdaStructureService {
       where: { id },
       include: { buildingBlocks: { select: { id: true } } },
     });
-    if (!pillar) {
+    if (!pillar)
       return {
         status: false,
         statusCode: HttpStatus.NOT_FOUND,
         message: 'Pillar not found.',
       };
-    }
-    if (pillar.buildingBlocks.length > 0) {
+    if (pillar.buildingBlocks.length > 0)
       return {
         status: false,
         statusCode: HttpStatus.BAD_REQUEST,
         message: `Cannot delete a pillar that has building blocks. Remove its ${pillar.buildingBlocks.length} block(s) first.`,
       };
-    }
 
     await this.prisma.oDAPillar.delete({ where: { id } });
     return {
@@ -182,24 +178,22 @@ export class OdaStructureService {
     const pillar = await this.prisma.oDAPillar.findUnique({
       where: { id: dto.pillarId },
     });
-    if (!pillar) {
+    if (!pillar)
       return {
         status: false,
         statusCode: HttpStatus.NOT_FOUND,
         message: 'Pillar not found.',
       };
-    }
 
     const exists = await this.prisma.oDABuildingBlock.findUnique({
       where: { name: dto.name },
     });
-    if (exists) {
+    if (exists)
       return {
         status: false,
         statusCode: HttpStatus.CONFLICT,
         message: 'A building block with this name already exists.',
       };
-    }
 
     const block = await this.prisma.oDABuildingBlock.create({
       data: {
@@ -209,11 +203,10 @@ export class OdaStructureService {
         maxScore: dto.maxScore ?? 100,
       },
       include: {
-        questions: true,
+        questions: { orderBy: { order: 'asc' }, include: QUESTION_INCLUDE },
         pillar: { select: { id: true, name: true } },
       },
     });
-
     return {
       status: true,
       statusCode: HttpStatus.CREATED,
@@ -226,38 +219,35 @@ export class OdaStructureService {
     const block = await this.prisma.oDABuildingBlock.findUnique({
       where: { id },
     });
-    if (!block) {
+    if (!block)
       return {
         status: false,
         statusCode: HttpStatus.NOT_FOUND,
         message: 'Building block not found.',
       };
-    }
 
     if (dto.pillarId) {
       const pillar = await this.prisma.oDAPillar.findUnique({
         where: { id: dto.pillarId },
       });
-      if (!pillar) {
+      if (!pillar)
         return {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Target pillar not found.',
         };
-      }
     }
 
     if (dto.name && dto.name !== block.name) {
       const conflict = await this.prisma.oDABuildingBlock.findUnique({
         where: { name: dto.name },
       });
-      if (conflict) {
+      if (conflict)
         return {
           status: false,
           statusCode: HttpStatus.CONFLICT,
           message: 'A building block with this name already exists.',
         };
-      }
     }
 
     const updated = await this.prisma.oDABuildingBlock.update({
@@ -269,11 +259,10 @@ export class OdaStructureService {
         ...(dto.maxScore !== undefined && { maxScore: dto.maxScore }),
       },
       include: {
-        questions: { orderBy: { order: 'asc' } },
+        questions: { orderBy: { order: 'asc' }, include: QUESTION_INCLUDE },
         pillar: { select: { id: true, name: true } },
       },
     });
-
     return {
       status: true,
       statusCode: HttpStatus.OK,
@@ -287,20 +276,17 @@ export class OdaStructureService {
       where: { id },
       include: { questions: { select: { id: true } } },
     });
-    if (!block) {
+    if (!block)
       return {
         status: false,
         statusCode: HttpStatus.NOT_FOUND,
         message: 'Building block not found.',
       };
-    }
 
-    // Cascade: delete questions first, then the block
     await this.prisma.$transaction([
       this.prisma.oDAQuestion.deleteMany({ where: { buildingBlockId: id } }),
       this.prisma.oDABuildingBlock.delete({ where: { id } }),
     ]);
-
     return {
       status: true,
       statusCode: HttpStatus.OK,
@@ -316,22 +302,31 @@ export class OdaStructureService {
     const block = await this.prisma.oDABuildingBlock.findUnique({
       where: { id: dto.buildingBlockId },
     });
-    if (!block) {
+    if (!block)
       return {
         status: false,
         statusCode: HttpStatus.NOT_FOUND,
         message: 'Building block not found.',
       };
-    }
 
     const question = await this.prisma.oDAQuestion.create({
       data: {
         text: dto.text,
-        buildingBlockId: dto.buildingBlockId,
+        buildingBlockId: dto.buildingBlockId!,
         order: dto.order,
+        // Create options in the same transaction if provided
+        ...(dto.options?.length && {
+          options: {
+            create: dto.options.map((o) => ({
+              text: o.text,
+              scaleValue: o.scaleValue,
+              order: o.order,
+            })),
+          },
+        }),
       },
+      include: QUESTION_INCLUDE,
     });
-
     return {
       status: true,
       statusCode: HttpStatus.CREATED,
@@ -344,12 +339,28 @@ export class OdaStructureService {
     const question = await this.prisma.oDAQuestion.findUnique({
       where: { id },
     });
-    if (!question) {
+    if (!question)
       return {
         status: false,
         statusCode: HttpStatus.NOT_FOUND,
         message: 'Question not found.',
       };
+
+    // If options are provided — full replace strategy: delete existing, create new
+    if (dto.options !== undefined) {
+      await this.prisma.$transaction([
+        this.prisma.oDAQuestionOption.deleteMany({ where: { questionId: id } }),
+        ...dto.options.map((o) =>
+          this.prisma.oDAQuestionOption.create({
+            data: {
+              text: o.text,
+              scaleValue: o.scaleValue,
+              order: o.order,
+              questionId: id,
+            },
+          }),
+        ),
+      ]);
     }
 
     const updated = await this.prisma.oDAQuestion.update({
@@ -358,8 +369,8 @@ export class OdaStructureService {
         ...(dto.text !== undefined && { text: dto.text }),
         ...(dto.order !== undefined && { order: dto.order }),
       },
+      include: QUESTION_INCLUDE,
     });
-
     return {
       status: true,
       statusCode: HttpStatus.OK,
@@ -372,13 +383,12 @@ export class OdaStructureService {
     const question = await this.prisma.oDAQuestion.findUnique({
       where: { id },
     });
-    if (!question) {
+    if (!question)
       return {
         status: false,
         statusCode: HttpStatus.NOT_FOUND,
         message: 'Question not found.',
       };
-    }
 
     await this.prisma.oDAQuestion.delete({ where: { id } });
     return {

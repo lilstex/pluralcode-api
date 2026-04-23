@@ -11,9 +11,9 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
-  // Res,
+  Res,
 } from '@nestjs/common';
-// import { Response } from 'express';
+import { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -60,14 +60,14 @@ export class OdaController {
   ) {}
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PUBLIC — ODA STRUCTURE (read-only, no auth required)
+  // PUBLIC — ODA STRUCTURE (read-only)
   // ═══════════════════════════════════════════════════════════════════════════
 
   @Get('structure')
   @ApiOperation({
     summary: 'Get full ODA structure',
     description:
-      'Returns all pillars → building blocks → questions. Used to render the assessment form.',
+      'Returns all pillars → building blocks → questions (with options). Used to render the assessment form.',
   })
   @ApiResponse({ status: 200, type: StructureResponseDto })
   getStructure() {
@@ -168,14 +168,17 @@ export class OdaController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_ADMIN)
-  @ApiOperation({ summary: '[Admin] Add a question to a building block' })
+  @ApiOperation({
+    summary: '[Admin] Add a question to a building block',
+    description:
+      'Accepts an optional `options` array. Each option must have `text`, `scaleValue` (1-4), and `order`.',
+  })
   @ApiParam({ name: 'blockId', type: String })
   @ApiResponse({ status: 201, type: StructureActionResponseDto })
   createQuestion(
     @Param('blockId', ParseUUIDPipe) blockId: string,
     @Body() dto: CreateQuestionDto,
   ) {
-    // Inject the blockId from the path so callers don't have to duplicate it in the body
     return this.structure.createQuestion({ ...dto, buildingBlockId: blockId });
   }
 
@@ -183,7 +186,11 @@ export class OdaController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN, Role.CONTENT_ADMIN)
-  @ApiOperation({ summary: '[Admin] Update a question' })
+  @ApiOperation({
+    summary: '[Admin] Update a question',
+    description:
+      'If `options` is provided, existing options are fully replaced with the new set.',
+  })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, type: StructureActionResponseDto })
   updateQuestion(
@@ -198,7 +205,7 @@ export class OdaController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '[Admin] Delete a question' })
+  @ApiOperation({ summary: '[Admin] Delete a question (and its options)' })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, type: StructureActionResponseDto })
   deleteQuestion(@Param('id', ParseUUIDPipe) id: string) {
@@ -255,8 +262,7 @@ export class OdaController {
   @ApiOperation({
     summary: 'Start a new ODA assessment',
     description:
-      'Creates a new assessment with one block response record per building block. ' +
-      'Blocked if an IN_PROGRESS assessment already exists for this org.',
+      'Creates a new assessment with one block response record per building block. Blocked if an IN_PROGRESS assessment already exists for this org.',
   })
   @ApiResponse({ status: 201, type: AssessmentActionResponseDto })
   startAssessment(@CurrentUser() user: any) {
@@ -267,11 +273,7 @@ export class OdaController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.NGO_MEMBER)
-  @ApiOperation({
-    summary: "List own org's ODA assessments",
-    description:
-      'Returns date, status, and completion percentage (X of 14 blocks done). AI summary is NOT included in list view.',
-  })
+  @ApiOperation({ summary: "List own org's ODA assessments" })
   @ApiResponse({ status: 200, type: AssessmentListResponseDto })
   listMyAssessments(
     @CurrentUser() user: any,
@@ -287,7 +289,7 @@ export class OdaController {
   @ApiOperation({
     summary: 'Get a specific assessment (full detail)',
     description:
-      'Includes all block responses and answers. AI summary shown only when status is COMPLETED.',
+      'Includes all block responses, answers, and any available pillar summaries. Overall AI summary shown only when status is COMPLETED.',
   })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, type: AssessmentSingleResponseDto })
@@ -298,6 +300,26 @@ export class OdaController {
     return this.assessment.getMyAssessmentById(user.id, id);
   }
 
+  @Get('assessments/:id/pillars/:pillarId/summary')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER)
+  @ApiOperation({
+    summary: 'Get the AI summary for a specific pillar',
+    description:
+      'Available once all blocks in the pillar have been submitted. Generated automatically — no action required from the user.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Assessment UUID' })
+  @ApiParam({ name: 'pillarId', type: String, description: 'Pillar UUID' })
+  @ApiResponse({ status: 200, type: AssessmentActionResponseDto })
+  getPillarSummary(
+    @CurrentUser() user: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('pillarId', ParseUUIDPipe) pillarId: string,
+  ) {
+    return this.assessment.getPillarSummary(user.id, id, pillarId);
+  }
+
   @Patch('assessments/:id/blocks/:blockId')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -305,8 +327,7 @@ export class OdaController {
   @ApiOperation({
     summary: 'Save answers for a building block (draft)',
     description:
-      'Can be called multiple times. Answers are stored and the block score is computed immediately. ' +
-      'Does NOT submit the block — use the /submit endpoint for that.',
+      'Can be called multiple times. Block score is computed immediately. Does NOT submit the block.',
   })
   @ApiParam({ name: 'id', type: String, description: 'Assessment UUID' })
   @ApiParam({
@@ -332,7 +353,7 @@ export class OdaController {
   @ApiOperation({
     summary: 'Mark a building block as complete',
     description:
-      'All questions must be answered first. A submitted block cannot be edited.',
+      'All questions must be answered first. A submitted block cannot be edited. When all blocks in a pillar are submitted, a per-pillar AI summary is generated automatically.',
   })
   @ApiParam({ name: 'id', type: String, description: 'Assessment UUID' })
   @ApiParam({
@@ -357,8 +378,7 @@ export class OdaController {
   @ApiOperation({
     summary: 'Submit the full assessment for analysis',
     description:
-      'All building blocks must be in SUBMITTED status. ' +
-      'Triggers internal scoring engine async — assessment moves to COMPLETED once the summary is ready.',
+      'All building blocks must be in SUBMITTED status. Triggers the overall AI scoring engine async — assessment moves to COMPLETED once the overall summary is ready.',
   })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, type: AssessmentActionResponseDto })
@@ -391,38 +411,36 @@ export class OdaController {
   // NGO + ADMIN — PDF DOWNLOAD
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // @Get('assessments/:id/download')
-  // @ApiBearerAuth()
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.NGO_MEMBER, Role.SUPER_ADMIN)
-  // @ApiOperation({
-  //   summary: 'Download AI evaluation report as PDF',
-  //   description:
-  //     'Streams a styled PDF of the AI summary for a COMPLETED assessment. ' +
-  //     "NGO members can only download their own org's assessments. " +
-  //     'Admins can download any.',
-  // })
-  // @ApiParam({ name: 'id', type: String, description: 'Assessment UUID' })
-  // async downloadAssessmentPdf(
-  //   @CurrentUser() user: any,
-  //   @Param('id', ParseUUIDPipe) id: string,
-  //   @Res() res: Response,
-  // ) {
-  //   const result = await this.assessment.generatePdfReport(
-  //     user.id,
-  //     user.role,
-  //     id,
-  //   );
+  @Get('assessments/:id/download')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.NGO_MEMBER, Role.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Download AI evaluation report as PDF',
+    description:
+      "Streams a styled PDF of the AI summary for a COMPLETED assessment. NGO members can only download their own org's assessments. Admins can download any.",
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Assessment UUID' })
+  async downloadAssessmentPdf(
+    @CurrentUser() user: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const result = await this.assessment.generatePdfReport(
+      user.id,
+      user.role,
+      id,
+    );
 
-  //   if (!result.status) {
-  //     return res.status(result.statusCode).json({ message: result.message });
-  //   }
+    if (!result.status) {
+      return res.status(result.statusCode).json({ message: result.message });
+    }
 
-  //   res.setHeader('Content-Type', 'application/pdf');
-  //   res.setHeader(
-  //     'Content-Disposition',
-  //     `attachment; filename="oda-assessment-${id}.pdf"`,
-  //   );
-  //   result.stream.pipe(res);
-  // }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="oda-assessment-${id}.pdf"`,
+    );
+    result.stream.pipe(res);
+  }
 }

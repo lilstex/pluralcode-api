@@ -7,6 +7,8 @@ import {
   IsUUID,
   Min,
   Max,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -101,6 +103,61 @@ export class UpdateBuildingBlockDto {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// QUESTION OPTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export class CreateQuestionOptionDto {
+  @ApiProperty({
+    example:
+      'The organisation has a fully functional, documented board that meets regularly.',
+    description: 'Display text for this option',
+  })
+  @IsNotEmpty()
+  @IsString()
+  text: string;
+
+  @ApiProperty({
+    enum: [1, 2, 3, 4],
+    example: 4,
+    description:
+      '1=Not in place | 2=Basic/Incomplete | 3=Functional | 4=Best practice',
+  })
+  @IsInt()
+  @Min(1)
+  @Max(4)
+  @Type(() => Number)
+  scaleValue: number;
+
+  @ApiProperty({
+    example: 1,
+    description: 'Display order of this option (ascending)',
+  })
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  order: number;
+}
+
+export class UpdateQuestionOptionDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() text?: string;
+
+  @ApiPropertyOptional({ enum: [1, 2, 3, 4] })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(4)
+  @Type(() => Number)
+  scaleValue?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  order?: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // QUESTION
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -110,7 +167,7 @@ export class CreateQuestionDto {
   @IsString()
   text: string;
 
-  // Injected from path param :blockId by the controller — optional in request body
+  // Injected from path param :blockId by the controller — optional in body
   @ApiPropertyOptional({ description: 'UUID of the parent building block' })
   @IsOptional()
   @IsUUID()
@@ -121,6 +178,17 @@ export class CreateQuestionDto {
   @Min(1)
   @Type(() => Number)
   order: number;
+
+  @ApiPropertyOptional({
+    type: [CreateQuestionOptionDto],
+    description:
+      'Options to attach to this question. scaleValue (1-4) determines the score.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateQuestionOptionDto)
+  options?: CreateQuestionOptionDto[];
 }
 
 export class UpdateQuestionDto {
@@ -135,17 +203,37 @@ export class UpdateQuestionDto {
   @Min(1)
   @Type(() => Number)
   order?: number;
+
+  @ApiPropertyOptional({
+    type: [CreateQuestionOptionDto],
+    description:
+      'Full replacement of question options. Existing options are deleted and replaced.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateQuestionOptionDto)
+  options?: CreateQuestionOptionDto[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RESPONSE DTOs
 // ─────────────────────────────────────────────────────────────────────────────
 
+export class QuestionOptionResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() text: string;
+  @ApiProperty() scaleValue: number;
+  @ApiProperty() order: number;
+}
+
 export class QuestionResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() text: string;
   @ApiProperty() order: number;
   @ApiProperty() buildingBlockId: string;
+  @ApiProperty({ type: [QuestionOptionResponseDto] })
+  options: QuestionOptionResponseDto[];
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }

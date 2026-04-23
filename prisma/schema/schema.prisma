@@ -204,72 +204,119 @@ model AuditLog {
 }
 
 model ODAPillar {
-  id                   String                @id @default(uuid())
-  name                 String                @unique
-  order                Int
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  devPlanPriorityAreas DevPlanPriorityArea[]
+  id    String @id @default(uuid())
+  name  String @unique
+  order Int
+
   buildingBlocks       ODABuildingBlock[]
+  devPlanPriorityAreas DevPlanPriorityArea[]
+  pillarSummaries      ODAPillarSummary[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ODABuildingBlock {
-  id                   String                @id @default(uuid())
-  name                 String                @unique
-  order                Int
-  maxScore             Int                   @default(100)
-  pillarId             String
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  devPlanPriorityAreas DevPlanPriorityArea[]
-  blockResponses       ODABlockResponse[]
-  pillar               ODAPillar             @relation(fields: [pillarId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  name     String @unique
+  order    Int
+  maxScore Int    @default(100)
+
+  pillarId String
+  pillar   ODAPillar @relation(fields: [pillarId], references: [id], onDelete: Cascade)
+
   questions            ODAQuestion[]
+  blockResponses       ODABlockResponse[]
+  devPlanPriorityAreas DevPlanPriorityArea[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([pillarId])
 }
 
 model ODAQuestion {
-  id                   String                @id @default(uuid())
-  text                 String
-  order                Int
-  buildingBlockId      String
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  id    String @id @default(uuid())
+  text  String @db.Text
+  order Int
+
+  buildingBlockId String
+  buildingBlock   ODABuildingBlock @relation(fields: [buildingBlockId], references: [id], onDelete: Cascade)
+
+  options              ODAQuestionOption[]
   devPlanPriorityAreas DevPlanPriorityArea[]
-  buildingBlock        ODABuildingBlock      @relation(fields: [buildingBlockId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([buildingBlockId])
 }
 
+model ODAQuestionOption {
+  id         String      @id @default(uuid())
+  text       String
+  scaleValue Int // 1=Not in place | 2=Basic | 3=Functional | 4=Best practice
+  order      Int         @default(0)
+  questionId String
+  question   ODAQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([questionId])
+}
+
 model ODAAssessment {
-  id             String             @id @default(uuid())
-  status         FormStatus         @default(IN_PROGRESS)
-  overallScore   Float?
-  aiSummary      String?
-  startedAt      DateTime           @default(now())
-  completedAt    DateTime?
-  orgId          String
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  organization   Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  blockResponses ODABlockResponse[]
+  id           String     @id @default(uuid())
+  status       FormStatus @default(IN_PROGRESS)
+  overallScore Float?
+  aiSummary    String?    @db.Text
+  startedAt    DateTime   @default(now())
+  completedAt  DateTime?
+
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  blockResponses  ODABlockResponse[]
+  pillarSummaries ODAPillarSummary[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([orgId])
   @@index([status])
 }
 
+model ODAPillarSummary {
+  id           String        @id @default(uuid())
+  assessmentId String
+  assessment   ODAAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  pillarId     String
+  pillar       ODAPillar     @relation(fields: [pillarId], references: [id])
+  pillarScore  Float // weighted average score for this pillar (0-100)
+  aiSummary    String        @db.Text
+  completedAt  DateTime      @default(now())
+
+  @@unique([assessmentId, pillarId])
+  @@index([assessmentId])
+}
+
 model ODABlockResponse {
-  id              String           @id @default(uuid())
-  status          ODABlockStatus   @default(IN_PROGRESS)
-  blockScore      Float?
-  answers         Json             @default("[]")
-  assessmentId    String
+  id         String         @id @default(uuid())
+  status     ODABlockStatus @default(IN_PROGRESS)
+  blockScore Float?
+
+  // answers: [{ questionId, questionText, selectedScale (1-4), evidence }]
+  answers Json @default("[]")
+
+  assessmentId String
+  assessment   ODAAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
   buildingBlockId String
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  assessment      ODAAssessment    @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   buildingBlock   ODABuildingBlock @relation(fields: [buildingBlockId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([assessmentId, buildingBlockId])
   @@index([assessmentId])
