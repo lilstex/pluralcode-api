@@ -250,6 +250,7 @@ export class OdaScoringService {
         const areas = e.areasOfExpertise.slice(0, 3).join(', ');
         lines.push(`  • ${e.fullName}${role ? `  (${role})` : ''}`);
         if (areas) lines.push(`    Areas: ${areas}`);
+        lines.push(`    Expert ID: ${e.id}`);
       }
       lines.push('');
     }
@@ -487,6 +488,7 @@ export class OdaScoringService {
           .map((kw) => ({ areasOfExpertise: { hasSome: [kw] } })),
       },
       select: {
+        id: true,
         title: true,
         employer: true,
         areasOfExpertise: true,
@@ -510,6 +512,7 @@ export class OdaScoringService {
           ]),
         },
         select: {
+          id: true,
           title: true,
           employer: true,
           areasOfExpertise: true,
