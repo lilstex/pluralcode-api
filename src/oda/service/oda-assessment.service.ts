@@ -579,17 +579,68 @@ export class OdaAssessmentService {
           message: 'Pillar not found.',
         };
 
-      const summary = await this.prisma.oDAPillarSummary.findUnique({
+      // Try to find an existing summary first
+      let summary = await this.prisma.oDAPillarSummary.findUnique({
         where: { assessmentId_pillarId: { assessmentId, pillarId } },
       });
 
-      if (!summary)
-        return {
-          status: false,
-          statusCode: HttpStatus.NOT_FOUND,
-          message:
-            'Pillar summary not yet available. All blocks in this pillar must be submitted first.',
-        };
+      // Backfill: summary missing but all blocks may already be submitted
+      // Handles assessments that completed before per-pillar summaries were
+      // introduced, or rare cases where the async trigger was missed.
+      if (!summary) {
+        const pillarBlockResponses =
+          await this.prisma.oDABlockResponse.findMany({
+            where: {
+              assessmentId,
+              buildingBlock: { pillarId },
+            },
+            select: {
+              status: true,
+              blockScore: true,
+              buildingBlock: { select: { maxScore: true } },
+            },
+          });
+
+        if (!pillarBlockResponses.length)
+          return {
+            status: false,
+            statusCode: HttpStatus.NOT_FOUND,
+            message: 'No blocks found for this pillar in the assessment.',
+          };
+
+        const allSubmitted = pillarBlockResponses.every(
+          (br) => br.status === 'SUBMITTED',
+        );
+
+        if (!allSubmitted)
+          return {
+            status: false,
+            statusCode: HttpStatus.NOT_FOUND,
+            message:
+              'Pillar summary not yet available. All blocks in this pillar must be submitted first.',
+          };
+
+        // All blocks are done — generate and persist the summary on the fly
+        this.logger.log(
+          `Backfilling pillar summary for pillar "${pillar.name}" in assessment ${assessmentId}`,
+        );
+
+        const pillarScore = this.scoring.computePillarScore(
+          pillarBlockResponses.map((br) => ({
+            blockScore: br.blockScore,
+            maxScore: br.buildingBlock.maxScore,
+          })),
+        );
+
+        const aiSummary = await this.scoring.generatePillarSummary(
+          assessmentId,
+          pillarId,
+        );
+
+        summary = await this.prisma.oDAPillarSummary.create({
+          data: { assessmentId, pillarId, pillarScore, aiSummary },
+        });
+      }
 
       return {
         status: true,
