@@ -1172,7 +1172,7 @@ export class ResourceService {
           status: false,
           statusCode: HttpStatus.CONFLICT,
           message:
-            'You have already completed this resource. Points and badge have already been awarded.',
+            'You have completed this resource! Points and badges have been awarded accordingly.',
         };
       }
 
