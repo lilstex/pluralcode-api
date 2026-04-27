@@ -242,19 +242,6 @@ export class JitsiService {
       },
     };
 
-    if (this.useRS256) {
-      if (!this.privateKey) {
-        throw new Error(
-          'JITSI_USE_RS256=true but JITSI_PRIVATE_KEY is not set',
-        );
-      }
-      return jwt.sign(claims, this.privateKey, {
-        algorithm: 'RS256',
-        ...(this.keyId ? { keyid: this.keyId } : {}),
-      });
-    }
-
-    // HS256 — default for most self-hosted installs
     return jwt.sign(claims, this.appSecret, { algorithm: 'HS256' });
   }
 
