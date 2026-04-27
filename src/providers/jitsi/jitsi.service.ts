@@ -218,10 +218,10 @@ export class JitsiService {
       iss: this.appId,
       aud: this.appId, // must match APP_ID — not the literal string 'jitsi'
       sub: this.domain,
-      room,
+      room: room,
       iat: now,
       nbf: now - 60, // allow 60s clock skew between client and server
-      exp,
+      exp: exp,
       context: {
         user: {
           id: payload.userId,
