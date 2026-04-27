@@ -50,6 +50,7 @@ model User {
   resourceViews           ResourceView[]           @relation("ResourceViews")
   topicViews              TopicView[]              @relation("TopicViews")
   badges                  Badge[]                  @relation("BadgeToUser")
+  uploads                 Upload[]
 
   @@index([role])
   @@index([status])
@@ -844,6 +845,21 @@ model ContactMessage {
 
   @@index([status])
   @@index([createdAt])
+}
+
+model Upload {
+  id           String   @id @default(uuid())
+  fileName     String
+  url          String   @unique
+  container    String // avatars, resources, etc.
+  mimeType     String?
+  fileSize     Int?
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([uploadedById])
+  @@index([container])
 }
 
 enum Role {

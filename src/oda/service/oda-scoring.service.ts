@@ -179,49 +179,106 @@ export class OdaScoringService {
     }
     lines.push('');
 
-    lines.push('STRENGTHS');
-    lines.push('─────────');
+    lines.push('STRATEGIC ASSETS & STRENGTHS');
+    lines.push('──────────────────');
     const strongBlocks = blockSummaries.filter((b) => b.avgScale >= 3);
+    // if (strongBlocks.length) {
+    //   lines.push(
+    //     `The organisation demonstrates its greatest capacity in the ${strongestPillar} pillar. The following areas are performing well:`,
+    //   );
+    //   lines.push('');
+    //   for (const sb of strongBlocks) {
+    //     lines.push(`  ${sb.block} (${sb.label})`);
+    //     for (const sa of sb.strongAnswers)
+    //       lines.push(`    Evidence: "${sa.evidence}"`);
+    //   }
+    // } else {
+    //   lines.push(
+    //     'No blocks have yet reached a consistently high performance level. Continued effort across all pillars is encouraged.',
+    //   );
+    // }
     if (strongBlocks.length) {
       lines.push(
-        `The organisation demonstrates its greatest capacity in the ${strongestPillar} pillar. The following areas are performing well:`,
+        `Your performance in ${strongestPillar} serves as a foundational pillar for your organization.`,
+      );
+      lines.push(
+        'These high-scoring areas indicate mature processes that can be leveraged to mentor weaker departments:',
       );
       lines.push('');
+
       for (const sb of strongBlocks) {
-        lines.push(`  ${sb.block} (${sb.label})`);
-        for (const sa of sb.strongAnswers)
-          lines.push(`    Evidence: "${sa.evidence}"`);
+        lines.push(`  ▶ ${sb.block.toUpperCase()}`);
+        lines.push(`    Status: ${sb.label} (${sb.avgScale}/4)`);
+        // Add interpretive text based on the label
+        if (sb.avgScale >= 3.5) {
+          lines.push(
+            `    Interpretation: This is a "Best Practice" area. Your organization is not just meeting standards but could potentially serve as a case study for other NGOs.`,
+          );
+        }
+
+        if (sb.strongAnswers.length) {
+          lines.push(`    Key Evidence of Success:`);
+          for (const sa of sb.strongAnswers) {
+            lines.push(`      • Verified: "${sa.evidence}"`);
+          }
+        }
+        lines.push('');
       }
-    } else {
-      lines.push(
-        'No blocks have yet reached a consistently high performance level. Continued effort across all pillars is encouraged.',
-      );
     }
     lines.push('');
 
     lines.push('AREAS FOR DEVELOPMENT');
     lines.push('─────────────────────');
     lines.push(
-      `The ${weakestPillar} pillar requires the most focused attention. The three lowest-scoring blocks are detailed below.`,
+      `The following areas in the ${weakestPillar} pillar represent potential bottlenecks to your organizational scaling.`,
     );
     lines.push('');
+    // for (const wb of weakestBlocks) {
+    //   lines.push(
+    //     `  ${wb.block}  [${wb.label} — score ${wb.score.toFixed(1)} / ${wb.maxScore}]`,
+    //   );
+    //   if (wb.weakAnswers.length) {
+    //     lines.push('  Identified gaps:');
+    //     for (const wa of wb.weakAnswers) {
+    //       lines.push(
+    //         `    • ${wa.question}  (rated: ${SCALE_LABELS[wa.scale] ?? `Scale ${wa.scale}`})`,
+    //       );
+    //       if (wa.evidence)
+    //         lines.push(`      Organisation noted: "${wa.evidence}"`);
+    //     }
+    //   } else {
+    //     lines.push(
+    //       '  This block scored below average. A review of current practices is recommended.',
+    //     );
+    //   }
+    //   lines.push('');
+    // }
+
     for (const wb of weakestBlocks) {
-      lines.push(
-        `  ${wb.block}  [${wb.label} — score ${wb.score.toFixed(1)} / ${wb.maxScore}]`,
-      );
-      if (wb.weakAnswers.length) {
-        lines.push('  Identified gaps:');
-        for (const wa of wb.weakAnswers) {
-          lines.push(
-            `    • ${wa.question}  (rated: ${SCALE_LABELS[wa.scale] ?? `Scale ${wa.scale}`})`,
-          );
-          if (wa.evidence)
-            lines.push(`      Organisation noted: "${wa.evidence}"`);
-        }
-      } else {
+      const riskLevel = wb.avgScale < 1.5 ? 'CRITICAL' : 'MODERATE';
+      lines.push(`  [${riskLevel} RISK] ${wb.block}`);
+      lines.push(`  Current Capability: ${wb.label}`);
+
+      // Descriptive Interpretation
+      lines.push(`  Analysis:`);
+      if (wb.avgScale < 1.5) {
         lines.push(
-          '  This block scored below average. A review of current practices is recommended.',
+          `    - Absence of documented policy in this area creates a high dependency on individual knowledge rather than institutional systems.`,
         );
+      } else if (wb.avgScale < 2.5) {
+        lines.push(
+          `    - Systems exist but are inconsistent. This likely leads to "firefighting" and occasional compliance lapses.`,
+        );
+      }
+
+      if (wb.weakAnswers.length) {
+        lines.push('  Specific Gaps to Close:');
+        for (const wa of wb.weakAnswers) {
+          lines.push(`    • ${wa.question}`);
+          lines.push(
+            `      Action Required: Move from "${SCALE_LABELS[wa.scale]}" toward a standardized process.`,
+          );
+        }
       }
       lines.push('');
     }
@@ -230,12 +287,19 @@ export class OdaScoringService {
       lines.push('RECOMMENDED RESOURCES');
       lines.push('─────────────────────');
       lines.push(
-        'Based on the gaps identified above, the following resources from the PLRCAP library may support capacity building:',
+        'We have identified high-impact resources from the PLRCAP library specifically',
       );
+      lines.push('aligned with your current development gaps:');
       lines.push('');
-      for (const r of resourceSuggestions)
-        lines.push(`  • ${r.title}  [${r.type.toLowerCase()}]`);
-      lines.push('');
+      // for (const r of resourceSuggestions)
+      //   lines.push(`  • ${r.title}  [${r.type.toLowerCase()}]`);
+      // lines.push('');
+      for (const r of resourceSuggestions) {
+        lines.push(`  ▶ ${r.title.toUpperCase()}`);
+        lines.push(`    Type: ${r.type.toLowerCase()}`);
+        lines.push(`    Reference ID: ${r.id}`);
+        lines.push('');
+      }
     }
 
     if (expertSuggestions.length) {
@@ -254,6 +318,36 @@ export class OdaScoringService {
       }
       lines.push('');
     }
+
+    lines.push('ORGANIZATIONAL MATURITY ROADMAP');
+    lines.push('───────────────────────────────');
+
+    let phaseDescription = '';
+    let nextStep = '';
+
+    if (overallScore < 25) {
+      phaseDescription =
+        'EMERGING: Your focus is on establishing basic compliance and core administrative functions.';
+      nextStep = 'Priority: Documentation of basic HR and Financial policies.';
+    } else if (overallScore < 50) {
+      phaseDescription =
+        'STABILIZING: You have moved past basics. Now focus on consistency and staff training.';
+      nextStep =
+        'Priority: Implementing regular internal audits and performance reviews.';
+    } else if (overallScore < 75) {
+      phaseDescription =
+        'SCALING: Your systems are functional. Now you need to automate and optimize for impact.';
+      nextStep =
+        'Priority: Using data/AI to track program outcomes and external reporting.';
+    } else {
+      phaseDescription = 'LEADING: You are a high-performing organization.';
+      nextStep =
+        'Priority: Mentoring other organizations and refining innovation blocks.';
+    }
+
+    lines.push(`Current Phase: ${phaseDescription}`);
+    lines.push(`Immediate Next Step: ${nextStep}`);
+    lines.push('');
 
     lines.push(`${'─'.repeat(60)}`);
     lines.push(
@@ -323,16 +417,78 @@ export class OdaScoringService {
 
     const lines: string[] = [];
 
-    lines.push(`Pillar Assessment: ${pillarName} — ${org.name}`);
+    // lines.push(`Pillar Assessment: ${pillarName} — ${org.name}`);
+    // lines.push(`${'─'.repeat(60)}`);
+    // lines.push('');
+    // lines.push(
+    //   `Pillar Score: ${pillarScoreRaw.toFixed(1)}%  |  Level: ${pillarBand}`,
+    // );
+    // lines.push('');
+
+    // lines.push(`${pillarName.toUpperCase()} — BLOCK SCORES`);
+    // lines.push('──────────────────');
+    // for (const b of blockSummaries) {
+    //   const bar =
+    //     '█'.repeat(Math.round(b.avgScale)) +
+    //     '░'.repeat(4 - Math.round(b.avgScale));
+    //   lines.push(
+    //     `  ${b.block.padEnd(38)} ${bar}  ${b.label} (${b.avgScale.toFixed(2)}/4)`,
+    //   );
+    // }
+    // lines.push('');
+
+    // if (strongBlocks.length) {
+    //   lines.push('STRENGTHS IN THIS PILLAR');
+    //   lines.push('─────────────────────────');
+    //   for (const sb of strongBlocks) {
+    //     lines.push(`  ${sb.block} (${sb.label})`);
+    //     for (const sa of sb.strongAnswers)
+    //       lines.push(`    Evidence: "${sa.evidence}"`);
+    //   }
+    //   lines.push('');
+    // }
+
+    // if (weakestBlocks.length) {
+    //   lines.push('DEVELOPMENT AREAS IN THIS PILLAR');
+    //   lines.push('─────────────────────────────────');
+    //   for (const wb of weakestBlocks) {
+    //     lines.push(
+    //       `  ${wb.block}  [${wb.label} — score ${wb.score.toFixed(1)} / ${wb.maxScore}]`,
+    //     );
+    //     if (wb.weakAnswers.length) {
+    //       lines.push('  Identified gaps:');
+    //       for (const wa of wb.weakAnswers) {
+    //         lines.push(
+    //           `    • ${wa.question}  (rated: ${SCALE_LABELS[wa.scale] ?? `Scale ${wa.scale}`})`,
+    //         );
+    //         if (wa.evidence)
+    //           lines.push(`      Organisation noted: "${wa.evidence}"`);
+    //       }
+    //     }
+    //     lines.push('');
+    //   }
+    // }
+
+    // if (resourceSuggestions.length) {
+    //   lines.push('RECOMMENDED RESOURCES');
+    //   lines.push('─────────────────────');
+    //   for (const r of resourceSuggestions)
+    //     lines.push(`  • ${r.title}  [${r.type.toLowerCase()}]`);
+    //   lines.push('');
+    // }
+
+    // HEADER SECTION
+    lines.push(`PILLAR DIAGNOSTIC: ${pillarName.toUpperCase()}`);
+    lines.push(`Organisation: ${org.name}`);
     lines.push(`${'─'.repeat(60)}`);
     lines.push('');
-    lines.push(
-      `Pillar Score: ${pillarScoreRaw.toFixed(1)}%  |  Level: ${pillarBand}`,
-    );
+    lines.push(`Pillar Health Score: ${pillarScoreRaw.toFixed(1)}%`);
+    lines.push(`Classification: ${pillarBand.toUpperCase()}`);
     lines.push('');
 
-    lines.push(`${pillarName.toUpperCase()} — BLOCK SCORES`);
-    lines.push('──────────────────');
+    // QUANTITATIVE BREAKDOWN
+    lines.push(`${pillarName.toUpperCase()} — COMPONENT PERFORMANCE`);
+    lines.push('────────────────────────────────');
     for (const b of blockSummaries) {
       const bar =
         '█'.repeat(Math.round(b.avgScale)) +
@@ -343,48 +499,91 @@ export class OdaScoringService {
     }
     lines.push('');
 
+    // STRENGTHS (INTERPRETIVE)
+    lines.push('CORE COMPETENCIES IN THIS PILLAR');
+    lines.push('────────────────────────────────');
     if (strongBlocks.length) {
-      lines.push('STRENGTHS IN THIS PILLAR');
-      lines.push('─────────────────────────');
+      lines.push(
+        `The following components of ${pillarName} are currently driving institutional stability:`,
+      );
+      lines.push('');
       for (const sb of strongBlocks) {
-        lines.push(`  ${sb.block} (${sb.label})`);
-        for (const sa of sb.strongAnswers)
-          lines.push(`    Evidence: "${sa.evidence}"`);
+        lines.push(`  ▶ ${sb.block.toUpperCase()}`);
+        lines.push(`    Status: ${sb.label}`);
+        lines.push(
+          `    Insight: Your established processes here provide a safety net for ${pillarName} operations.`,
+        );
+        if (sb.strongAnswers.length) {
+          lines.push(`    Verified Evidence:`);
+          for (const sa of sb.strongAnswers)
+            lines.push(`      • "${sa.evidence}"`);
+        }
+        lines.push('');
       }
+    } else {
+      lines.push(
+        `No components in ${pillarName} have reached 'Functional' maturity yet. Basic systems need to be established.`,
+      );
       lines.push('');
     }
 
+    // AREAS FOR DEVELOPMENT (RISK-BASED)
+    lines.push('CRITICAL GAPS & IMPROVEMENT ROADMAP');
+    lines.push('────────────────────────────────');
     if (weakestBlocks.length) {
-      lines.push('DEVELOPMENT AREAS IN THIS PILLAR');
-      lines.push('─────────────────────────────────');
       for (const wb of weakestBlocks) {
+        const isCritical = wb.avgScale < 2.0;
         lines.push(
-          `  ${wb.block}  [${wb.label} — score ${wb.score.toFixed(1)} / ${wb.maxScore}]`,
+          `  ${isCritical ? '[CRITICAL GAP]' : '[ADVISORY]'} ${wb.block.toUpperCase()}`,
         );
+        lines.push(`  Maturity: ${wb.label} (${wb.avgScale.toFixed(2)}/4)`);
+
+        // Descriptive Analysis
+        if (isCritical) {
+          lines.push(
+            `  Analysis: Significant operational risk. Lack of formalisation in this area likely causes recurring inefficiencies.`,
+          );
+        } else {
+          lines.push(
+            `  Analysis: Systems are emerging but lack the consistency required for full institutional autonomy.`,
+          );
+        }
+
         if (wb.weakAnswers.length) {
-          lines.push('  Identified gaps:');
+          lines.push('  Immediate Actions Needed:');
           for (const wa of wb.weakAnswers) {
-            lines.push(
-              `    • ${wa.question}  (rated: ${SCALE_LABELS[wa.scale] ?? `Scale ${wa.scale}`})`,
-            );
+            lines.push(`    • Address: ${wa.question}`);
             if (wa.evidence)
-              lines.push(`      Organisation noted: "${wa.evidence}"`);
+              lines.push(`      Organisation Context: "${wa.evidence}"`);
           }
         }
         lines.push('');
       }
     }
 
+    // ACTIONABLE RESOURCES (FRONTEND-READY)
     if (resourceSuggestions.length) {
-      lines.push('RECOMMENDED RESOURCES');
-      lines.push('─────────────────────');
-      for (const r of resourceSuggestions)
-        lines.push(`  • ${r.title}  [${r.type.toLowerCase()}]`);
+      lines.push('RECOMMENDED INTERVENTIONS');
+      lines.push('────────────────────────────────');
+      lines.push(
+        `To improve your ${pillarName} score, we recommend the following curated resources:`,
+      );
       lines.push('');
+      for (const r of resourceSuggestions) {
+        lines.push(`  ▶ ${r.title}`);
+        lines.push(`    Format: ${r.type.toUpperCase()}`);
+        lines.push(`    Resource ID: ${r.id}`); // Crucial for frontend navigation
+        lines.push(
+          `    Goal: Use this to transition ${pillarName} from ${pillarBand} to a higher capacity level.`,
+        );
+        lines.push('');
+      }
     }
 
     lines.push(`${'─'.repeat(60)}`);
-    lines.push(`Pillar assessment generated for ${org.name}.`);
+    lines.push(
+      `Pillar assessment report generated for ${org.name}. Confidential. @ PLRCAP NGO Support Hub`,
+    );
 
     return lines.join('\n');
   }

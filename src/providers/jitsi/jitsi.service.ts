@@ -237,12 +237,12 @@ export class JitsiService {
           recording: isMod,
           transcription: isMod,
           'outbound-call': isMod,
-          'screen-sharing': true, // all participants can screen share
+          'screen-sharing': isMod, // all participants can screen share
         },
       },
     };
 
-    return jwt.sign(claims, this.appSecret, { algorithm: 'HS256' });
+    return jwt.sign(claims, this.appSecret, { algorithm: 'RS256' });
   }
 
   /**

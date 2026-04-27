@@ -17,6 +17,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { RedisModule } from './providers/redis/redis.module';
 import { PrismaModule } from './prisma-module/prisma.module';
 import { ContactModule } from './contact/contact.module';
+import { UploadsModule } from './upload/module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ContactModule } from './contact/contact.module';
     NotificationsModule,
     RedisModule,
     ContactModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
