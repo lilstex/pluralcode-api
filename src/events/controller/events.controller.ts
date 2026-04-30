@@ -501,6 +501,27 @@ export class EventController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN, Role.NGO_MEMBER, Role.EXPERT)
+  @Permissions(PERMISSIONS.EVENT_MANAGE_ATTENDEES)
+  @ApiBearerAuth()
+  @Get(':id/attendees/export')
+  @ApiOperation({
+    summary: 'Export event attendees as CSV or XLSX',
+  })
+  @ApiParam({ name: 'id', description: 'Event UUID' })
+  @ApiQuery({ name: 'format', required: true, enum: ['csv', 'xlsx'] })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  async exportAttendees(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: any,
+    @Res() res: Response,
+  ) {
+    return this.eventService.exportAttendees(id, query, res);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(Role.SUPER_ADMIN, Role.EVENT_ADMIN)
   @Permissions(PERMISSIONS.EVENT_MANAGE_ATTENDEES)
   @ApiBearerAuth()

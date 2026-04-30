@@ -824,7 +824,7 @@ export class ResourceService {
         ...r,
         downloadCount: r._count.downloads,
         _count: undefined,
-        contentUrl: isAuthenticated ? r.contentUrl : null,
+        contentUrl: r.contentUrl,
         requiresLogin: !isAuthenticated,
       }));
 
@@ -949,7 +949,7 @@ export class ResourceService {
           links,
           downloadCount: safeResource._count.downloads,
           _count: undefined,
-          contentUrl: isAuthenticated ? safeResource.contentUrl : null,
+          contentUrl: safeResource.contentUrl,
           requiresLogin: !isAuthenticated,
           hasViewed,
           hasCompleted,

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Injectable, HttpStatus, Logger, HttpException } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger, HttpException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -26,6 +26,10 @@ import {
 } from 'src/util/helper';
 import { RewardsService } from 'src/reward/service/reward.service';
 import { NotificationsService } from 'src/notifications/service/notifications.service';
+
+import { Response } from 'express';
+import { stringify as csvStringify } from 'csv-stringify';
+import * as XLSX from 'xlsx';
 
 const ADMIN_ROLES: Role[] = [
   Role.SUPER_ADMIN,
@@ -1606,4 +1610,196 @@ export class UserService {
       };
     }
   }
+
+  async exportUsers(
+    query: {
+      format: 'csv' | 'xlsx';
+      role?: Role;
+      status?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    },
+    res: Response,
+  ): Promise<void> {
+    const hasPagination = query.page && query.limit;
+
+    const page = hasPagination
+      ? Math.max(1, parseInt(String(query.page), 10))
+      : 1;
+
+    const limit = hasPagination
+      ? Math.min(1000, Math.max(1, parseInt(String(query.limit), 10)))
+      : undefined;
+
+    const skip = hasPagination ? (page - 1) * limit : undefined;
+
+    const where: any = {};
+
+    if (query.role) where.role = query.role;
+    if (query.status) where.status = query.status;
+
+    if (query.search) {
+      where.OR = [
+        { fullName: { contains: query.search, mode: 'insensitive' } },
+        { email: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const includeExpert = query.role === Role.EXPERT;
+    const includeOrg = query.role === Role.NGO_MEMBER;
+
+    const users = await this.prisma.user.findMany({
+      where,
+      ...(hasPagination ? { skip, take: limit } : {}),
+      include: {
+        organization: includeOrg,
+        expertProfile: includeExpert,
+        badges: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const flattened = users.map((u) =>
+      this.flattenUser(u, { includeExpert, includeOrg }),
+    );
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const filename = `users-${timestamp}.${query.format}`;
+
+    if (query.format === 'csv') {
+      return this.exportUsersCsv(flattened, filename, res);
+    } else {
+      return this.exportUsersXlsx(flattened, filename, res);
+    }
+  }
+
+  private flattenUser(
+    user: any,
+    options: { includeExpert: boolean; includeOrg: boolean },
+  ) {
+    const base = {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      phoneNumber: user.phoneNumber ?? '',
+      isEmailVerified: user.isEmailVerified,
+      points: user.pointsCount,
+      createdAt: this.formatDate(user.createdAt),
+      badges: user.badges?.map((b) => b.name).join(', ') ?? '',
+    };
+
+    if (options.includeExpert) {
+      return {
+        ...base,
+        expertTitle: user.expertProfile?.title ?? '',
+        expertEmployer: user.expertProfile?.employer ?? '',
+        expertise:
+          user.expertProfile?.areasOfExpertise?.join(', ') ?? '',
+      };
+    }
+
+    if (options.includeOrg) {
+      return {
+        ...base,
+        organizationName: user.organization?.name ?? '',
+        organizationAcronym: user.organization?.acronym ?? '',
+        organizationState: user.organization?.state ?? '',
+        organizationCAC: user.organization?.cacNumber ?? '',
+      };
+    }
+
+    return base;
+  }
+
+  private async exportUsersCsv(
+    data: any[],
+    filename: string,
+    res: Response,
+  ): Promise<void> {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.write('\uFEFF');
+
+    if (!data.length) {
+      res.end();
+      return;
+    }
+
+    const columns = Object.keys(data[0]);
+
+    const csvStream = csvStringify({
+      header: true,
+      columns,
+    });
+
+    csvStream.pipe(res);
+
+    for (const row of data) {
+      csvStream.write(row);
+    }
+
+    csvStream.end();
+  }
+
+  private async exportUsersXlsx(
+    data: any[],
+    filename: string,
+    res: Response,
+  ): Promise<void> {
+    if (!data.length) {
+      throw new BadRequestException('No data to export');
+    }
+
+    const headers = Object.keys(data[0]);
+
+    const rows = data.map((row) =>
+      headers.map((key) => {
+        const val = row[key];
+        if (val instanceof Date) return val.toISOString();
+        if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+        return val ?? '';
+      }),
+    );
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+    ws['!cols'] = headers.map((h, i) => {
+      const maxLen = Math.max(
+        h.length,
+        ...rows.map((r) => String(r[i] ?? '').length),
+      );
+      return { wch: Math.min(maxLen + 2, 40) };
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Users');
+
+    const buffer = XLSX.write(wb, {
+      type: 'buffer',
+      bookType: 'xlsx',
+    });
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  private formatDate(date: Date): string {
+    if (!date) return '';
+
+    return new Intl.DateTimeFormat('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(date));
+  }
+
 }

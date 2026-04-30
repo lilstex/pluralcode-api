@@ -15,6 +15,7 @@ import {
   MaxFileSizeValidator,
   FileTypeValidator,
   ParseUUIDPipe,
+  Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -54,6 +55,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { PERMISSIONS } from 'src/common/constants/permissions';
+import { Response } from 'express';
 
 @ApiTags('Users & Authentication')
 @Controller('users')
@@ -395,6 +397,37 @@ export class UserController {
     @Query('limit') limit?: number,
   ) {
     return this.userService.listUsers({ role, status, search, page, limit });
+  }
+
+  @Get('export')
+  @ApiOperation({
+    summary: 'Export users as CSV or Excel',
+    description: 'Export users',
+  })
+  @ApiQuery({ name: 'format', required: true, enum: ['csv', 'xlsx'] })
+  @ApiQuery({ name: 'role', enum: Role, required: false })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'],
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search by fullName or email',
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async exportUsers(
+    @Res() res: Response,
+    @Query('format') format: 'csv' | 'xlsx',
+    @Query('role') role?: Role,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.userService.exportUsers({ format, role, status, search, page, limit }, res);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)

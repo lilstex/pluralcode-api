@@ -237,7 +237,7 @@ export class JitsiService {
           recording: isMod,
           transcription: isMod,
           'outbound-call': isMod,
-          'screen-sharing': isMod, // all participants can screen share
+          'screen-sharing': true, // all participants can screen share
         },
       },
     };

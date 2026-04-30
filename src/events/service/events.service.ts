@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma-module/prisma.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
 import { JitsiService } from 'src/providers/jitsi/jitsi.service';
@@ -15,6 +15,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { NotificationsService } from 'src/notifications/service/notifications.service';
 import { NotificationType } from '@prisma/client';
 import { YouTubeService } from 'src/providers/youtube/youtube.service';
+
+import { Response } from 'express';
+import { stringify as csvStringify } from 'csv-stringify';
+import * as XLSX from 'xlsx';
 
 @Injectable()
 export class EventService {
@@ -1646,9 +1650,203 @@ export class EventService {
     }
   }
 
+  async exportAttendees(
+    eventId: string,
+    query: {
+      format: 'csv' | 'xlsx';
+      page?: number;
+      limit?: number;
+      search?: string;
+    },
+    res: Response,
+  ): Promise<void> {
+    const hasPagination = query.page && query.limit;
+
+    const page = hasPagination
+      ? Math.max(1, parseInt(String(query.page), 10))
+      : 1;
+
+    const limit = hasPagination
+      ? Math.min(1000, Math.max(1, parseInt(String(query.limit), 10)))
+      : undefined;
+
+    const skip = hasPagination ? (page - 1) * limit : undefined;
+
+    const where: any = {
+      eventId,
+    };
+
+    if (query.search) {
+      where.OR = [
+        {
+          guestName: { contains: query.search, mode: 'insensitive' },
+        },
+        {
+          guestEmail: { contains: query.search, mode: 'insensitive' },
+        },
+        {
+          user: {
+            fullName: { contains: query.search, mode: 'insensitive' },
+          },
+        },
+        {
+          user: {
+            email: { contains: query.search, mode: 'insensitive' },
+          },
+        },
+      ];
+    }
+
+    const attendees = await this.prisma.eventRegistration.findMany({
+      where,
+      ...(hasPagination ? { skip, take: limit } : {}),
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phoneNumber: true,
+            role: true,
+          },
+        },
+        event: {
+          select: {
+            id: true,
+            title: true,
+            startTime: true,
+            endTime: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const formatted = attendees.map((a) =>
+      this.flattenAttendee(a),
+    );
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const filename = `event-attendees-${eventId}-${timestamp}.${query.format}`;
+
+    if (query.format === 'csv') {
+      return this.exportAttendeesCsv(formatted, filename, res);
+    }
+
+    return this.exportAttendeesXlsx(formatted, filename, res);
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
-  // PRIVATE: EMAIL HELPERS
+  // PRIVATE HELPERS
   // ─────────────────────────────────────────────────────────────────────────────
+
+  private flattenAttendee(att: any) {
+    const isGuest = !att.userId;
+
+    return {
+      eventId: att.event?.id,
+      eventTitle: att.event?.title,
+
+      attendeeType: isGuest ? 'Guest' : 'Registered User',
+
+      fullName: isGuest ? att.guestName : att.user?.fullName,
+      email: isGuest ? att.guestEmail : att.user?.email,
+
+      phoneNumber: att.user?.phoneNumber ?? '',
+      role: att.user?.role ?? 'GUEST',
+
+      registeredAt: this.formatDate(att.createdAt),
+    };
+  }
+
+  private async exportAttendeesCsv(
+    data: any[],
+    filename: string,
+    res: Response,
+  ): Promise<void> {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.write('\uFEFF');
+
+    if (!data.length) {
+      res.end();
+      return;
+    }
+
+    const columns = Object.keys(data[0]);
+
+    const csvStream = csvStringify({
+      header: true,
+      columns,
+    });
+
+    csvStream.pipe(res);
+
+    for (const row of data) {
+      csvStream.write(row);
+    }
+
+    csvStream.end();
+  }
+
+  private async exportAttendeesXlsx(
+    data: any[],
+    filename: string,
+    res: Response,
+  ): Promise<void> {
+    if (!data.length) {
+      throw new BadRequestException('No attendees to export');
+    }
+
+    const headers = Object.keys(data[0]);
+
+    const rows = data.map((row) =>
+      headers.map((key) => {
+        const val = row[key];
+
+        if (val instanceof Date) return val.toISOString();
+        if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+        return val ?? '';
+      }),
+    );
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+    ws['!cols'] = headers.map((h, i) => {
+      const maxLen = Math.max(
+        h.length,
+        ...rows.map((r) => String(r[i] ?? '').length),
+      );
+      return { wch: Math.min(maxLen + 2, 45) };
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Attendees');
+
+    const buffer = XLSX.write(wb, {
+      type: 'buffer',
+      bookType: 'xlsx',
+    });
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  private formatDate(date: Date): string {
+    if (!date) return '';
+
+    return new Intl.DateTimeFormat('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(date));
+  }
 
   private async notifyAttendeesOfUpdate(event: any) {
     const registrations = await this.prisma.eventRegistration.findMany({
