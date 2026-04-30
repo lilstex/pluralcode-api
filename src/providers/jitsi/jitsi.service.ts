@@ -242,7 +242,7 @@ export class JitsiService {
       },
     };
 
-    return jwt.sign(claims, this.appSecret, { algorithm: 'RS256' });
+    return jwt.sign(claims, this.appSecret, { algorithm: 'HS256' });
   }
 
   /**
