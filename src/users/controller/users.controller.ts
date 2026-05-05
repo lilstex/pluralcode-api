@@ -122,6 +122,14 @@ export class UserController {
     return this.userService.resetPassword(dto);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Delete('delete')
+  @ApiOperation({ summary: 'Delete account' })
+  async delete(@CurrentUser() user: any) {
+    return this.userService.delete(user.id);
+  }
+
   @Post('seed-super-admin')
   @ApiOperation({
     summary: 'One-time Super Admin account creation (disable after first use)',
@@ -427,7 +435,10 @@ export class UserController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.userService.exportUsers({ format, role, status, search, page, limit }, res);
+    return this.userService.exportUsers(
+      { format, role, status, search, page, limit },
+      res,
+    );
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)

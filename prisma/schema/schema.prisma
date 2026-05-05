@@ -199,9 +199,9 @@ model AuditLog {
   entity    String
   entityId  String
   details   Json?
-  adminId   String
+  adminId   String?
   createdAt DateTime @default(now())
-  admin     User     @relation(fields: [adminId], references: [id])
+  admin     User?     @relation(fields: [adminId], references: [id])
 }
 
 model ODAPillar {

@@ -8,11 +8,13 @@ import * as ejs from 'ejs';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import SMTPTransport from 'nodemailer/lib/smtp-transport';
+import { EmailClient } from '@azure/communication-email';
 
 interface SendEmailOptions {
   to: string;
   subject: string;
   html: string;
+  attachments?: any;
 }
 
 @Injectable()
@@ -20,29 +22,48 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly viewsPath: string;
   private readonly transporter: nodemailer.Transporter;
+
+  private readonly emailClient: EmailClient;
   private readonly fromAddress: string;
+
+  // constructor(private readonly config: ConfigService) {
+  //   this.viewsPath = path.join(__dirname, '../../../views');
+  //   // this.viewsPath = path.join(process.cwd(), 'views');
+  //   this.fromAddress =
+  //     this.config.get<string>('EMAIL_FROM') ??
+  //     'PLRCAP Hub <noreply@plrcap.org>';
+
+  //   const options: SMTPTransport.Options = {
+  //     host: this.config.get<string>('MAIL_HOST'),
+  //     port: parseInt(this.config.get<string>('MAIL_PORT') ?? '465', 10),
+  //     secure: this.config.get<string>('MAIL_PORT') === '465',
+  //     auth: {
+  //       user: this.config.get<string>('MAIL_USERNAME'),
+  //       pass: this.config.get<string>('MAIL_PASSWORD'),
+  //     },
+  //   };
+
+  //   this.transporter = nodemailer.createTransport(options);
+  // }
+
+  // ─── Private Helpers ─────────────────────────────────────────────────────────
 
   constructor(private readonly config: ConfigService) {
     this.viewsPath = path.join(__dirname, '../../../views');
-    // this.viewsPath = path.join(process.cwd(), 'views');
+
     this.fromAddress =
-      this.config.get<string>('EMAIL_FROM') ??
-      'PLRCAP Hub <noreply@plrcap.org>';
+      this.config.get<string>('AZURE_EMAIL_FROM') ?? 'noreply@plrcap.org';
 
-    const options: SMTPTransport.Options = {
-      host: this.config.get<string>('MAIL_HOST'),
-      port: parseInt(this.config.get<string>('MAIL_PORT') ?? '465', 10),
-      secure: this.config.get<string>('MAIL_PORT') === '465',
-      auth: {
-        user: this.config.get<string>('MAIL_USERNAME'),
-        pass: this.config.get<string>('MAIL_PASSWORD'),
-      },
-    };
+    const connectionString = this.config.get<string>(
+      'AZURE_COMMUNICATION_CONNECTION_STRING',
+    );
 
-    this.transporter = nodemailer.createTransport(options);
+    if (!connectionString) {
+      throw new Error('Azure Communication connection string is missing');
+    }
+
+    this.emailClient = new EmailClient(connectionString);
   }
-
-  // ─── Private Helpers ─────────────────────────────────────────────────────────
 
   private async renderTemplate(
     template: string,
@@ -59,25 +80,61 @@ export class EmailService {
     }
   }
 
+  // private async send(
+  //   options: SendEmailOptions,
+  // ): Promise<{ status: boolean; message: string }> {
+  //   try {
+  //     const info = await this.transporter.sendMail({
+  //       from: this.fromAddress,
+  //       to: options.to,
+  //       subject: options.subject,
+  //       html: options.html,
+  //     });
+  //     this.logger.log(`Email sent to ${options.to}: ${info.messageId}`);
+  //     return { status: true, message: 'Email sent successfully.' };
+  //   } catch (error) {
+  //     this.logger.error(`Failed to send email to ${options.to}`, error);
+  //     return { status: false, message: 'Failed to send email.' };
+  //   }
+  // }
+
+  // ─── Public Methods ───────────────────────────────────────────────────────────
+
   private async send(
     options: SendEmailOptions,
   ): Promise<{ status: boolean; message: string }> {
     try {
-      const info = await this.transporter.sendMail({
-        from: this.fromAddress,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-      });
-      this.logger.log(`Email sent to ${options.to}: ${info.messageId}`);
-      return { status: true, message: 'Email sent successfully.' };
+      const message = {
+        senderAddress: this.fromAddress,
+        content: {
+          subject: options.subject,
+          html: options.html,
+        },
+        recipients: {
+          to: [{ address: options.to }],
+        },
+      };
+
+      const poller = await this.emailClient.beginSend(message);
+      const result = await poller.pollUntilDone();
+
+      this.logger.log(
+        `Email sent to ${options.to} with status: ${result.status}`,
+      );
+
+      return {
+        status: true,
+        message: 'Email sent successfully.',
+      };
     } catch (error) {
-      this.logger.error(`Failed to send email to ${options.to}`, error);
-      return { status: false, message: 'Failed to send email.' };
+      this.logger.error(`Azure email failed for ${options.to}`, error);
+
+      return {
+        status: false,
+        message: 'Failed to send email.',
+      };
     }
   }
-
-  // ─── Public Methods ───────────────────────────────────────────────────────────
 
   /**
    * Send OTP for email verification (new sign-ups).
@@ -180,31 +237,18 @@ export class EmailService {
     icsContent: string;
   }) {
     const html = await this.renderTemplate('event-registration', params);
-    try {
-      const info = await this.transporter.sendMail({
-        from: this.fromAddress,
-        to: params.email,
-        subject: `Registration Confirmed: ${params.eventTitle}`,
-        html,
-        attachments: [
-          {
-            filename: 'event.ics',
-            content: params.icsContent,
-            contentType: 'text/calendar; method=REQUEST',
-          },
-        ],
-      });
-      this.logger.log(
-        `Event registration email sent to ${params.email}: ${info.messageId}`,
-      );
-      return { status: true, message: 'Email sent successfully.' };
-    } catch (error) {
-      this.logger.error(
-        `Failed to send event registration email to ${params.email}`,
-        error,
-      );
-      return { status: false, message: 'Failed to send email.' };
-    }
+    return this.send({
+      to: params.email,
+      subject: `Registration Confirmed: ${params.eventTitle}`,
+      html,
+      attachments: [
+        {
+          name: 'event.ics',
+          contentType: 'text/calendar',
+          contentInBase64: Buffer.from(params.icsContent).toString('base64'),
+        },
+      ],
+    });
   }
 
   /**

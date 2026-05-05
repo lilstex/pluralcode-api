@@ -1,5 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Injectable, HttpStatus, Logger, HttpException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  HttpStatus,
+  Logger,
+  HttpException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -185,16 +191,6 @@ export class UserService {
       });
     } catch (error) {
       this.logger.error('createUser error', error);
-
-      // Handle CAC duplicate error cleanly
-      if (error.message === 'CAC_NUMBER_EXISTS') {
-        return {
-          status: false,
-          statusCode: HttpStatus.BAD_REQUEST,
-          message: 'An organization with this CAC number already exists.',
-        };
-      }
-
       return {
         status: false,
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -1361,6 +1357,44 @@ export class UserService {
     }
   }
 
+  async delete(userId: string) {
+    try {
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return {
+          status: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'User not found.',
+        };
+      }
+
+      await this.prisma.$transaction([
+        this.prisma.user.delete({ where: { id: userId } }),
+        this.prisma.auditLog.create({
+          data: {
+            action: 'USER_DELETED',
+            entity: 'User',
+            entityId: userId,
+            details: { email: user.email, role: user.role },
+          },
+        }),
+      ]);
+
+      return {
+        status: true,
+        statusCode: HttpStatus.OK,
+        message: 'Account deleted successfully.',
+      };
+    } catch (error) {
+      this.logger.error('deleteUser error', error);
+      return {
+        status: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Server error.',
+      };
+    }
+  }
+
   async deleteUser(adminId: string, userId: string) {
     try {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -1696,8 +1730,7 @@ export class UserService {
         ...base,
         expertTitle: user.expertProfile?.title ?? '',
         expertEmployer: user.expertProfile?.employer ?? '',
-        expertise:
-          user.expertProfile?.areasOfExpertise?.join(', ') ?? '',
+        expertise: user.expertProfile?.areasOfExpertise?.join(', ') ?? '',
       };
     }
 
@@ -1801,5 +1834,4 @@ export class UserService {
       minute: '2-digit',
     }).format(new Date(date));
   }
-
 }
