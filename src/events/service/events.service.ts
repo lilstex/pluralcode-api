@@ -810,7 +810,7 @@ export class EventService {
       });
 
       const frontendUrl =
-        process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+        process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
       const emailJoinUrl =
         event.externalMeetingUrl ??
@@ -916,7 +916,7 @@ export class EventService {
 
       // Email confirmation with ICS
       const frontendUrl =
-        process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+        process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
       const rawMeetingUrl =
         event.externalMeetingUrl ??
@@ -1850,8 +1850,7 @@ export class EventService {
       include: { user: { select: { id: true, fullName: true, email: true } } },
     });
 
-    const frontendUrl =
-      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
     await Promise.allSettled(
       registrations.map((r) =>
@@ -1901,8 +1900,7 @@ export class EventService {
       ),
     );
 
-    const frontendUrl =
-      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
     // Fan-out to all attendees after cancellation:
     const attendeeIds = registrations.map((r) => r.userId);

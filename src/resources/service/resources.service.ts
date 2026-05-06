@@ -1189,7 +1189,7 @@ export class ResourceService {
       });
 
       const frontendUrl =
-        process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+        process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
       const newBadges: string[] = [];
       if (rewardResult?.badgeAwarded && resource.badge)

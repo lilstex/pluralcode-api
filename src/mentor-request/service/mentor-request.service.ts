@@ -115,8 +115,7 @@ export class MentorRequestService {
       };
     }
 
-    const frontendUrl =
-      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
     // Target must be an EXPERT
     const mentor = await this.prisma.user.findUnique({
@@ -460,8 +459,7 @@ export class MentorRequestService {
       include: MENTOR_REQUEST_INCLUDE,
     });
 
-    const frontendUrl =
-      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
     // Notify the NGO of the decision
     this.emailService
       .sendMentorRequestDecision({
@@ -520,8 +518,7 @@ export class MentorRequestService {
       };
     }
 
-    const frontendUrl =
-      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
     if (request.status !== MentorRequestStatus.APPROVED) {
       return {

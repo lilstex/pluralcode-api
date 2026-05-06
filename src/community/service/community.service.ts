@@ -1225,7 +1225,7 @@ export class CommunityService {
         likeCount = updated.likeCount;
 
         const frontendUrl =
-          process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+          process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
         // Notify topic author — but not if they liked their own topic
         if (topic.authorId !== userId) {
@@ -1394,7 +1394,7 @@ export class CommunityService {
       });
 
       const frontendUrl =
-        process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+        process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
       // Mentions: use explicit UUID array from frontend typeahead
       const filteredMentions = (dto.mentionedUserIds ?? []).filter(

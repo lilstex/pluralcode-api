@@ -483,7 +483,7 @@ export class UserService {
       });
 
       const frontendUrl =
-        process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+        process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
       const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}&email=${user.email}`;
 
@@ -1244,8 +1244,7 @@ export class UserService {
       };
     }
 
-    const frontendUrl =
-      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
     const result = await this._updateUserStatus(adminId, userId, 'APPROVED');
     if (result.status) {
@@ -1274,8 +1273,7 @@ export class UserService {
       reason,
     );
 
-    const frontendUrl =
-      process.env.FRONTEND_URL ?? 'https://dev-plrcap.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://ngosupporthub.ng';
 
     if (result.status && user) {
       this.notifications
