@@ -9,18 +9,19 @@
 The backend uses **Mailtrap Email Sending** for transactional email via SMTP.
 
 ### Sending Domain
+
 - **Domain:** `ngosupporthub.ng`
 - **Status:** Verified on Mailtrap
 
 ### SMTP Credentials
 
-| Variable | Value |
-|----------|-------|
-| `MAIL_HOST` | `live.smtp.mailtrap.io` |
-| `MAIL_PORT` | `587` |
-| `MAIL_USERNAME` | `api` |
-| `MAIL_PASSWORD` | *(retrieve from Mailtrap Dashboard → Settings → API Tokens)* |
-| `EMAIL_FROM` | `noreply@ngosupporthub.ng` |
+| Variable        | Value                                                        |
+| --------------- | ------------------------------------------------------------ |
+| `MAIL_HOST`     | `live.smtp.mailtrap.io`                                      |
+| `MAIL_PORT`     | `587`                                                        |
+| `MAIL_USERNAME` | `api`                                                        |
+| `MAIL_PASSWORD` | _(retrieve from Mailtrap Dashboard → Settings → API Tokens)_ |
+| `EMAIL_FROM`    | `DoNotReply@ngosupporthub.ng`                                |
 
 > **Note:** `MAIL_PASSWORD` is the Mailtrap API token, not a traditional password. Retrieve it from **Mailtrap → Settings → API Tokens**.
 
@@ -34,22 +35,22 @@ All environment variables are set directly on the Container App — they are **n
 
 ### Current Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `NODE_ENV` | `production` |
-| `PORT` | `2200` |
-| `DATABASE_URL` | PostgreSQL connection string (Azure Flexible Server) |
-| `JWT_SECRET` | Auth token signing secret |
-| `AZURE_STORAGE_CONNECTION_STRING` | Blob/File/Queue/Table storage |
-| `JITSI_APP_ID` | Jitsi Meet app identifier |
-| `JITSI_DOMAIN` | Jitsi Meet domain |
-| `JITSI_USE_RS256` | `false` |
-| `JITSI_APP_SECRET` | Jitsi JWT signing secret |
-| `MAIL_HOST` | `live.smtp.mailtrap.io` |
-| `MAIL_PORT` | `587` |
-| `MAIL_USERNAME` | `api` |
-| `MAIL_PASSWORD` | Mailtrap API token |
-| `EMAIL_FROM` | `noreply@ngosupporthub.ng` |
+| Variable                          | Description                                          |
+| --------------------------------- | ---------------------------------------------------- |
+| `NODE_ENV`                        | `production`                                         |
+| `PORT`                            | `2200`                                               |
+| `DATABASE_URL`                    | PostgreSQL connection string (Azure Flexible Server) |
+| `JWT_SECRET`                      | Auth token signing secret                            |
+| `AZURE_STORAGE_CONNECTION_STRING` | Blob/File/Queue/Table storage                        |
+| `JITSI_APP_ID`                    | Jitsi Meet app identifier                            |
+| `JITSI_DOMAIN`                    | Jitsi Meet domain                                    |
+| `JITSI_USE_RS256`                 | `false`                                              |
+| `JITSI_APP_SECRET`                | Jitsi JWT signing secret                             |
+| `MAIL_HOST`                       | `live.smtp.mailtrap.io`                              |
+| `MAIL_PORT`                       | `587`                                                |
+| `MAIL_USERNAME`                   | `api`                                                |
+| `MAIL_PASSWORD`                   | Mailtrap API token                                   |
+| `EMAIL_FROM`                      | `DoNotReply@ngosupporthub.ng`                        |
 
 ### Updating Environment Variables
 
@@ -98,10 +99,10 @@ az containerapp show \
 
 ### GitHub Secrets Required
 
-| Secret | Description |
-|--------|-------------|
-| `ACR_USERNAME` | ACR admin username (`plrcapregistry`) |
-| `ACR_PASSWORD` | ACR admin password |
+| Secret         | Description                                        |
+| -------------- | -------------------------------------------------- |
+| `ACR_USERNAME` | ACR admin username (`plrcapregistry`)              |
+| `ACR_PASSWORD` | ACR admin password                                 |
 | `DATABASE_URL` | PostgreSQL connection string for Prisma migrations |
 
 > **Important:** Environment variables (Mailtrap, Jitsi, JWT, etc.) are **not** managed through GitHub Secrets. They live on the Container App and are unaffected by CI deployments.
@@ -133,14 +134,14 @@ New revision created → traffic routed (100%)
 
 ## 6. Key Resources
 
-| Resource | Value |
-|----------|-------|
-| Container App URL | `https://plrcap-backend.ambitiousground-313553a9.westeurope.azurecontainerapps.io` |
-| Resource Group | `plrcap-rg` |
-| ACR | `plrcapregistry.azurecr.io` |
-| Region | `West Europe` |
-| Mailtrap Dashboard | `https://mailtrap.io` |
+| Resource           | Value                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| Container App URL  | `https://plrcap-backend.ambitiousground-313553a9.westeurope.azurecontainerapps.io` |
+| Resource Group     | `plrcap-rg`                                                                        |
+| ACR                | `plrcapregistry.azurecr.io`                                                        |
+| Region             | `West Europe`                                                                      |
+| Mailtrap Dashboard | `https://mailtrap.io`                                                              |
 
 ---
 
-*Last updated: March 2026*
+_Last updated: March 2026_
