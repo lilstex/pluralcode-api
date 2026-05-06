@@ -466,7 +466,8 @@ export class UserService {
         return {
           status: true,
           statusCode: HttpStatus.OK,
-          message: 'If this email is registered, a reset link has been sent.',
+          message:
+            'If an account with that email exists, a password reset link has been sent. Please check your inbox and spam folder.',
         };
       }
 
@@ -495,7 +496,8 @@ export class UserService {
       return {
         status: true,
         statusCode: HttpStatus.OK,
-        message: 'If this email is registered, a reset link has been sent.',
+        message:
+          'If an account with that email exists, a password reset link has been sent. Please check your inbox and spam folder.',
       };
     } catch (error) {
       this.logger.error('forgotPassword error', error);

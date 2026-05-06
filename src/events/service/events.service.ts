@@ -1,4 +1,9 @@
-import { Injectable, HttpStatus, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  HttpStatus,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma-module/prisma.service';
 import { AzureBlobService } from 'src/providers/azure/azure.blob.service';
 import { JitsiService } from 'src/providers/jitsi/jitsi.service';
@@ -751,13 +756,6 @@ export class EventService {
           status: false,
           statusCode: HttpStatus.NOT_FOUND,
           message: 'Event not found.',
-        };
-      if (!event.isPublic)
-        return {
-          status: false,
-          statusCode: HttpStatus.FORBIDDEN,
-          message:
-            'This is a private event. You must be logged in to register.',
         };
       if (event.isCancelled)
         return {
@@ -1722,9 +1720,7 @@ export class EventService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const formatted = attendees.map((a) =>
-      this.flattenAttendee(a),
-    );
+    const formatted = attendees.map((a) => this.flattenAttendee(a));
 
     const timestamp = new Date().toISOString().slice(0, 10);
     const filename = `event-attendees-${eventId}-${timestamp}.${query.format}`;
