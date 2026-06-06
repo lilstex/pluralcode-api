@@ -1,14 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma-module/prisma.service';
+import { RewardDto } from '../dto/reward.dto';
 
 export interface AwardRewardInput {
   userId: string;
   points: number;
   title: string;
   description: string;
-  /** If provided, this specific badge is awarded (resource flow) */
   badgeId?: string;
-  /** If true, pick the first badge from the catalogue (profile completion flow) */
   useFirstBadge?: boolean;
 }
 
@@ -45,7 +44,7 @@ export class RewardsService {
       });
       if (!user) return null;
 
-      // ── Resolve which badge to award ─────────────────────────────────────
+      // Resolve which badge to award
       let resolvedBadgeId: string | null = null;
 
       if (input.badgeId) {
@@ -65,7 +64,7 @@ export class RewardsService {
       const badgeToConnect =
         resolvedBadgeId && !alreadyHasBadge ? resolvedBadgeId : null;
 
-      // ── Build user update payload ─────────────────────────────────────────
+      // Build user update payload
       const userUpdateData: any =
         input.points > 0 ? { pointsCount: { increment: input.points } } : {};
 
@@ -73,7 +72,7 @@ export class RewardsService {
         userUpdateData.badges = { connect: { id: badgeToConnect } };
       }
 
-      // ── Transact: update user + create achievement ────────────────────────
+      // Transact: update user + create achievement
       const [updatedUser, achievement] = await this.prisma.$transaction([
         this.prisma.user.update({
           where: { id: input.userId },
@@ -99,6 +98,65 @@ export class RewardsService {
       };
     } catch (error) {
       this.logger.error('RewardsService.award error', error);
+      return null;
+    }
+  }
+
+  async awardBadge(dto: RewardDto) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: dto.userId },
+        include: { badges: { select: { id: true } } },
+      });
+      if (!user) return null;
+
+      // Check if badge exists
+      const badge = await this.prisma.badge.findUnique({
+        where: { id: dto.badgeId },
+        select: { id: true },
+      });
+      if (!badge) return null;
+
+      const alreadyHasBadge = user.badges.some((b) => b.id === badge.id);
+      const badgeToConnect = !alreadyHasBadge ? badge.id : null;
+
+      // Normalize points
+      const points = dto.points ?? 0;
+
+      // Build user update payload
+      const userUpdateData: any =
+        points > 0 ? { pointsCount: { increment: points } } : {};
+
+      if (badgeToConnect) {
+        userUpdateData.badges = { connect: { id: badgeToConnect } };
+      }
+
+      // Transact: update user + create achievement
+      const [updatedUser, achievement] = await this.prisma.$transaction([
+        this.prisma.user.update({
+          where: { id: dto.userId },
+          data: Object.keys(userUpdateData).length > 0 ? userUpdateData : {},
+          select: { pointsCount: true },
+        }),
+        this.prisma.achievement.create({
+          data: {
+            userId: dto.userId,
+            title: dto.title,
+            description: dto.description,
+            points,
+            badgeId: badgeToConnect ?? null,
+          },
+        }),
+      ]);
+
+      return {
+        pointsEarned: points,
+        totalPoints: updatedUser.pointsCount,
+        badgeAwarded: badgeToConnect,
+        achievementId: achievement.id,
+      };
+    } catch (error) {
+      this.logger.error('Award badge error', error);
       return null;
     }
   }

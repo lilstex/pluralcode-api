@@ -18,6 +18,7 @@ import { RedisModule } from './providers/redis/redis.module';
 import { PrismaModule } from './prisma-module/prisma.module';
 import { ContactModule } from './contact/contact.module';
 import { UploadsModule } from './upload/module';
+import { RewardsModule } from './reward/reward.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { UploadsModule } from './upload/module';
     RedisModule,
     ContactModule,
     UploadsModule,
+    RewardsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
