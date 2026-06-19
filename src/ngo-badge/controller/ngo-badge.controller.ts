@@ -52,6 +52,43 @@ export class NgoBadgeController {
     summary:
       'List the three badge levels with their images — for the award dropdown.',
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Badge levels retrieved.',
+    schema: {
+      example: {
+        status: true,
+        statusCode: 200,
+        message: 'Badge levels retrieved.',
+        data: [
+          {
+            level: 'LEVEL_1',
+            title: 'PLRCAP Registered Active Member',
+            description:
+              'This entry-level badge is awarded to organizations that have demonstrated ongoing interest and involvement in NGO capacity development.',
+            imageUrl:
+              'https://plrcapstorage.blob.core.windows.net/avatars/d2326795-6a16-4484-ac34-c90793bcc263.png',
+          },
+          {
+            level: 'LEVEL_2',
+            title: 'PLRCAP Programme Graduate',
+            description:
+              'This badge indicates a deeper level of engagement and commitment to institutional strengthening.',
+            imageUrl:
+              'hhttps://plrcapstorage.blob.core.windows.net/avatars/d2326795-6a16-4484-ac34-c90793bcc263.png',
+          },
+          {
+            level: 'LEVEL_3',
+            title: 'PLRCAP Gold Verified Organisation',
+            description:
+              'This highest-level badge reflects a strong track record of credibility, operational maturity, and impact.',
+            imageUrl:
+              'https://plrcapstorage.blob.core.windows.net/avatars/d2326795-6a16-4484-ac34-c90793bcc263.png',
+          },
+        ],
+      },
+    },
+  })
   listLevels() {
     return this.ngoBadgeService.listLevels();
   }
@@ -59,6 +96,17 @@ export class NgoBadgeController {
   @Post('recompute')
   @ApiOperation({
     summary: 'Manually trigger the badge suggestion recompute (testing/ops).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Badge levels retrieved.',
+    schema: {
+      example: {
+        status: true,
+        statusCode: 200,
+        message: 'Recompute complete.',
+      },
+    },
   })
   async recompute() {
     await this.recomputeService.recomputeAll();
@@ -166,6 +214,23 @@ export class NgoBadgeController {
   @ApiOperation({
     summary: 'Accept a recommendation and award the suggested next level.',
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Badge levels retrieved.',
+    schema: {
+      example: {
+        status: true,
+        statusCode: 200,
+        message: 'Badge level set to LEVEL_1.',
+        data: {
+          id: 'dc9b08bd-17bd-4e78-9b17-2c4e98af9c40',
+          name: 'Enlightenment Agency',
+          badgeLevel: 'LEVEL_1',
+          badgeLevelAssignedAt: '2026-06-19T13:24:34.389Z',
+        },
+      },
+    },
+  })
   acceptRecommendation(
     @CurrentUser() admin: any,
     @Param('orgId', ParseUUIDPipe) orgId: string,
@@ -192,6 +257,23 @@ export class NgoBadgeController {
   @ApiOperation({
     summary:
       'Manually award an NGO badge level (any level, regardless of eligibility).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Badge levels retrieved.',
+    schema: {
+      example: {
+        status: true,
+        statusCode: 200,
+        message: 'Badge level set to LEVEL_2.',
+        data: {
+          id: 'dc9b08bd-17bd-4e78-9b17-2c4e98af9c40',
+          name: 'Enlightenment Agency',
+          badgeLevel: 'LEVEL_2',
+          badgeLevelAssignedAt: '2026-06-19T13:01:32.919Z',
+        },
+      },
+    },
   })
   assignLevel(
     @CurrentUser() admin: any,
