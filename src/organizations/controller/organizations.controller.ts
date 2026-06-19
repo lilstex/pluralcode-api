@@ -87,6 +87,12 @@ export class OrganizationController {
   @ApiQuery({ name: 'state', required: false, example: 'Lagos' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({
+    name: 'level',
+    required: false,
+    enum: ['LEVEL_1', 'LEVEL_2', 'LEVEL_3', 'NONE'],
+    description: 'Filter by badge level',
+  })
   @ApiResponse({
     status: 200,
     type: OrganizationSummaryResponseDto,

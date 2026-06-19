@@ -9,8 +9,17 @@ import {
   Min,
   Max,
   IsBoolean,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { OrgBadgeLevel } from '@prisma/client';
+
+export const ORG_BADGE_FILTERS = [
+  OrgBadgeLevel.LEVEL_1,
+  OrgBadgeLevel.LEVEL_2,
+  OrgBadgeLevel.LEVEL_3,
+  'NONE',
+] as const;
 
 // ─────────────────────────────────────────────
 // ORGANIZATION CORE DTOs
@@ -362,6 +371,14 @@ export class OrgQueryDto {
   @ApiPropertyOptional({ example: 20 })
   @IsOptional()
   limit?: number;
+
+  @ApiPropertyOptional({
+    enum: ORG_BADGE_FILTERS,
+    description: "Filter by badge level. Use 'NONE' for NGOs with no badge.",
+  })
+  @IsOptional()
+  @IsIn(ORG_BADGE_FILTERS as unknown as string[])
+  level?: OrgBadgeLevel | 'NONE';
 }
 
 // ─────────────────────────────────────────────

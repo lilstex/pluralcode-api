@@ -19,6 +19,7 @@ import { PrismaModule } from './prisma-module/prisma.module';
 import { ContactModule } from './contact/contact.module';
 import { UploadsModule } from './upload/module';
 import { RewardsModule } from './reward/reward.module';
+import { NgoBadgeModule } from './ngo-badge/ngo-badge.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { RewardsModule } from './reward/reward.module';
     ContactModule,
     UploadsModule,
     RewardsModule,
+    NgoBadgeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

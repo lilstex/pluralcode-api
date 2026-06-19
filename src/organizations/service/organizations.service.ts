@@ -23,39 +23,11 @@ import {
   otpExpiresAt,
 } from 'src/util/helper';
 import { RewardsService } from 'src/reward/service/reward.service';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PROFILE COMPLETION HELPER
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ORG_SCALAR_FIELDS = [
-  'name',
-  'acronym',
-  'phoneNumber',
-  'publicEmail',
-  'state',
-  'lga',
-  'address',
-  'description',
-  'logoUrl',
-  'mission',
-  'vision',
-  'numberOfStaff',
-  'numberOfVolunteers',
-  'annualBudget',
-] as const;
-
-function calcOrgCompletion(org: any): number {
-  const totalFields = ORG_SCALAR_FIELDS.length + 2; // +sectors +socials
-  const filled =
-    ORG_SCALAR_FIELDS.filter((k) => {
-      const v = org[k];
-      return v !== null && v !== undefined && v !== '';
-    }).length +
-    (Array.isArray(org.sectors) && org.sectors.length > 0 ? 1 : 0) +
-    (Array.isArray(org.socials) && (org.socials as any[]).length > 0 ? 1 : 0);
-  return Math.round((filled / totalFields) * 100);
-}
+import { calcOrgCompletion } from '../utils/org-completion.util';
+import {
+  buildOrgBadgeView,
+  earnedLevelsUpTo,
+} from 'src/ngo-badge/utils/org-badge-level.meta';
 
 const ORG_COMPLETE_THRESHOLD = 80;
 const ORG_COMPLETE_TITLE = 'Organization Profile Completed';
@@ -118,6 +90,7 @@ const ORG_SUMMARY_SELECT = {
   isLocalOrNational: true,
   annualBudget: true,
   createdAt: true,
+  badgeLevel: true,
 } as const;
 
 // Member include — reused by membership methods
@@ -156,7 +129,10 @@ export class OrganizationService {
     try {
       const org = await this.prisma.organization.findUnique({
         where: { userId },
-        include: ORG_FULL_INCLUDE,
+        include: {
+          ...ORG_FULL_INCLUDE,
+          badgeHistory: { orderBy: { createdAt: 'asc' } },
+        },
       });
 
       if (!org) {
@@ -171,7 +147,13 @@ export class OrganizationService {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Organization retrieved.',
-        data: { ...org, profileCompletion: calcOrgCompletion(org) },
+        data: {
+          ...org,
+          profileCompletion: calcOrgCompletion(org),
+          badge: buildOrgBadgeView(org.badgeLevel),
+          earnedLevels: earnedLevelsUpTo(org.badgeLevel),
+          badgeHistory: org.badgeHistory,
+        },
       };
     } catch (error) {
       this.logger.error('getMyOrganization error', error);
@@ -190,7 +172,10 @@ export class OrganizationService {
     try {
       const org = await this.prisma.organization.findUnique({
         where: { id },
-        include: ORG_FULL_INCLUDE,
+        include: {
+          ...ORG_FULL_INCLUDE,
+          badgeHistory: { orderBy: { createdAt: 'asc' } },
+        },
       });
 
       if (!org) {
@@ -205,7 +190,13 @@ export class OrganizationService {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Organization retrieved.',
-        data: { ...org, profileCompletion: calcOrgCompletion(org) },
+        data: {
+          ...org,
+          profileCompletion: calcOrgCompletion(org),
+          badge: buildOrgBadgeView(org.badgeLevel),
+          earnedLevels: earnedLevelsUpTo(org.badgeLevel),
+          badgeHistory: org.badgeHistory,
+        },
       };
     } catch (error) {
       this.logger.error('getOrganizationById error', error);
@@ -241,6 +232,11 @@ export class OrganizationService {
           { acronym: { contains: query.search, mode: 'insensitive' } },
           { cacNumber: { contains: query.search, mode: 'insensitive' } },
         ];
+      }
+
+      if (query.level) {
+        // 'NONE' → orgs with no badge level; otherwise an exact match.
+        where.badgeLevel = query.level === 'NONE' ? null : query.level;
       }
 
       const [orgs, total] = await this.prisma.$transaction([

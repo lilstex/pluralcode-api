@@ -124,7 +124,15 @@ model Organization {
   spotlightEntries          SpotlightEntry[]
   spotlightHistory          SpotlightHistory[]
 
+  badgeLevel               OrgBadgeLevel?
+  badgeLevelAssignedAt     DateTime?
+  badgeLevelAssignedById   String?
+  dismissedSuggestionLevel Int?
+  badgeHistory             OrganizationBadgeHistory[]
+  suggestedLevel           OrgBadgeLevel?
+
   @@index([state])
+  @@index([suggestedLevel])
 }
 
 model OrganizationMember {
@@ -185,6 +193,19 @@ model OrganizationAssessment {
   @@index([organizationId])
 }
 
+model OrganizationBadgeHistory {
+  id           String         @id @default(uuid())
+  orgId        String
+  level        OrgBadgeLevel?
+  assignedById String?
+  note         String?        @db.Text
+  createdAt    DateTime       @default(now())
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([level])
+}
+
 model AdminPermission {
   id          String   @id @default(uuid())
   userId      String   @unique
@@ -201,7 +222,7 @@ model AuditLog {
   details   Json?
   adminId   String?
   createdAt DateTime @default(now())
-  admin     User?     @relation(fields: [adminId], references: [id])
+  admin     User?    @relation(fields: [adminId], references: [id])
 }
 
 model ODAPillar {
@@ -933,4 +954,10 @@ enum NotificationType {
   ACHIEVEMENT_EARNED
   ODA_ASSESSMENT_COMPLETED
   SYSTEM_ANNOUNCEMENT
+}
+
+enum OrgBadgeLevel {
+  LEVEL_1
+  LEVEL_2
+  LEVEL_3
 }
