@@ -23,9 +23,9 @@ const LEVEL_RANK: Record<OrgBadgeLevel, number> = {
 };
 const CHUNK = 1000;
 
-export const TEST_FORCE_LEVEL_1_ORG_IDS: string[] = [
-  'dc9b08bd-17bd-4e78-9b17-2c4e98af9c40',
-];
+// export const TEST_FORCE_LEVEL_1_ORG_IDS: string[] = [
+//   'dc9b08bd-17bd-4e78-9b17-2c4e98af9c40',
+// ];
 
 @Injectable()
 export class NgoBadgeRecomputeService {
@@ -156,15 +156,15 @@ export class NgoBadgeRecomputeService {
     await this.applyUpdates(OrgBadgeLevel.LEVEL_2, toLevel2);
     await this.applyUpdates(null, toNull);
 
-    if (TEST_FORCE_LEVEL_1_ORG_IDS.length > 0) {
-      const forced = await this.prisma.organization.updateMany({
-        where: { id: { in: TEST_FORCE_LEVEL_1_ORG_IDS }, badgeLevel: null },
-        data: { suggestedLevel: OrgBadgeLevel.LEVEL_1 },
-      });
-      this.logger.warn(
-        `[TEST] Forced Level-1 suggestion on ${forced.count} org(s): ${TEST_FORCE_LEVEL_1_ORG_IDS.join(', ')}`,
-      );
-    }
+    // if (TEST_FORCE_LEVEL_1_ORG_IDS.length > 0) {
+    //   const forced = await this.prisma.organization.updateMany({
+    //     where: { id: { in: TEST_FORCE_LEVEL_1_ORG_IDS }, badgeLevel: null },
+    //     data: { suggestedLevel: OrgBadgeLevel.LEVEL_1 },
+    //   });
+    //   this.logger.warn(
+    //     `[TEST] Forced Level-1 suggestion on ${forced.count} org(s): ${TEST_FORCE_LEVEL_1_ORG_IDS.join(', ')}`,
+    //   );
+    // }
     // ===== END TEST ONLY =====
 
     this.logger.log(

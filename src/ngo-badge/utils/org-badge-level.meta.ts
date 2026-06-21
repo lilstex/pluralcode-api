@@ -128,6 +128,46 @@ export function buildOrgBadgeView(
   };
 }
 
+export interface OrgBadgeSummary {
+  level: OrgBadgeLevel | null;
+  hasBadge: boolean;
+  title: string | null;
+  description: string | null;
+  imageUrl: string | null;
+}
+
+/**
+ * Lightweight badge object for list / directory responses.
+ *
+ * Same identity fields as buildOrgBadgeView (level, title, description,
+ * imageUrl) but WITHOUT the per-row dashboardMessage / disclaimer copy — those
+ * are constant across every org and are better fetched once from
+ * GET /ngo-badges/levels/metadata than repeated on every item in a paginated
+ * list. Returns a "blank badge" shape (imageUrl null) when the org has no level.
+ */
+export function buildOrgBadgeSummary(
+  level: OrgBadgeLevel | null | undefined,
+): OrgBadgeSummary {
+  if (!level) {
+    return {
+      level: null,
+      hasBadge: false,
+      title: null,
+      description: null,
+      imageUrl: null,
+    };
+  }
+
+  const meta = ORG_BADGE_LEVEL_META[level];
+  return {
+    level,
+    hasBadge: true,
+    title: meta.title,
+    description: meta.description,
+    imageUrl: resolveBadgeImageUrl(level),
+  };
+}
+
 /**
  * Static metadata for all three levels — for the public
  * GET /ngo-badges/levels/metadata endpoint (badge popup / legend).

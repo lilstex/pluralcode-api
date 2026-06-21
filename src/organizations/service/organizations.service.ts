@@ -25,6 +25,7 @@ import {
 import { RewardsService } from 'src/reward/service/reward.service';
 import { calcOrgCompletion } from '../utils/org-completion.util';
 import {
+  buildOrgBadgeSummary,
   buildOrgBadgeView,
   earnedLevelsUpTo,
 } from 'src/ngo-badge/utils/org-badge-level.meta';
@@ -250,12 +251,17 @@ export class OrganizationService {
         this.prisma.organization.count({ where }),
       ]);
 
+      const organizations = orgs.map((org) => ({
+        ...org,
+        badge: buildOrgBadgeSummary(org.badgeLevel),
+      }));
+
       return {
         status: true,
         statusCode: HttpStatus.OK,
         message: 'Organizations retrieved.',
         data: {
-          organizations: orgs,
+          organizations,
           total,
           page,
           limit,

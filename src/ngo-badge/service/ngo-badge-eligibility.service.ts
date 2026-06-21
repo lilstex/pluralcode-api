@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { FormStatus, OrgBadgeLevel } from '@prisma/client';
 import { PrismaService } from 'src/prisma-module/prisma.service';
 import { calcOrgCompletion } from 'src/organizations/utils/org-completion.util';
-import { TEST_FORCE_LEVEL_1_ORG_IDS } from './ngo-badge-compute.service';
+// import { TEST_FORCE_LEVEL_1_ORG_IDS } from './ngo-badge-compute.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NGO BADGE — ELIGIBILITY (automated tracking)
@@ -210,9 +210,9 @@ export class NgoBadgeEligibilityService {
     // currentRank === 2 → next is L3, which is manual verification, not a suggestion.
 
     // ===== TEST ONLY — REMOVE BEFORE PRODUCTION =====
-    if (TEST_FORCE_LEVEL_1_ORG_IDS.includes(orgId) && currentLevel === null) {
-      suggestedLevel = OrgBadgeLevel.LEVEL_1;
-    }
+    // if (TEST_FORCE_LEVEL_1_ORG_IDS.includes(orgId) && currentLevel === null) {
+    //   suggestedLevel = OrgBadgeLevel.LEVEL_1;
+    // }
     // ===== END TEST ONLY =====
 
     return {
